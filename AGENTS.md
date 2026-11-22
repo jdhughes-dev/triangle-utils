@@ -125,9 +125,20 @@ pull request that adds it.
 - **Formatting:** clang-format formats the C++ and ruff the Python, and
   codespell checks spelling, once their configuration is added; then run the
   check before each commit, as in gridgen.
-- **Comments and documentation:** keep code comments and docstrings short,
-  stating what a function does; put the reason, when one is needed, in an
-  inline comment.
+- **Comments:** keep code comments as short as possible. A function's
+  comment says what it does in one phrase, with at most one more short
+  sentence; it does not narrate how or why. When a reason is needed, put it
+  in a short inline comment in the body. Leave out asides, cross-references,
+  and lists of cases; detail belongs in `README.md` and the API
+  documentation.
+- **Constants:** name a constant for what it holds, not for the code that
+  uses it; where it combines with another value to make a number a user
+  sees, state the product in a comment.
+- **Python:** a module docstring is a one-line purpose and one or two
+  sentences of context; a test module adds a `Cases:` list with one or two
+  lines per case, stating what each case does and its expected outcome.
+- **Documentation:** `README.md` and pull request text state what changed
+  and what it means for a user, in as few sentences as possible.
 - **Branching:** `origin` is `jdhughes-dev/triangle-utils`, the repository
   of record until it moves to MODFLOW-ORG; then `origin` is the fork and
   `upstream` is `MODFLOW-ORG/triangle-utils`. Cut each branch from an
@@ -135,8 +146,16 @@ pull request that adds it.
   not a fork's, for the state of the repository.
 - **Commit messages:** conventional commits (`fix:`, `feat:`, `refactor:`,
   `test:`, `docs:`, `ci:`, `chore:`), kept concise: an imperative, lowercase
-  subject and a body that contrasts the previous and new behavior. A pull
-  request is squash merged, so its title is the commit subject.
+  subject with no trailing period, and a body that contrasts the previous
+  and new behavior. A pull request is squash merged, so its title is the
+  commit subject.
+- **Attribution:** the author of a commit, pull request, issue, or comment
+  is its human author. Do not add a `Co-Authored-By` trailer, a "Generated
+  with" footer, or other tool attribution.
+- **Issues:** every change has an issue. Lead with the problem, where it
+  is, and how it shows up; put logs and links below. Correct an issue with a
+  follow-up comment rather than a silent edit. An issue that depends on
+  another says so (`Depends on #n`).
 - **Pull requests:** one issue per pull request. The description is one to
   three sentences, or a few terse bullets, saying what was wrong and what
   changed. Put what a reviewer needs beyond that (edge cases, numbers, what
