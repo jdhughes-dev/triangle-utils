@@ -58,8 +58,36 @@ pull request that adds it.
   terms apply to it: it is distributed only free of charge, with the source
   available and Triangle's copyright notice; distribution as part of a
   commercial system needs an arrangement with Triangle's author. The
-  command-line program prints Triangle's copyright notice with
-  `--license`, since the library has no `triangle -h` to print it.
+  command-line program prints Triangle's copyright notice and terms with
+  `--license` (see Command line), since the library has no `triangle -h` to
+  print it.
+
+## Versioning
+
+- **Semantic versioning:** `MAJOR.MINOR.PATCH`, set once in `project()` in
+  `meson.build`; `pixi.toml` carries the same version. Releases are tagged
+  `v<version>`. The first release is `0.1.0`.
+- **What changes the version:** before `1.0.0`, a minor release may change
+  the C API or the command line incompatibly. From `1.0.0` on, an
+  incompatible change to the C API, its ABI, or the command line is a major
+  release; a compatible addition is a minor release; a fix is a patch
+  release. The shared library's `soversion` is the major version.
+- **Reporting:** the C API returns the triangle-utils version, Triangle's
+  version (`triangle_version()`), and the MODFLOW-ORG/triangle release it
+  was built with (`triangle_release_version()`). The public header also
+  defines the version as macros, so a caller can check it at compile time.
+
+## Command line
+
+- **Form:** `triangle-utils <command> [options]`, with one command per
+  utility (`refine`, `improve`, `voronoi`).
+- **Information:** `-h` and `--help`, for the program and for each command;
+  `--version`, which prints the triangle-utils version, Triangle's version,
+  and the MODFLOW-ORG/triangle release; and `--license`, which prints the
+  CC0 notice and Triangle's copyright and terms (`triangle_copyright()`).
+- **Exit status:** 0 on success, 1 on an error, and 2 on a usage error.
+  Write errors to standard error and results to the named files or
+  standard output.
 
 ## Conventions and guardrails
 
