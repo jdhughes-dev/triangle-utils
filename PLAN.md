@@ -7,26 +7,28 @@ and update it in the pull request that changes the plan.
 
 ## First release (0.1.0)
 
-In this order; each issue depends on those before it (see its `Depends on`
-lines). Done: #2 (build), #3 (CI).
+Every open issue, in this order; each depends only on those before it
+(see its `Depends on` lines and comments). Done: #2 (build), #3 (CI).
 
 1. #4 core mesh type and property checks
 2. #5 C API skeleton and ctypes tests
 3. #6 Triangle files and the command-line program
 4. #11 generate a mesh from geometry
 5. #7 refine
-6. #9 Voronoi and DISV
-7. #13 DISU connection data
-8. #19 layers, DISV and DISU output
-9. #18 model checks with MODFLOW 6, MODFLOW-USG, and MODFLOW-USG-Transport
-10. #21 user guide, then #24 release notes and #22 Read the Docs
-11. #10 release and conda-forge package
-
-## Later minor releases
-
-#8 (move vertices), #12 (features to cells), #14 (grid quality), #15
-(structured grids, merging, field refinement), #20 (refinement by layer),
-and #23 (ghost-node correction).
+6. #8 improve by moving vertices
+7. #9 Voronoi and DISV
+8. #12 map lines and boundaries to cells
+9. #13 DISU connection data
+10. #19 layers, DISV and DISU output
+11. #23 ghost-node correction
+12. #14 grid quality report
+13. #18 model checks with MODFLOW 6, MODFLOW-USG, and MODFLOW-USG-Transport
+14. #20 different refinement by layer
+15. #15 structured grids, merging cells, and refinement by a field
+16. #21 user guide
+17. #22 Read the Docs
+18. #24 release notes
+19. #10 release and conda-forge package
 
 ## Triangle
 
@@ -65,11 +67,6 @@ and #23 (ghost-node correction).
 
 ## Open questions
 
-- **Scope of the first release:** #10 leaves #8, #14, and #23 to later
-  releases, but #18 (cases with GNC, #23) and #21 (the quality report, #14,
-  moving vertices, #8, and GNC run times) need them. Either move #8, #14,
-  and #23 before #18, or leave those parts of #18 and #21 to the release
-  that adds them.
 - **Triangle's error text:** Triangle prints the reason for an error on
   standard output, so the C API's last-error message (#5) cannot include
   it without a change to Triangle. Decide in #5.
