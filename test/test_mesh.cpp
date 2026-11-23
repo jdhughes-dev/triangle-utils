@@ -112,6 +112,50 @@ TEST(Mesh, RefinedByTriangle)
     EXPECT_NO_THROW(check_triangles(refined));
     EXPECT_NO_THROW(check_neighbors(refined));
     EXPECT_NEAR(total_area(refined), 1.0, 1e-12);
+    for (double attribute : refined.triangle_attributes)
+    {
+        EXPECT_EQ(attribute, 7.0);
+    }
+    // every segment stays on the square's boundary
+    ASSERT_EQ(refined.segment_markers.size(), refined.segments.size());
+    for (const auto & segment : refined.segments)
+    {
+        const auto & start = refined.vertices[segment[0]];
+        const auto & end = refined.vertices[segment[1]];
+        bool on_side = (start.x == end.x && (start.x == 0.0 || start.x == 1.0)) ||
+                       (start.y == end.y && (start.y == 0.0 || start.y == 1.0));
+        EXPECT_TRUE(on_side) << "segment from (" << start.x << ", " << start.y << ")";
+    }
+}
+
+TEST(Mesh, ToTriangulateioPointsIntoTheMesh)
+{
+    Mesh mesh = unit_square_mesh();
+    triangulateio view = to_triangulateio(mesh);
+    EXPECT_EQ(view.pointlist, &mesh.vertices[0].x);
+    EXPECT_EQ(view.trianglelist, mesh.triangles[0].data());
+    EXPECT_EQ(view.neighborlist, mesh.neighbors[0].data());
+
+    Mesh empty;
+    triangulateio empty_view = to_triangulateio(empty);
+    EXPECT_EQ(empty_view.pointlist, nullptr);
+    EXPECT_EQ(empty_view.trianglelist, nullptr);
+    EXPECT_EQ(empty_view.numberofpoints, 0);
+}
+
+TEST(Mesh, MismatchedSizesAreAnError)
+{
+    Mesh markers = unit_square_mesh();
+    markers.vertex_markers.pop_back();
+    EXPECT_THROW(to_triangulateio(markers), Error);
+
+    Mesh attributes = unit_square_mesh();
+    attributes.triangle_attributes.pop_back();
+    EXPECT_THROW(to_triangulateio(attributes), Error);
+
+    Mesh limits = unit_square_mesh();
+    limits.triangle_area_limits.assign(limits.triangles.size() + 1, 0.01);
+    EXPECT_THROW(to_triangulateio(limits), Error);
 }
 
 TEST(Mesh, ClockwiseTriangleIsAnError)
@@ -127,6 +171,71 @@ TEST(Mesh, MissingNeighborIsAnError)
     auto [triangle, corner] = interior_edge(mesh);
     mesh.neighbors[triangle][corner] = NO_NEIGHBOR;
     EXPECT_THROW(check_neighbors(mesh), Error);
+}
+
+TEST(Mesh, MissingNeighborRowsAreAnError)
+{
+    Mesh mesh = unit_square_mesh();
+    mesh.neighbors.clear();
+    EXPECT_THROW(check_neighbors(mesh), Error);
+}
+
+TEST(Mesh, WrongNeighborIsAnError)
+{
+    Mesh mesh = unit_square_mesh();
+    auto [triangle, corner] = interior_edge(mesh);
+    int right = mesh.neighbors[triangle][corner];
+    mesh.neighbors[triangle][corner] = right == 0 ? 1 : 0;
+    EXPECT_THROW(check_neighbors(mesh), Error);
+}
+
+TEST(Mesh, EdgeSharedByThreeTrianglesIsAnError)
+{
+    Mesh mesh;
+    mesh.vertices = {{0.0, 0.0}, {1.0, 0.0}, {0.0, 1.0}, {0.5, -1.0}, {0.5, 2.0}};
+    mesh.triangles = {{0, 1, 2}, {1, 0, 3}, {0, 1, 4}};
+    mesh.neighbors.assign(3, {NO_NEIGHBOR, NO_NEIGHBOR, NO_NEIGHBOR});
+    EXPECT_THROW(check_neighbors(mesh), Error);
+}
+
+TEST(Mesh, InvalidTriangleOutputIsAnError)
+{
+    double vertices[] = {0.0, 0.0, 1.0, 0.0, 0.0, 1.0};
+    int corners[] = {0, 1, 2};
+    int neighbors[] = {-1, -1, 1};
+    int segments[] = {0, 3};
+    auto valid = [&]()
+    {
+        triangulateio input{};
+        input.pointlist = vertices;
+        input.numberofpoints = 3;
+        input.trianglelist = corners;
+        input.numberoftriangles = 1;
+        input.numberofcorners = 3;
+        return input;
+    };
+    EXPECT_NO_THROW(from_triangulateio(valid()));
+
+    triangulateio six_corners = valid();
+    six_corners.numberofcorners = 6;
+    EXPECT_THROW(from_triangulateio(six_corners), Error);
+
+    triangulateio no_array = valid();
+    no_array.trianglelist = nullptr;
+    EXPECT_THROW(from_triangulateio(no_array), Error);
+
+    triangulateio negative_count = valid();
+    negative_count.numberofpoints = -1;
+    EXPECT_THROW(from_triangulateio(negative_count), Error);
+
+    triangulateio neighbor_out_of_range = valid();
+    neighbor_out_of_range.neighborlist = neighbors;
+    EXPECT_THROW(from_triangulateio(neighbor_out_of_range), Error);
+
+    triangulateio segment_out_of_range = valid();
+    segment_out_of_range.segmentlist = segments;
+    segment_out_of_range.numberofsegments = 1;
+    EXPECT_THROW(from_triangulateio(segment_out_of_range), Error);
 }
 
 TEST(Mesh, VertexOutOfRangeIsAnError)

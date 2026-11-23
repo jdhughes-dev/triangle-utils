@@ -30,10 +30,12 @@ struct Mesh
     std::vector<int> vertex_markers;
     // corners of each triangle, counterclockwise
     std::vector<std::array<int, 3>> triangles;
-    // attributes of each triangle, triangle_attribute_count values per
-    // triangle, such as a region attribute
+    // number of attributes of each triangle, such as a region attribute
     int triangle_attribute_count = 0;
+    // triangle_attribute_count values for each triangle in turn
     std::vector<double> triangle_attributes;
+    // an area limit for each triangle, for refinement (r and a), or empty
+    std::vector<double> triangle_area_limits;
     // for each triangle, the neighbor opposite each corner, or NO_NEIGHBOR,
     // or empty
     std::vector<std::array<int, 3>> neighbors;
@@ -42,8 +44,8 @@ struct Mesh
     std::vector<int> segment_markers;
 };
 
-// A triangulateio for Triangle's output, whose arrays are freed when it goes
-// out of scope.
+// A triangulateio for Triangle's output, or its Voronoi output, whose arrays
+// are freed when it goes out of scope.
 class TriangleOutput
 {
 public:
@@ -62,9 +64,13 @@ private:
 // Copy a mesh from Triangle's output, which must be numbered from zero (z).
 Mesh from_triangulateio(const triangulateio & triangle_mesh);
 
-// A triangulateio that points into the mesh's arrays, for Triangle's input;
-// valid while the mesh is unchanged.
+// A triangulateio that points into the mesh's arrays, for Triangle's input
+// with the z switch; valid while the mesh is unchanged.
 triangulateio to_triangulateio(Mesh & mesh);
+
+// Throw Error if an array's size does not match the vertex, triangle, or
+// segment count, or a count does not fit Triangle's int.
+void check_sizes(const Mesh & mesh);
 
 // Signed area of a triangle; positive when its corners are counterclockwise.
 double signed_area(const Mesh & mesh, std::size_t triangle);
@@ -72,13 +78,13 @@ double signed_area(const Mesh & mesh, std::size_t triangle);
 // Sum of the triangle areas.
 double total_area(const Mesh & mesh);
 
-// Throw Error if a triangle is not counterclockwise, has a zero area, or
-// refers to a vertex that does not exist.
+// Throw Error if a triangle refers to a vertex that does not exist or its
+// area, computed in floating point rather than exactly, is not positive.
 void check_triangles(const Mesh & mesh);
 
-// Throw Error if a triangle's neighbor does not share the edge opposite the
-// corner or does not have the triangle as its neighbor, or if an edge two
-// triangles share has no neighbor.
+// Throw Error if a triangle's neighbor is not the triangle across the edge
+// opposite the corner, or an edge is shared by more than two triangles;
+// assumes check_triangles passes.
 void check_neighbors(const Mesh & mesh);
 
 } // namespace triangle_utils
