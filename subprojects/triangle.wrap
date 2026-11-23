@@ -1,0 +1,9 @@
+[wrap-file]
+directory = triangle-1.6.2
+lead_directory_missing = true
+source_url = https://github.com/MODFLOW-ORG/triangle/releases/download/v1.6.2/triangle_source.zip
+source_filename = triangle-1.6.2-source.zip
+source_hash = 4c2c78c6742b831ec5aca5e5255d33f54d0ffcb3a0c0c49778c5328a715610e0
+
+[provide]
+dependency_names = triangle

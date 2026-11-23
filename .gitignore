@@ -1,5 +1,8 @@
 .pixi/
-bin/
+/bin/
+/include/
+/lib/
 builddir*/
 subprojects/*/
 subprojects/packagecache/
+subprojects/.wraplock

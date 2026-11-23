@@ -8,16 +8,35 @@ command.
 
 ## Quick commands
 
-The build is not set up yet. Pixi will be the canonical workflow and will
-match CI, with `pixi run setup`, `pixi run build`, and `pixi run test` as in
-MODFLOW-ORG/triangle and MODFLOW-ORG/gridgen. Add each command here in the
-pull request that adds it.
+Run from the project root. Pixi is the canonical workflow, as in
+MODFLOW-ORG/triangle and MODFLOW-ORG/gridgen.
+
+- **Configure the build directory:** `pixi run setup`; Meson downloads
+  Triangle and GoogleTest into `subprojects/` on the first run
+- **Build** (installs the version header to `include/`): `pixi run build`
+- **Run the tests:** `pixi run test`; it does not rebuild, so run
+  `pixi run build` first
+- **Remove the build directory:** `pixi run clean`
+- **Build with gcc and g++ from conda-forge** (Linux and Windows):
+  `pixi run -e gcc setup`, and `-e gcc` for the commands above. On macOS
+  use Homebrew gcc, as gridgen's CI does: programs the conda-forge g++
+  builds there link the conda-forge libc++ and corrupt `std::string`.
 
 ## Repository orientation
 
 - `README.md` — what the utilities do, the design, and the license terms.
 - `LICENSE` — CC0 1.0 for the code in this repository; Triangle has its own
   terms (see Licenses below).
+- `meson.build` — the project, its version, and the dependencies;
+  `src/meson.build` generates `triangle_utils_version.h`, the version as
+  macros, from the project version.
+- `subprojects/triangle.wrap` — Triangle from a MODFLOW-ORG/triangle
+  release's source archive, with its hash; `subprojects/gtest.wrap` —
+  GoogleTest from the Meson WrapDB.
+- `test/` — the GoogleTest tests.
+- `bin/`, `lib/`, `include/`, `builddir/`, `.pixi/`, and the downloads in
+  `subprojects/` — disposable build output, installed files, and
+  environment; never edit by hand or commit.
 
 ## Design
 

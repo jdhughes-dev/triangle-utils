@@ -1,0 +1,11 @@
+/* The triangle-utils version. */
+
+#ifndef TRIANGLE_UTILS_VERSION_H
+#define TRIANGLE_UTILS_VERSION_H
+
+#mesondefine TRIANGLE_UTILS_VERSION
+#mesondefine TRIANGLE_UTILS_VERSION_MAJOR
+#mesondefine TRIANGLE_UTILS_VERSION_MINOR
+#mesondefine TRIANGLE_UTILS_VERSION_PATCH
+
+#endif
