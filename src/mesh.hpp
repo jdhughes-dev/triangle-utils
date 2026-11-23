@@ -46,7 +46,7 @@ struct Mesh
 // out of scope.
 class TriangleOutput
 {
-  public:
+public:
     TriangleOutput() = default;
     TriangleOutput(const TriangleOutput &) = delete;
     TriangleOutput & operator=(const TriangleOutput &) = delete;
@@ -55,7 +55,7 @@ class TriangleOutput
     triangulateio & get() { return m_output; }
     const triangulateio & get() const { return m_output; }
 
-  private:
+private:
     triangulateio m_output{};
 };
 

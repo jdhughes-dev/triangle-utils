@@ -3,7 +3,6 @@
 #include "mesh.hpp"
 
 #include <algorithm>
-#include <format>
 #include <map>
 #include <span>
 #include <utility>
@@ -19,18 +18,18 @@ namespace
 // A span over an array Triangle filled, or an empty span when it has none.
 template <typename T> std::span<const T> array_of(const T * array, int count, const char * name)
 {
-    if (count < 0) throw Error(std::format("Triangle's output has a negative {} count", name));
+    if (count < 0) throw Error(message("Triangle's output has a negative ", name, " count"));
     if (count == 0) return {};
     if (array == nullptr)
-        throw Error(std::format("Triangle's output has {} {} values but no array", count, name));
+        throw Error(message("Triangle's output has ", count, " ", name, " values but no array"));
     return {array, static_cast<std::size_t>(count)};
 }
 
 void check_index(int index, std::size_t count, const char * what, std::size_t item)
 {
     if (index < 0 || static_cast<std::size_t>(index) >= count)
-        throw Error(std::format("{} {} refers to vertex {}, but the mesh has {} vertices", what,
-                                item, index, count));
+        throw Error(message(what, " ", item, " refers to vertex ", index, ", but the mesh has ",
+                            count, " vertices"));
 }
 
 } // namespace
@@ -70,8 +69,8 @@ Mesh from_triangulateio(const triangulateio & triangle_mesh)
 
     const int triangle_count = triangle_mesh.numberoftriangles;
     if (triangle_count > 0 && triangle_mesh.numberofcorners != 3)
-        throw Error(std::format("Triangle's output has {} corners per triangle; only 3 are read",
-                                triangle_mesh.numberofcorners));
+        throw Error(message("Triangle's output has ", triangle_mesh.numberofcorners,
+                            " corners per triangle; only 3 are read"));
     auto corners = array_of(triangle_mesh.trianglelist, 3 * triangle_count, "triangle corner");
     mesh.triangles.resize(triangle_count);
     for (int triangle = 0; triangle < triangle_count; triangle++)
@@ -100,9 +99,8 @@ Mesh from_triangulateio(const triangulateio & triangle_mesh)
             {
                 int neighbor = neighbors[3 * triangle + corner];
                 if (neighbor < NO_NEIGHBOR || neighbor >= triangle_count)
-                    throw Error(std::format(
-                        "triangle {} has neighbor {}, but the mesh has {} triangles", triangle,
-                        neighbor, triangle_count));
+                    throw Error(message("triangle ", triangle, " has neighbor ", neighbor,
+                                        ", but the mesh has ", triangle_count, " triangles"));
                 mesh.neighbors[triangle][corner] = neighbor;
             }
         }
@@ -139,7 +137,8 @@ triangulateio to_triangulateio(Mesh & mesh)
     triangulateio triangle_mesh{};
     triangle_mesh.pointlist = mesh.vertices.empty() ? nullptr : &mesh.vertices[0].x;
     triangle_mesh.numberofpoints = static_cast<int>(mesh.vertices.size());
-    triangle_mesh.pointmarkerlist = mesh.vertex_markers.empty() ? nullptr : mesh.vertex_markers.data();
+    triangle_mesh.pointmarkerlist =
+        mesh.vertex_markers.empty() ? nullptr : mesh.vertex_markers.data();
     triangle_mesh.trianglelist = mesh.triangles.empty() ? nullptr : mesh.triangles[0].data();
     triangle_mesh.numberoftriangles = static_cast<int>(mesh.triangles.size());
     triangle_mesh.numberofcorners = 3;
@@ -184,16 +183,16 @@ void check_triangles(const Mesh & mesh)
         }
         double area = signed_area(mesh, triangle);
         if (area <= 0.0)
-            throw Error(std::format("triangle {} is not counterclockwise (signed area {})",
-                                    triangle, area));
+            throw Error(message("triangle ", triangle, " is not counterclockwise (signed area ",
+                                area, ")"));
     }
 }
 
 void check_neighbors(const Mesh & mesh)
 {
     if (mesh.neighbors.size() != mesh.triangles.size())
-        throw Error(std::format("the mesh has neighbors for {} of its {} triangles",
-                                mesh.neighbors.size(), mesh.triangles.size()));
+        throw Error(message("the mesh has neighbors for ", mesh.neighbors.size(), " of its ",
+                            mesh.triangles.size(), " triangles"));
 
     // the triangles on each edge, keyed by its vertices in increasing order
     std::map<std::pair<int, int>, std::vector<int>> edge_triangles;
@@ -218,8 +217,8 @@ void check_neighbors(const Mesh & mesh)
             int second = corners[(corner + 2) % 3];
             const auto & sharing = edge_triangles[std::minmax(first, second)];
             if (sharing.size() > 2)
-                throw Error(std::format("edge {}-{} is shared by {} triangles", first, second,
-                                        sharing.size()));
+                throw Error(message("edge ", first, "-", second, " is shared by ", sharing.size(),
+                                    " triangles"));
             int expected = NO_NEIGHBOR;
             for (int other : sharing)
             {
@@ -227,9 +226,9 @@ void check_neighbors(const Mesh & mesh)
             }
             int neighbor = mesh.neighbors[triangle][corner];
             if (neighbor != expected)
-                throw Error(std::format("triangle {} has neighbor {} opposite corner {}, but the "
-                                        "triangle across that edge is {}",
-                                        triangle, neighbor, corner, expected));
+                throw Error(message("triangle ", triangle, " has neighbor ", neighbor,
+                                    " opposite corner ", corner,
+                                    ", but the triangle across that edge is ", expected));
         }
     }
 }

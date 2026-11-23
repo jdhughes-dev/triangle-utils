@@ -134,8 +134,10 @@ MODFLOW-ORG/triangle and MODFLOW-ORG/gridgen.
 ## Conventions and guardrails
 
 - **Language:** C++20 (`cpp_std=c++20`), limited to `std::span` (for arrays
-  that cross the C API or come from Triangle), `std::format`, designated
-  initializers, `std::numbers`, and concepts where a template needs them.
+  that cross the C API or come from Triangle), designated initializers,
+  `std::numbers`, and concepts where a template needs them. Do not use
+  `std::format`, which the C++ library icpx uses on ubuntu-22.04 (that of
+  gcc 11) does not have; build messages with `message()` in `error.hpp`.
   Do not use modules or coroutines, and keep `std::ranges` to simple uses.
   The C API is plain C.
 - **Testing:** unit tests use GoogleTest through a Meson wrap. Check mesh
