@@ -65,7 +65,8 @@ private:
 Mesh from_triangulateio(const triangulateio & triangle_mesh);
 
 // A triangulateio that points into the mesh's arrays, for Triangle's input
-// with the z switch; valid while the mesh is unchanged.
+// with the z switch; valid while the mesh is unchanged. Throws Error if a
+// size or an index does not fit the mesh.
 triangulateio to_triangulateio(Mesh & mesh);
 
 // Throw Error if an array's size does not match the vertex, triangle, or
@@ -73,9 +74,10 @@ triangulateio to_triangulateio(Mesh & mesh);
 void check_sizes(const Mesh & mesh);
 
 // Signed area of a triangle; positive when its corners are counterclockwise.
+// The triangle and its corners must exist (check_triangles).
 double signed_area(const Mesh & mesh, std::size_t triangle);
 
-// Sum of the triangle areas.
+// Sum of the signed triangle areas; assumes check_triangles passes.
 double total_area(const Mesh & mesh);
 
 // Throw Error if a triangle refers to a vertex that does not exist or its
@@ -83,8 +85,8 @@ double total_area(const Mesh & mesh);
 void check_triangles(const Mesh & mesh);
 
 // Throw Error if a triangle's neighbor is not the triangle across the edge
-// opposite the corner, or an edge is shared by more than two triangles;
-// assumes check_triangles passes.
+// opposite the corner, the two run along the edge the same way, or an edge
+// is shared by more than two triangles; assumes check_triangles passes.
 void check_neighbors(const Mesh & mesh);
 
 } // namespace triangle_utils

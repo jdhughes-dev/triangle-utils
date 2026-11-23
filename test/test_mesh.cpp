@@ -1,6 +1,9 @@
 // Tests the mesh type, its conversion to and from Triangle, and its checks.
 
+#include <cmath>
 #include <cstddef>
+#include <functional>
+#include <string>
 #include <utility>
 
 #include <gtest/gtest.h>
@@ -55,6 +58,20 @@ std::pair<std::size_t, int> interior_edge(const Mesh & mesh)
         }
     }
     throw Error("the mesh has no interior edge");
+}
+
+// The message of the Error an action throws, or an empty string.
+std::string error_message(const std::function<void()> & action)
+{
+    try
+    {
+        action();
+    }
+    catch (const Error & error)
+    {
+        return error.what();
+    }
+    return "";
 }
 
 } // namespace
@@ -128,6 +145,29 @@ TEST(Mesh, RefinedByTriangle)
     }
 }
 
+TEST(Mesh, AreaLimitsRefineEachTriangle)
+{
+    Mesh mesh = unit_square_mesh();
+    constexpr double AREA_LIMIT = 0.002;
+    mesh.triangle_area_limits.assign(mesh.triangles.size(), AREA_LIMIT);
+    Mesh copy = from_triangulateio(to_triangulateio(mesh));
+    EXPECT_EQ(copy.triangle_area_limits, mesh.triangle_area_limits);
+
+    // a with no number takes each triangle's limit
+    triangulateio input = to_triangulateio(mesh);
+    TriangleOutput output;
+    char switches[] = "rpzqanQ";
+    ASSERT_EQ(triangulate_status(switches, &input, &output.get(), nullptr), 0);
+    Mesh refined = from_triangulateio(output.get());
+    EXPECT_GT(refined.triangles.size(), mesh.triangles.size());
+    for (std::size_t triangle = 0; triangle < refined.triangles.size(); triangle++)
+    {
+        EXPECT_LE(triangle_utils::signed_area(refined, triangle), AREA_LIMIT * (1.0 + 1e-12))
+            << "triangle " << triangle;
+    }
+    EXPECT_NEAR(total_area(refined), 1.0, 1e-12);
+}
+
 TEST(Mesh, ToTriangulateioPointsIntoTheMesh)
 {
     Mesh mesh = unit_square_mesh();
@@ -156,6 +196,46 @@ TEST(Mesh, MismatchedSizesAreAnError)
     Mesh limits = unit_square_mesh();
     limits.triangle_area_limits.assign(limits.triangles.size() + 1, 0.01);
     EXPECT_THROW(to_triangulateio(limits), Error);
+
+    Mesh negative = unit_square_mesh();
+    negative.triangle_attribute_count = -1;
+    EXPECT_THROW(to_triangulateio(negative), Error);
+}
+
+TEST(Mesh, IndexOutOfRangeIsAnErrorForTriangle)
+{
+    Mesh vertex = unit_square_mesh();
+    vertex.triangles[0][0] = static_cast<int>(vertex.vertices.size());
+    EXPECT_THROW(to_triangulateio(vertex), Error);
+    EXPECT_THROW(check_triangles(vertex), Error);
+
+    Mesh neighbor = unit_square_mesh();
+    neighbor.neighbors[0][0] = static_cast<int>(neighbor.triangles.size());
+    EXPECT_THROW(to_triangulateio(neighbor), Error);
+}
+
+TEST(Mesh, DegenerateTriangleIsAnError)
+{
+    Mesh zero_area;
+    zero_area.vertices = {{0.0, 0.0}, {1.0, 0.0}, {2.0, 0.0}};
+    zero_area.triangles = {{0, 1, 2}};
+    EXPECT_THROW(check_triangles(zero_area), Error);
+
+    Mesh not_a_number;
+    not_a_number.vertices = {{0.0, 0.0}, {1.0, 0.0}, {std::nan(""), 1.0}};
+    not_a_number.triangles = {{0, 1, 2}};
+    EXPECT_THROW(check_triangles(not_a_number), Error);
+}
+
+TEST(Mesh, OverlappingNeighborsAreAnError)
+{
+    // both triangles lie above the edge from vertex 0 to vertex 1
+    Mesh mesh;
+    mesh.vertices = {{0.0, 0.0}, {1.0, 0.0}, {0.5, 1.0}, {0.4, 0.5}};
+    mesh.triangles = {{0, 1, 2}, {0, 1, 3}};
+    mesh.neighbors = {{NO_NEIGHBOR, NO_NEIGHBOR, 1}, {NO_NEIGHBOR, NO_NEIGHBOR, 0}};
+    ASSERT_NO_THROW(check_triangles(mesh));
+    EXPECT_NE(error_message([&] { check_neighbors(mesh); }).find("overlap"), std::string::npos);
 }
 
 TEST(Mesh, ClockwiseTriangleIsAnError)
@@ -195,7 +275,7 @@ TEST(Mesh, EdgeSharedByThreeTrianglesIsAnError)
     mesh.vertices = {{0.0, 0.0}, {1.0, 0.0}, {0.0, 1.0}, {0.5, -1.0}, {0.5, 2.0}};
     mesh.triangles = {{0, 1, 2}, {1, 0, 3}, {0, 1, 4}};
     mesh.neighbors.assign(3, {NO_NEIGHBOR, NO_NEIGHBOR, NO_NEIGHBOR});
-    EXPECT_THROW(check_neighbors(mesh), Error);
+    EXPECT_NE(error_message([&] { check_neighbors(mesh); }).find("shared by 3"), std::string::npos);
 }
 
 TEST(Mesh, InvalidTriangleOutputIsAnError)
@@ -227,6 +307,10 @@ TEST(Mesh, InvalidTriangleOutputIsAnError)
     triangulateio negative_count = valid();
     negative_count.numberofpoints = -1;
     EXPECT_THROW(from_triangulateio(negative_count), Error);
+
+    triangulateio negative_attributes = valid();
+    negative_attributes.numberoftriangleattributes = -1;
+    EXPECT_THROW(from_triangulateio(negative_attributes), Error);
 
     triangulateio neighbor_out_of_range = valid();
     neighbor_out_of_range.neighborlist = neighbors;

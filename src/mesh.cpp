@@ -29,11 +29,32 @@ std::span<const T> array_of(const T * array, std::int64_t count, const char * na
     return {array, static_cast<std::size_t>(count)};
 }
 
+// the largest vertex, triangle, or segment count whose index products (up
+// to 3 * count) fit Triangle's int
+constexpr std::int64_t MAX_TRIANGLE_COUNT = std::numeric_limits<int>::max() / 3;
+
+void check_count(int count, const char * plural_name)
+{
+    if (count > MAX_TRIANGLE_COUNT)
+        throw Error(message("Triangle's output has ", count, " ", plural_name, "; at most ",
+                            MAX_TRIANGLE_COUNT, " can be read"));
+}
+
 void check_index(int index, std::size_t count, const char * what, std::size_t item)
 {
     if (index < 0 || static_cast<std::size_t>(index) >= count)
         throw Error(message(what, " ", item, " refers to vertex ", index, ", but the mesh has ",
                             count, " vertices"));
+}
+
+// Whether a triangle's corners include the edge from start to end, in order.
+bool has_directed_edge(const std::array<int, 3> & corners, int start, int end)
+{
+    for (int corner = 0; corner < 3; corner++)
+    {
+        if (corners[corner] == start && corners[(corner + 1) % 3] == end) return true;
+    }
+    return false;
 }
 
 } // namespace
@@ -59,6 +80,7 @@ Mesh from_triangulateio(const triangulateio & triangle_mesh)
 {
     Mesh mesh;
     const int vertex_count = triangle_mesh.numberofpoints;
+    check_count(vertex_count, "vertices");
     auto points =
         array_of(triangle_mesh.pointlist, std::int64_t{2} * vertex_count, "vertex coordinate");
     mesh.vertices.resize(vertex_count);
@@ -73,6 +95,7 @@ Mesh from_triangulateio(const triangulateio & triangle_mesh)
     }
 
     const int triangle_count = triangle_mesh.numberoftriangles;
+    check_count(triangle_count, "triangles");
     if (triangle_count > 0 && triangle_mesh.numberofcorners != 3)
         throw Error(message("Triangle's output has ", triangle_mesh.numberofcorners,
                             " corners per triangle; only 3 are read"));
@@ -121,6 +144,7 @@ Mesh from_triangulateio(const triangulateio & triangle_mesh)
     }
 
     const int segment_count = triangle_mesh.numberofsegments;
+    check_count(segment_count, "segments");
     auto ends = array_of(triangle_mesh.segmentlist, std::int64_t{2} * segment_count, "segment end");
     mesh.segments.resize(segment_count);
     for (int segment = 0; segment < segment_count; segment++)
@@ -148,8 +172,34 @@ triangulateio to_triangulateio(Mesh & mesh)
     static_assert(sizeof(std::array<int, 3>) == 3 * sizeof(int));
     static_assert(sizeof(std::array<int, 2>) == 2 * sizeof(int));
     check_sizes(mesh);
+    // Triangle reads through every index, so they must refer to the mesh
+    for (std::size_t triangle = 0; triangle < mesh.triangles.size(); triangle++)
+    {
+        for (int vertex : mesh.triangles[triangle])
+        {
+            check_index(vertex, mesh.vertices.size(), "triangle", triangle);
+        }
+    }
+    for (std::size_t segment = 0; segment < mesh.segments.size(); segment++)
+    {
+        for (int vertex : mesh.segments[segment])
+        {
+            check_index(vertex, mesh.vertices.size(), "segment", segment);
+        }
+    }
+    for (std::size_t triangle = 0; triangle < mesh.neighbors.size(); triangle++)
+    {
+        for (int neighbor : mesh.neighbors[triangle])
+        {
+            if (neighbor < NO_NEIGHBOR || neighbor >= static_cast<int>(mesh.triangles.size()))
+                throw Error(message("triangle ", triangle, " has neighbor ", neighbor,
+                                    ", but the mesh has ", mesh.triangles.size(), " triangles"));
+        }
+    }
 
     triangulateio triangle_mesh{};
+    // each array's first element; Triangle reads the rows after it as one
+    // flat array, which the layout checks above allow
     triangle_mesh.pointlist = mesh.vertices.empty() ? nullptr : &mesh.vertices[0].x;
     triangle_mesh.numberofpoints = static_cast<int>(mesh.vertices.size());
     triangle_mesh.pointmarkerlist =
@@ -172,11 +222,10 @@ triangulateio to_triangulateio(Mesh & mesh)
 
 void check_sizes(const Mesh & mesh)
 {
-    // Triangle's counts and the products it indexes with are int
-    constexpr std::size_t INT_LIMIT = std::numeric_limits<int>::max() / 3;
-    if (mesh.vertices.size() > INT_LIMIT || mesh.triangles.size() > INT_LIMIT ||
-        mesh.segments.size() > INT_LIMIT)
-        throw Error(message("the mesh has more than ", INT_LIMIT,
+    constexpr auto MAX_COUNT = static_cast<std::size_t>(MAX_TRIANGLE_COUNT);
+    if (mesh.vertices.size() > MAX_COUNT || mesh.triangles.size() > MAX_COUNT ||
+        mesh.segments.size() > MAX_COUNT)
+        throw Error(message("the mesh has more than ", MAX_COUNT,
                             " vertices, triangles, or segments, which Triangle cannot index"));
     auto check = [](std::size_t size, std::size_t expected, const char * what)
     {
@@ -274,6 +323,12 @@ void check_neighbors(const Mesh & mesh)
                 throw Error(message("triangle ", triangle, " has neighbor ", neighbor,
                                     " opposite corner ", corner,
                                     ", but the triangle across that edge is ", expected));
+            // a neighbor runs along the edge the other way; the same way means
+            // the two triangles overlap
+            if (expected != NO_NEIGHBOR &&
+                !has_directed_edge(mesh.triangles[expected], second, first))
+                throw Error(message("triangles ", triangle, " and ", expected,
+                                    " overlap along edge ", first, "-", second));
         }
     }
 }
