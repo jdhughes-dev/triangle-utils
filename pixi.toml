@@ -1,0 +1,37 @@
+[workspace]
+name = "triangle-utils"
+channels = ["conda-forge"]
+platforms = ["win-64", "linux-64", "linux-aarch64", "osx-arm64", "osx-64"]
+version = "0.1.0"
+
+[dependencies]
+python = ">=3.11"
+meson = ">=1.3.1"
+ninja = "*"
+
+[tasks]
+
+# build
+clean = { cmd = "rm -rf builddir" }
+setup = { cmd = "meson setup --prefix=$(pwd) --bindir=bin --libdir=lib builddir" }
+build = "meson install -C builddir"
+
+# test
+test = { cmd = "meson test --verbose --no-rebuild -C builddir" }
+
+# gcc and g++ for Linux and Windows, from conda-forge rather than the package
+# sources of each operating system; a separate environment, since it sets CC
+# and CXX. Not for macOS, where programs the conda-forge g++ builds link the
+# conda-forge libc++ and corrupt std::string
+[feature.gcc]
+platforms = ["linux-64", "win-64"]
+
+[feature.gcc.dependencies]
+gxx = "15.*"
+
+[feature.gcc.activation.env]
+CC = "gcc"
+CXX = "g++"
+
+[environments]
+gcc = ["gcc"]
