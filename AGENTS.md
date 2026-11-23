@@ -46,9 +46,7 @@ MODFLOW-ORG/triangle and MODFLOW-ORG/gridgen.
 - `scripts/clang_format.py` — runs clang-format on the tracked C and C++
   files, for `pixi run check-format` and `fix-format`.
 - `.github/workflows/ci.yml` — builds and tests on Linux, macOS, and
-  Windows with the compilers of MODFLOW-ORG/triangle and gridgen (in the
-  Windows Intel job, Triangle's C is built with MSVC until Triangle sets a
-  floating-point option for icx on Windows, MODFLOW-ORG/triangle#59), and
+  Windows with the compilers of MODFLOW-ORG/triangle and gridgen, and
   runs the tests under the sanitizers on Linux, on every push and pull
   request to `main` that can affect the build or tests, and daily;
   `.github/workflows/lint.yml` runs `pixi run check-format`. Dependabot
