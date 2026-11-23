@@ -33,18 +33,20 @@ and #23 (ghost-node correction).
 - Triangle is built from MODFLOW-ORG/triangle as a static subproject
   (`subprojects/triangle.wrap`), now the v1.6.2 release.
 - A Triangle change triangle-utils needs is a pull request to Triangle's
-  `main`, with no Triangle release. The wrap then points at that commit,
-  through GitHub's archive of it (`archive/<sha>.tar.gz`) with its hash.
+  `main`, with no Triangle release (#10). The wrap then points at that
+  commit, through GitHub's archive of it (`archive/<sha>.tar.gz`) with its
+  hash; until then it stays at v1.6.2.
 - One Triangle release is cut just before #10, with every change made
   since 1.6.2, and the wrap moves to its `triangle_source.zip`. Do not run
-  that release's workflow again once the wrap uses it: the archive is
-  rebuilt and its hash changes.
+  that release's workflow again once the wrap uses it: it rebuilds the
+  archive, whose hash then changes (Releases in Triangle's `AGENTS.md`).
 - Before proposing that release, check every open issue here for what it
   needs from Triangle.
 - Changes on Triangle's `main` for triangle-utils:
-  - MODFLOW-ORG/triangle#59: build with icx on Windows, with
-    `/fp:strict`. Until the wrap includes it, the Windows Intel job builds
-    Triangle's C with MSVC (`ci.yml`).
+  - MODFLOW-ORG/triangle#59: build with icx on Windows, with a strict
+    floating-point option, after comparing its meshes with the MSVC build.
+    Until the wrap includes it, the Windows Intel job builds Triangle's C
+    with MSVC (`ci.yml`).
 
 ## Decisions
 
@@ -55,12 +57,19 @@ and #23 (ghost-node correction).
 - **Obtuse triangles:** refinement by maximum angle stops at about 95 to
   100 degrees (#7); moving vertices removes the rest (#8).
 - **Corrections for triangle grids**, in order (#14, #21): a Voronoi grid
-  or a triangle grid with circumcenters and no obtuse triangles needs none;
-  then ghost-node correction (#23); then XT3D where accuracy matters more
-  than run time. `XT3D RHS` is not a cheaper XT3D.
+  or a triangle grid with circumcenters and no obtuse triangles needs none,
+  so a grid with obtuse triangles is first refined by maximum angle (#7)
+  and has its vertices moved (#8); then ghost-node correction (#23); then
+  XT3D where accuracy matters more than run time. MODFLOW-USG has no XT3D,
+  so there the choices end at GNC. `XT3D RHS` is not a cheaper XT3D.
 
 ## Open questions
 
+- **Scope of the first release:** #10 leaves #8, #14, and #23 to later
+  releases, but #18 (cases with GNC, #23) and #21 (the quality report, #14,
+  moving vertices, #8, and GNC run times) need them. Either move #8, #14,
+  and #23 before #18, or leave those parts of #18 and #21 to the release
+  that adds them.
 - **Triangle's error text:** Triangle prints the reason for an error on
   standard output, so the C API's last-error message (#5) cannot include
   it without a change to Triangle. Decide in #5.
