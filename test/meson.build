@@ -1,6 +1,10 @@
-test_triangulate = executable(
-  'test_triangulate',
-  'test_triangulate.cpp',
-  dependencies: [triangle_dep, gtest_dep, version_dep],
-)
-test('triangulate', test_triangulate)
+foreach name : ['triangulate', 'version']
+  test(
+    name,
+    executable(
+      'test_' + name,
+      'test_' + name + '.cpp',
+      dependencies: [triangle_dep, gtest_dep, version_dep],
+    ),
+  )
+endforeach

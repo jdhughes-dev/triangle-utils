@@ -1,7 +1,7 @@
 .pixi/
-bin/
-include/
-lib/
+/bin/
+/include/
+/lib/
 builddir*/
 subprojects/*/
 subprojects/packagecache/

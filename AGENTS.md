@@ -13,7 +13,7 @@ MODFLOW-ORG/triangle and MODFLOW-ORG/gridgen.
 
 - **Configure the build directory:** `pixi run setup`; Meson downloads
   Triangle and GoogleTest into `subprojects/` on the first run
-- **Build** (installs to `bin/`, `lib/`, and `include/`): `pixi run build`
+- **Build** (installs the version header to `include/`): `pixi run build`
 - **Run the tests:** `pixi run test`; it does not rebuild, so run
   `pixi run build` first
 - **Remove the build directory:** `pixi run clean`
