@@ -39,10 +39,14 @@ MODFLOW-ORG/triangle and MODFLOW-ORG/gridgen.
   release's source archive, with its hash; `subprojects/gtest.wrap` —
   GoogleTest from the Meson WrapDB.
 - `test/` — the GoogleTest tests.
+- `scripts/clang_format.py` — runs clang-format on the tracked C and C++
+  files, for `pixi run check-format` and `fix-format`.
 - `.github/workflows/ci.yml` — builds and tests on Linux, macOS, and
-  Windows with the compilers of MODFLOW-ORG/triangle and gridgen, and runs
-  the tests under the sanitizers on Linux, on every push, on pull requests
-  to `main`, and daily; `.github/workflows/lint.yml` runs
+  Windows with the compilers of MODFLOW-ORG/triangle and gridgen (in the
+  Windows Intel job, Triangle's C is built with MSVC until Triangle sets a
+  floating-point option for icx on Windows, MODFLOW-ORG/triangle#59), and
+  runs the tests under the sanitizers on Linux, on every push, on pull
+  requests to `main`, and daily; `.github/workflows/lint.yml` runs
   `pixi run check-format`. Dependabot opens the pull requests that bump
   action versions (`.github/dependabot.yml`).
 - `bin/`, `lib/`, `include/`, `builddir/`, `.pixi/`, and the downloads in
@@ -226,7 +230,8 @@ MODFLOW-ORG/triangle and MODFLOW-ORG/gridgen.
     Downloads are expected only through the pixi environment (conda-forge),
     the Meson wraps for Triangle and GoogleTest, and the CI workflows;
   - programs run other than git, Meson, Ninja, the compilers, clang-format,
-    the utilities themselves, pytest, and pixi tasks;
+    ruff, codespell, the utilities themselves, pytest, pixi tasks, and
+    Python for `scripts/clang_format.py`;
   - in Python, `eval`, `exec`, `compile`, `pickle` loads of untrusted
     files, or code that is encoded or obscured (base64 or hex strings that
     are decoded and run);
