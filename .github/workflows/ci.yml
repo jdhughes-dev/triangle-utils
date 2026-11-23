@@ -77,10 +77,12 @@ jobs:
           echo "CC=clang" >> $GITHUB_ENV
           echo "CXX=clang++" >> $GITHUB_ENV
 
-      # setup-fortran sets CXX=cl, which builds the C++ with MSVC
-      - name: Set CXX (Windows intel)
+      # setup-fortran sets CC=cl and CXX=cl, which build with MSVC
+      - name: Set CC and CXX (Windows intel)
         if: ${{ runner.os == 'Windows' && matrix.compiler == 'intel' }}
-        run: echo "CXX=icx" >> $env:GITHUB_ENV
+        run: |
+          echo "CC=icx" >> $env:GITHUB_ENV
+          echo "CXX=icx" >> $env:GITHUB_ENV
 
       - name: Setup pixi
         uses: prefix-dev/setup-pixi@v0.11.3
