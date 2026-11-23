@@ -19,14 +19,16 @@ Every open issue, in this order; each depends only on those before it
 7. #9 Voronoi and DISV
 8. #12 map lines and boundaries to cells
 9. #13 DISU connection data
-10. #14 grid quality report
-11. #19 layers, DISV and DISU output
-12. #23 ghost-node correction
+10. #19 layers, DISV and DISU output
+11. #23 ghost-node correction
+12. #14 grid quality report
 13. #18 model checks with MODFLOW 6, MODFLOW-USG, and MODFLOW-USG-Transport
 14. #20 different refinement by layer
 15. #15 structured grids, merging cells, and refinement by a field
-16. #21 user guide, then #24 release notes and #22 Read the Docs
-17. #10 release and conda-forge package
+16. #21 user guide
+17. #22 Read the Docs
+18. #24 release notes
+19. #10 release and conda-forge package
 
 ## Triangle
 
