@@ -39,9 +39,10 @@ MODFLOW-ORG/triangle and MODFLOW-ORG/gridgen.
 - `meson.build` — the project, its version, and the dependencies;
   `src/meson.build` generates `triangle_utils_version.h`, the version as
   macros, from the project version.
-- `subprojects/triangle.wrap` — Triangle from a MODFLOW-ORG/triangle
-  release's source archive, with its hash; `subprojects/gtest.wrap` —
-  GoogleTest from the Meson WrapDB.
+- `subprojects/triangle.wrap` — Triangle from GitHub's archive of a
+  MODFLOW-ORG/triangle commit, or a release's source archive (see
+  `PLAN.md`), with its hash; `subprojects/gtest.wrap` — GoogleTest from
+  the Meson WrapDB.
 - `test/` — the GoogleTest tests.
 - `scripts/clang_format.py` — runs clang-format on the tracked C and C++
   files, for `pixi run check-format` and `fix-format`.
