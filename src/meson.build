@@ -16,3 +16,16 @@ version_dep = declare_dependency(
   include_directories: include_directories('.'),
   sources: version_header,
 )
+
+# the core, which works on meshes in memory; the C API and the command line
+# are built on it
+core_lib = static_library(
+  'triangle_utils_core',
+  'mesh.cpp',
+  dependencies: triangle_dep,
+)
+core_dep = declare_dependency(
+  include_directories: include_directories('.'),
+  link_with: core_lib,
+  dependencies: [triangle_dep, version_dep],
+)

@@ -43,6 +43,10 @@ MODFLOW-ORG/triangle and MODFLOW-ORG/gridgen.
   MODFLOW-ORG/triangle commit, or a release's source archive (see
   `PLAN.md`), with its hash; `subprojects/gtest.wrap` — GoogleTest from
   the Meson WrapDB.
+- `src/` — the core: `mesh.hpp` (the mesh type, its conversion to and from
+  Triangle's `triangulateio`, `TriangleOutput`, which frees Triangle's
+  output, and the property checks) and `error.hpp` (the one error type it
+  throws).
 - `test/` — the GoogleTest tests.
 - `scripts/clang_format.py` — runs clang-format on the tracked C and C++
   files, for `pixi run check-format` and `fix-format`.
