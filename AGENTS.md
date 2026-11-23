@@ -46,9 +46,10 @@ MODFLOW-ORG/triangle and MODFLOW-ORG/gridgen.
   Windows Intel job, Triangle's C is built with MSVC until Triangle sets a
   floating-point option for icx on Windows, MODFLOW-ORG/triangle#59), and
   runs the tests under the sanitizers on Linux, on every push and pull
-  request to `main` that can affect the build or tests, and daily; `.github/workflows/lint.yml` runs
-  `pixi run check-format`. Dependabot opens the pull requests that bump
-  action versions (`.github/dependabot.yml`).
+  request to `main` that can affect the build or tests, and daily;
+  `.github/workflows/lint.yml` runs `pixi run check-format`. Dependabot
+  opens the pull requests that bump action versions
+  (`.github/dependabot.yml`).
 - `bin/`, `lib/`, `include/`, `builddir/`, `.pixi/`, and the downloads in
   `subprojects/` — disposable build output, installed files, and
   environment; never edit by hand or commit.
