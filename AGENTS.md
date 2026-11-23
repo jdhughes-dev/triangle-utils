@@ -29,6 +29,10 @@ MODFLOW-ORG/triangle and MODFLOW-ORG/gridgen.
 
 ## Repository orientation
 
+- `PLAN.md` — the order of work to the first release, the dependency on
+  MODFLOW-ORG/triangle, standing decisions, and open questions. Read it
+  before starting an issue or proposing a release, and update it in the
+  pull request that changes the plan.
 - `README.md` — what the utilities do, the design, and the license terms.
 - `LICENSE` — CC0 1.0 for the code in this repository; Triangle has its own
   terms (see Licenses below).

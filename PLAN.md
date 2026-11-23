@@ -1,0 +1,77 @@
+# Plan
+
+The order of work, the dependency on MODFLOW-ORG/triangle, and the decisions
+that hold across issues. The issues hold the scope of each step; this file
+does not repeat it. Read it before starting an issue or proposing a release,
+and update it in the pull request that changes the plan.
+
+## First release (0.1.0)
+
+In this order; each issue depends on those before it (see its `Depends on`
+lines). Done: #2 (build), #3 (CI).
+
+1. #4 core mesh type and property checks
+2. #5 C API skeleton and ctypes tests
+3. #6 Triangle files and the command-line program
+4. #11 generate a mesh from geometry
+5. #7 refine
+6. #9 Voronoi and DISV
+7. #13 DISU connection data
+8. #19 layers, DISV and DISU output
+9. #18 model checks with MODFLOW 6, MODFLOW-USG, and MODFLOW-USG-Transport
+10. #21 user guide, then #24 release notes and #22 Read the Docs
+11. #10 release and conda-forge package
+
+## Later minor releases
+
+#8 (move vertices), #12 (features to cells), #14 (grid quality), #15
+(structured grids, merging, field refinement), #20 (refinement by layer),
+and #23 (ghost-node correction).
+
+## Triangle
+
+- Triangle is built from MODFLOW-ORG/triangle as a static subproject
+  (`subprojects/triangle.wrap`), now the v1.6.2 release.
+- A Triangle change triangle-utils needs is a pull request to Triangle's
+  `main`, with no Triangle release (#10). The wrap then points at that
+  commit, through GitHub's archive of it (`archive/<sha>.tar.gz`) with its
+  hash; until then it stays at v1.6.2.
+- One Triangle release is cut just before #10, with every change made
+  since 1.6.2, and the wrap moves to its `triangle_source.zip`. Do not run
+  that release's workflow again once the wrap uses it: it rebuilds the
+  archive, whose hash then changes (Releases in Triangle's `AGENTS.md`).
+- Before proposing that release, check every open issue here for what it
+  needs from Triangle.
+- Changes on Triangle's `main` for triangle-utils:
+  - MODFLOW-ORG/triangle#59: build with icx on Windows, with a strict
+    floating-point option, after comparing its meshes with the MSVC build.
+    Until the wrap includes it, the Windows Intel job builds Triangle's C
+    with MSVC (`ci.yml`).
+
+## Decisions
+
+- **Compilers:** gcc 15 from conda-forge on Linux and Windows (the `gcc`
+  pixi environment); Homebrew gcc on macOS, since programs the conda-forge
+  g++ builds there link the conda-forge libc++ and corrupt `std::string`.
+- **Floating point:** the C++ gets gridgen's options (#4).
+- **Obtuse triangles:** refinement by maximum angle stops at about 95 to
+  100 degrees (#7); moving vertices removes the rest (#8).
+- **Corrections for triangle grids**, in order (#14, #21): a Voronoi grid
+  or a triangle grid with circumcenters and no obtuse triangles needs none,
+  so a grid with obtuse triangles is first refined by maximum angle (#7)
+  and has its vertices moved (#8); then ghost-node correction (#23); then
+  XT3D where accuracy matters more than run time. MODFLOW-USG has no XT3D,
+  so there the choices end at GNC. `XT3D RHS` is not a cheaper XT3D.
+
+## Open questions
+
+- **Scope of the first release:** #10 leaves #8, #14, and #23 to later
+  releases, but #18 (cases with GNC, #23) and #21 (the quality report, #14,
+  moving vertices, #8, and GNC run times) need them. Either move #8, #14,
+  and #23 before #18, or leave those parts of #18 and #21 to the release
+  that adds them.
+- **Triangle's error text:** Triangle prints the reason for an error on
+  standard output, so the C API's last-error message (#5) cannot include
+  it without a change to Triangle. Decide in #5.
+- **Python wrapper:** no issue covers one; #5 has only ctypes tests. Decide
+  before #19, which returns arrays for FloPy.
