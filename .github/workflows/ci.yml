@@ -1,0 +1,161 @@
+name: triangle-utils checks
+on:
+  # run at 6 AM UTC every day
+  schedule:
+    - cron: '0 6 * * *'
+  push:
+    # skip changes that cannot affect the build or tests
+    paths-ignore:
+      - '**.md'
+      - '.github/dependabot.yml'
+      - '.github/workflows/lint.yml'
+      - 'LICENSE'
+      - 'ruff.toml'
+      - '.codespellrc'
+      - '.clang-format'
+  pull_request:
+    branches:
+      - main
+    paths-ignore:
+      - '**.md'
+      - '.github/dependabot.yml'
+      - '.github/workflows/lint.yml'
+      - 'LICENSE'
+      - 'ruff.toml'
+      - '.codespellrc'
+      - '.clang-format'
+  workflow_dispatch:
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+env:
+  PIXI_BETA_WARNING_OFF: true
+jobs:
+  build:
+    name: ${{ matrix.os }} ${{ matrix.compiler }} ${{ matrix.version }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # gcc; on Linux and Windows from conda-forge (the gcc pixi
+          # environment, whose gxx version in pixi.toml the version here and
+          # the sanitizer job name follow), on macOS from Homebrew through
+          # setup-fortran, since programs the conda-forge g++ builds on macOS
+          # corrupt std::string
+          - {os: ubuntu-22.04, compiler: gcc, version: 15, shell: bash, pixi-environment: gcc}
+          - {os: macos-15, compiler: gcc, version: 15, shell: bash, xcode-version: '16.4', pixi-environment: default}
+          - {os: windows-2022, compiler: gcc, version: 15, shell: pwsh, pixi-environment: gcc}
+          # clang (Apple clang from Xcode)
+          - {os: macos-15, compiler: clang, version: 17, shell: bash, xcode-version: '16.4', pixi-environment: default}
+          # intel
+          - {os: ubuntu-22.04, compiler: intel, version: "2025.0", shell: bash, pixi-environment: default}
+          - {os: windows-2022, compiler: intel, version: "2025.0", shell: pwsh, pixi-environment: default}
+    defaults:
+      run:
+        shell: ${{ matrix.shell }}
+    steps:
+      - name: Checkout triangle-utils
+        uses: actions/checkout@v7
+
+      - name: Setup ${{ matrix.compiler }} ${{ matrix.version }} on ${{ matrix.os }}
+        if: ${{ matrix.compiler != 'clang' && matrix.pixi-environment == 'default' }}
+        uses: fortran-lang/setup-fortran@v1
+        with:
+          compiler: ${{ matrix.compiler }}
+          version: ${{ matrix.version }}
+
+      - name: Set xcode version (macOS)
+        if: runner.os == 'macOS'
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: ${{ matrix.xcode-version }}
+
+      - name: Set CC and CXX (clang)
+        if: matrix.compiler == 'clang'
+        run: |
+          echo "CC=clang" >> $GITHUB_ENV
+          echo "CXX=clang++" >> $GITHUB_ENV
+
+      # setup-fortran sets CXX=cl, which builds the C++ with MSVC
+      - name: Set CXX (Windows intel)
+        if: ${{ runner.os == 'Windows' && matrix.compiler == 'intel' }}
+        run: echo "CXX=icx" >> $env:GITHUB_ENV
+
+      - name: Setup pixi
+        uses: prefix-dev/setup-pixi@v0.11.3
+        with:
+          pixi-version: v0.82.1
+          environments: ${{ matrix.pixi-environment }}
+
+      # WrapDB, the only source of the meson patch for GoogleTest, can be down,
+      # so download it once for each change to the wraps and retry when the
+      # cache is empty
+      - name: Cache subproject downloads
+        uses: actions/cache@v6
+        with:
+          path: subprojects/packagecache
+          key: subprojects-${{ runner.os }}-${{ hashFiles('subprojects/*.wrap') }}
+
+      - name: Download subprojects
+        shell: bash
+        run: |
+          for attempt in 1 2 3; do
+            pixi run -e ${{ matrix.pixi-environment }} -- meson subprojects download && exit 0
+            [ $attempt -lt 3 ] && sleep 60
+          done
+          exit 1
+
+      - name: Build triangle-utils
+        run: |
+          pixi run -e ${{ matrix.pixi-environment }} setup
+          pixi run -e ${{ matrix.pixi-environment }} build
+
+      - name: Show build log
+        if: failure()
+        run: cat builddir/meson-logs/meson-log.txt
+
+      - name: Upload build log
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: ${{ matrix.os }}-${{ matrix.compiler }}-${{ matrix.version }}-meson-log.txt
+          path: builddir/meson-logs/meson-log.txt
+
+      - name: Test triangle-utils
+        run: pixi run -e ${{ matrix.pixi-environment }} test
+
+  sanitize:
+    name: ubuntu-22.04 gcc 15 sanitizers
+    runs-on: ubuntu-22.04
+    timeout-minutes: 30
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Checkout triangle-utils
+        uses: actions/checkout@v7
+
+      # gcc and g++ from conda-forge (the gcc pixi environment)
+      - name: Setup pixi
+        uses: prefix-dev/setup-pixi@v0.11.3
+        with:
+          pixi-version: v0.82.1
+          environments: gcc
+
+      - name: Cache subproject downloads
+        uses: actions/cache@v6
+        with:
+          path: subprojects/packagecache
+          key: subprojects-${{ runner.os }}-${{ hashFiles('subprojects/*.wrap') }}
+
+      - name: Download subprojects
+        run: |
+          for attempt in 1 2 3; do
+            pixi run -e gcc -- meson subprojects download && exit 0
+            [ $attempt -lt 3 ] && sleep 60
+          done
+          exit 1
+
+      - name: Test triangle-utils with the sanitizers
+        run: pixi run -e gcc sanitize

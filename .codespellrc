@@ -1,0 +1,2 @@
+[codespell]
+skip = ./.pixi,./builddir*,./subprojects/googletest-*,./subprojects/triangle-*,./subprojects/packagecache,./bin,./include,./lib,pixi.lock
