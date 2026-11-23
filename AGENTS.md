@@ -36,17 +36,18 @@ MODFLOW-ORG/triangle and MODFLOW-ORG/gridgen.
 - `README.md` — what the utilities do, the design, and the license terms.
 - `LICENSE` — CC0 1.0 for the code in this repository; Triangle has its own
   terms (see Licenses below).
-- `meson.build` — the project, its version, and the dependencies;
-  `src/meson.build` generates `triangle_utils_version.h`, the version as
-  macros, from the project version.
+- `meson.build` — the project, its version, the floating-point options,
+  and the dependencies; `src/meson.build` generates
+  `triangle_utils_version.h`, the version as macros, and builds the core
+  as a static library (`core_dep`, which the tests link).
 - `subprojects/triangle.wrap` — Triangle from GitHub's archive of a
   MODFLOW-ORG/triangle commit, or a release's source archive (see
   `PLAN.md`), with its hash; `subprojects/gtest.wrap` — GoogleTest from
   the Meson WrapDB.
-- `src/` — the core: `mesh.hpp` (the mesh type, its conversion to and from
-  Triangle's `triangulateio`, `TriangleOutput`, which frees Triangle's
-  output, and the property checks) and `error.hpp` (the one error type it
-  throws).
+- `src/` — the core: `mesh.hpp` and `mesh.cpp` (the mesh type, its
+  conversion to and from Triangle's `triangulateio`, `TriangleOutput`,
+  which frees Triangle's output, and the property checks) and `error.hpp`
+  (the one error type it throws, and `message()`).
 - `test/` — the GoogleTest tests.
 - `scripts/clang_format.py` — runs clang-format on the tracked C and C++
   files, for `pixi run check-format` and `fix-format`.
