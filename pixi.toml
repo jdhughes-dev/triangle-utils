@@ -5,8 +5,12 @@ platforms = ["win-64", "linux-64", "linux-aarch64", "osx-arm64", "osx-64"]
 version = "0.1.0"
 
 [dependencies]
+python = ">=3.11"
 meson = ">=1.3.1"
 ninja = "*"
+ruff = "*"
+codespell = "*"
+clang-format = "23.1.*"
 
 [tasks]
 
@@ -17,6 +21,16 @@ build = "meson install -C builddir"
 
 # test
 test = { cmd = "meson test --verbose --no-rebuild -C builddir" }
+
+# tests built with the address and undefined behavior sanitizers; any error
+# they report fails the test, and so does a leak where the leak sanitizer runs
+# by default (Linux). -O1 with frame pointers, as the AddressSanitizer
+# documentation recommends
+sanitize = { cmd = "rm -rf builddir-sanitize && meson setup -Db_sanitize=address,undefined -Db_lundef=false -Ddebug=true -Doptimization=1 \"-Dc_args=-fno-sanitize-recover=undefined -fno-omit-frame-pointer\" \"-Dcpp_args=-fno-sanitize-recover=undefined -fno-omit-frame-pointer\" builddir-sanitize && meson compile -C builddir-sanitize && meson test -C builddir-sanitize --print-errorlogs", env = { ASAN_OPTIONS = "halt_on_error=1", UBSAN_OPTIONS = "print_stacktrace=1:halt_on_error=1" } }
+
+# style (ruff.toml, .codespellrc, .clang-format)
+check-format = { cmd = "ruff format --check . && ruff check . && codespell && python scripts/clang_format.py" }
+fix-format = { cmd = "ruff format . && ruff check --fix . && codespell --write-changes && python scripts/clang_format.py --fix" }
 
 # gcc and g++ for Linux and Windows, from conda-forge rather than the package
 # sources of each operating system; a separate environment, since it sets CC
