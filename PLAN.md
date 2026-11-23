@@ -33,11 +33,12 @@ Every open issue, in this order; each depends only on those before it
 ## Triangle
 
 - Triangle is built from MODFLOW-ORG/triangle as a static subproject
-  (`subprojects/triangle.wrap`), now the v1.6.2 release.
+  (`subprojects/triangle.wrap`), now commit 5cee628 on Triangle's `main`
+  (after v1.6.2).
 - A Triangle change triangle-utils needs is a pull request to Triangle's
   `main`, with no Triangle release (#10). The wrap then points at that
   commit, through GitHub's archive of it (`archive/<sha>.tar.gz`) with its
-  hash; until then it stays at v1.6.2.
+  hash.
 - One Triangle release is cut just before #10, with every change made
   since 1.6.2, and the wrap moves to its `triangle_source.zip`. Do not run
   that release's workflow again once the wrap uses it: it rebuilds the
@@ -45,10 +46,8 @@ Every open issue, in this order; each depends only on those before it
 - Before proposing that release, check every open issue here for what it
   needs from Triangle.
 - Changes on Triangle's `main` for triangle-utils:
-  - MODFLOW-ORG/triangle#59: build with icx on Windows, with a strict
-    floating-point option, after comparing its meshes with the MSVC build.
-    Until the wrap includes it, the Windows Intel job builds Triangle's C
-    with MSVC (`ci.yml`).
+  - MODFLOW-ORG/triangle#59 (merged in #60, 5cee628): build with icx on
+    Windows, with `/fp:strict`; the meshes match the MSVC build.
 
 ## Decisions
 
