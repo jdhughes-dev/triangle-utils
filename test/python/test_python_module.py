@@ -74,6 +74,12 @@ def test_shapes():
     )
     with pytest.raises(ValueError, match="segment_markers has 1 rows"):
         tu.refine(markers)
+    fractional = tu.Mesh(mesh.vertices, mesh.triangles + 0.5)
+    with pytest.raises(ValueError, match="triangles must be whole numbers"):
+        tu.refine(fractional)
+    unsegmented = tu.Mesh(mesh.vertices, mesh.triangles, segment_markers=[1])
+    with pytest.raises(ValueError, match="without segments"):
+        tu.refine(unsegmented)
     geometry = tu.Geometry()
     geometry.add_polygon([0, 0, 1])
     with pytest.raises(ValueError, match="points must have 2 columns"):

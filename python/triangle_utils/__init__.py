@@ -139,9 +139,22 @@ def _from_handle(handle):
     return Mesh(vertices, triangles, attributes, neighbors, segments, markers)
 
 
+def _integers(values, name):
+    """An int array; ValueError if a value is not a whole number."""
+    array = np.asarray(values)
+    if array.size and not np.issubdtype(array.dtype, np.integer):
+        if not np.issubdtype(array.dtype, np.number) or np.any(
+            array != np.round(array)
+        ):
+            raise ValueError(f"{name} must be whole numbers")
+    return array.astype(np.intc)
+
+
 def _rows(values, columns, name, dtype):
     """An array of rows of the given number of columns; ValueError if it is not."""
-    array = np.asarray(values, dtype=dtype)
+    array = (
+        _integers(values, name) if dtype is np.intc else np.asarray(values, dtype=dtype)
+    )
     if array.ndim != 2 or array.shape[1] != columns:
         raise ValueError(f"{name} must have {columns} columns, not shape {array.shape}")
     return array
@@ -167,13 +180,19 @@ def _to_handle(mesh):
         attributes = np.asarray(mesh.attributes, dtype=np.float64)
         if attributes.ndim == 1:
             attributes = attributes.reshape(-1, 1)
+        if attributes.ndim != 2:
+            raise ValueError(
+                f"attributes must have 1 or 2 dimensions, not {attributes.ndim}"
+            )
         _check_length(attributes, count, "attributes", "triangles")
     segments = markers = None
     if mesh.segments is not None and len(mesh.segments) > 0:
         segments = _rows(mesh.segments, 2, "segments", np.intc)
         if mesh.segment_markers is not None:
-            markers = np.asarray(mesh.segment_markers, dtype=np.intc).reshape(-1)
+            markers = _integers(mesh.segment_markers, "segment_markers").reshape(-1)
             _check_length(markers, len(segments), "segment_markers", "segments")
+    elif mesh.segment_markers is not None and len(mesh.segment_markers) > 0:
+        raise ValueError("segment_markers are given without segments")
     limits = None
     if mesh.area_limits is not None:
         limits = np.asarray(mesh.area_limits, dtype=np.float64).reshape(-1)
@@ -216,7 +235,7 @@ def _to_handle(mesh):
 class Geometry:
     """What to mesh; each method adds a feature, with points as (x, y) rows."""
 
-    _features: list = field(default_factory=list)
+    _features: list = field(default_factory=list, init=False, repr=False)
 
     def add_polygon(self, points, spacing=0.0, marker=0):
         """Add a boundary or internal boundary the mesh follows."""

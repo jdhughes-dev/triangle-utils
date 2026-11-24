@@ -27,6 +27,7 @@ FIGURES = HERE / "Figures"
 # north to south, a lake, and three pumping wells
 BOUNDARY = [
     (0, 0),
+    (2400, 0),
     (4000, 0),
     (4600, 2200),
     (4200, 6000),
@@ -35,9 +36,9 @@ BOUNDARY = [
     (600, 7600),
     (0, 4000),
 ]
-# the river starts and ends on the boundary, at points of it, so the two
-# share a vertex (a point on a boundary edge but not one of its points makes
-# Triangle fail, #42)
+# the river starts and ends at points of the boundary, so the two share a
+# vertex (a point on a boundary edge but not one of its points makes Triangle
+# fail, #42)
 RIVER = [
     (1800, 7840),
     (1900, 6500),
@@ -121,7 +122,7 @@ def draw_mesh(ax, mesh, highlight=None):
     ax.set_aspect("equal")
     ax.set_xlim(-100, 4700)
     # room above the valley for the explanation
-    ax.set_ylim(-100, 9600)
+    ax.set_ylim(-100, 10500)
 
 
 def mesh_figure(mesh):
@@ -259,6 +260,21 @@ def main():
         "refinedover": int((refined.largest_angles() > MAXIMUM_ANGLE).sum()),
         "refinedlargest": f"{refined.largest_angles().max():.1f}",
         "valleyarea": f"{mesh.triangle_areas().sum() / 1e6:.2f}",
+        "boundaryspacing": f"{BOUNDARY_SPACING:,.0f}",
+        "riverspacing": f"{RIVER_SPACING:,.0f}",
+        "lakespacing": f"{LAKE_SPACING:,.0f}",
+        "maximumarea": f"{MAXIMUM_AREA:,.0f}",
+        "lakearea": f"{LAKE_AREA:,.0f}",
+        "wellradius": f"{WELL_RADIUS:,.0f}",
+        "wellpoints": f"{WELL_POINTS}",
+        "wellarea": f"{WELL_AREA:,.0f}",
+        "minimumangle": f"{MINIMUM_ANGLE:g}",
+        "maximumangle": f"{MAXIMUM_ANGLE:g}",
+        "wellx": f"{WELLS[0][0]:,.0f}",
+        "welly": f"{WELLS[0][1]:,.0f}",
+        # without thousands separators, for the command-line example
+        "maximumareavalue": f"{MAXIMUM_AREA:.0f}",
+        "boundaryspacingvalue": f"{BOUNDARY_SPACING:.0f}",
         "tuversion": tu.version()[0],
         "triangleversion": tu.version()[1],
         "trianglerelease": tu.version()[2],

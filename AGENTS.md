@@ -72,7 +72,8 @@ MODFLOW-ORG/triangle and MODFLOW-ORG/gridgen.
   figures and `values.tex`, the numbers the text quotes.
 - `test/` — the GoogleTest tests; `test_c_header.c`, which builds the API
   header as C; and `python/`, the pytest tests of the C API through
-  `ctypes` (declared in `triangle_utils_api.py`) and of the program, which
+  `ctypes` (declared in `python/triangle_utils/_library.py`), of the Python
+  module, and of the program, which
   `meson test` runs except under the sanitizers.
 - `scripts/clang_format.py` — runs clang-format on the tracked C and C++
   files, for `pixi run check-format` and `fix-format`.
