@@ -32,6 +32,9 @@ Cases:
   - test_refine        : a generated mesh refines by an .area file and a
                          maximum area to x.2 within the limits, keeping its
                          area, and reports angles over a maximum angle.
+  - test_improve_keeps_points : generate then improve keeps a point feature
+                         of the .poly file in place, through the marker
+                         generate writes.
   - test_improve_command : a refined mesh improves toward 90 degrees to x.3,
                          keeping its area and a vertex marked in the .node
                          file, and reports angles over 90 degrees.
@@ -376,3 +379,21 @@ def test_improve_command(tmp_path):
     improved = open(f"{base}.3.node").read().splitlines()[interior + 1].split()
     assert improved[1:3] == rows[interior][1:3]
     assert run("check", f"{base}.3")[0] == 0
+
+
+def test_improve_keeps_points(tmp_path):
+    # a square with a point feature, which generate marks as fixed
+    poly = (
+        "5 2 0 0\n1 0 0\n2 1 0\n3 1 1\n4 0 1\n5 0.33 0.41\n"
+        "4 0\n1 1 2\n2 2 3\n3 3 4\n4 4 1\n0\n"
+    )
+    (tmp_path / "w.poly").write_text(poly)
+    base = str(tmp_path / "w")
+    assert run("generate", "-a", "0.01", "-q", "25", base)[0] == 0
+    assert run("improve", "-A", "90", f"{base}.1")[0] == 0
+    for name in (f"{base}.1", f"{base}.2"):
+        lines = open(f"{name}.node").read().splitlines()
+        rows = [line.split() for line in lines[1:] if line and not line.startswith("#")]
+        point = [r for r in rows if float(r[1]) == 0.33 and float(r[2]) == 0.41]
+        assert len(point) == 1, name
+        assert point[0][3] == "1"

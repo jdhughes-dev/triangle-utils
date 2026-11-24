@@ -63,13 +63,14 @@ MODFLOW-ORG/triangle and MODFLOW-ORG/gridgen.
   (Windows), `src/triangle_utils.map` (Linux), and `src/triangle_utils.exports`
   (macOS). The command line: `main.cpp`, which reads files into the core's
   types and calls only the C API for the rest, and `triangle_files.hpp` and
-  `.cpp`, which read and write Triangle's files. - `python/triangle_utils/` —
-  the Python module over the C API, meshes in and out as NumPy arrays
-  (`_library.py` declares the C functions for ctypes); the user guide's figures
-  and the Python tests use it. - `doc/UserGuide/` — the user guide:
-  `triangle-utils.tex` and `.bib`, in the usgslatex class as gridgen's release
-  notes are, and `make_figures.py`, which meshes the guide's example and writes
-  the figures and `values.tex`, the numbers the text quotes.
+  `.cpp`, which read and write Triangle's files.
+- `python/triangle_utils/` — the Python module over the C API, meshes in
+  and out as NumPy arrays (`_library.py` declares the C functions for
+  ctypes); the user guide's figures and the Python tests use it.
+- `doc/UserGuide/` — the user guide: `triangle-utils.tex` and `.bib`, in
+  the usgslatex class as gridgen's release notes are, and
+  `make_figures.py`, which meshes the guide's example and writes the
+  figures and `values.tex`, the numbers the text quotes.
 - `test/` — the GoogleTest tests; `test_c_header.c`, which builds the API
   header as C; and `python/`, the pytest tests of the C API through
   `ctypes` (declared in `python/triangle_utils/_library.py`), of the Python

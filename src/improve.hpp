@@ -41,7 +41,8 @@ struct ImproveOptions
 // puts it, only where no triangle inverts, no angle falls below the minimum
 // angle (the mesh's smallest by default), and the worst angle around the
 // vertex improves; then flip edges that are not segments so the triangles
-// are Delaunay. The triangles, their attributes, and the segments are kept;
+// are Delaunay. No move or flip takes a triangle over its area limit. The
+// triangles, their attributes and area limits, and the segments are kept;
 // the result has neighbors. Throws Error if the mesh or options are not
 // valid.
 Mesh improve_mesh(const Mesh & mesh, const ImproveOptions & options);

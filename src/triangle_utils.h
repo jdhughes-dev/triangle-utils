@@ -229,19 +229,19 @@ int triangle_utils_mesh_fixed_vertices(const TriangleUtilsMesh * mesh, int fixed
 #define TRIANGLE_UTILS_LAPLACIAN 0
 #define TRIANGLE_UTILS_CENTROIDAL 1
 
-/* Improve a mesh by moving the vertices that are not fixed and flipping
-   edges that are not segments: a move is kept only where no triangle
-   inverts, no angle falls below minimum_angle degrees (up to 60, or the
-   mesh's own smallest angle if 0, so it does not decrease), and the worst
-   angle around the vertex improves, toward maximum_angle degrees (over 60
-   and under 180; 90 puts every circumcenter inside its triangle), or the
-   smallest angle only if it is 0. A minimum_angle below the mesh's trades
-   smaller angles for fewer over maximum_angle. Sweeps stop after
-   iterations, or when no vertex moves farther than tolerance times the mean
-   edge length. A boundary point where two triangles meet keeps an obtuse
-   angle if it has one, since its two angles sum to 180 degrees;
-   triangle_utils_mesh_count_angles_over() tells what is left. *improved is
-   NULL after a failure. */
+/* Improve a mesh by moving the vertices that are not fixed and flipping edges
+   that are not segments: a move is kept only where no triangle inverts, no
+   angle falls below minimum_angle degrees (up to 60, or the mesh's own
+   smallest angle if 0, so it does not decrease), no triangle exceeds its
+   area limit, and the worst angle around the vertex improves, toward
+   maximum_angle degrees (over 60 and under 180; 90 puts every circumcenter
+   inside its triangle), or the smallest angle only if it is 0. A
+   minimum_angle below the mesh's trades smaller angles for fewer over
+   maximum_angle. Sweeps stop after iterations, or when no vertex moves
+   farther than tolerance times the mean edge length. A boundary point where
+   two triangles meet keeps an obtuse angle if it has one, since its two
+   angles sum to 180 degrees; triangle_utils_mesh_count_angles_over() tells
+   what is left. *improved is NULL after a failure. */
 int triangle_utils_mesh_improve(const TriangleUtilsMesh * mesh, int smoothing, double maximum_angle,
                                 double minimum_angle, int iterations, double tolerance,
                                 TriangleUtilsMesh ** improved);

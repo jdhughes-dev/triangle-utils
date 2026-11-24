@@ -61,7 +61,9 @@ constexpr const char * GENERATE_USAGE = R"(usage: triangle-utils generate [optio
 Mesh the geometry in <base>.poly (with its vertices in <base>.node if the
 .poly file has none): its segments, which the mesh follows, its vertices,
 holes, and regions. Write the mesh to <output>.node, .ele, .neigh, and
-.poly, without vertex attributes or markers.
+.poly, without vertex attributes; the vertices of the .poly file, such as
+wells, have marker 1, so improving keeps them in place, and the vertices
+Triangle adds have 0.
 
 Options:
   -h, --help                show this help
@@ -86,8 +88,9 @@ segments in <base>.poly if it exists (each an edge of the mesh), and its
 triangle attributes where segments bound them; triangles are split to meet
 their limits in <base>.area if it exists, which, like the attributes, are
 averaged across edges Triangle flips where no segment bounds them. Write the
-mesh to <output>.node, .ele, .neigh, and .poly, without vertex attributes or
-markers, or holes and regions.
+mesh to <output>.node, .ele, .neigh, and .poly, without vertex attributes,
+holes, or regions; a vertex with a nonzero marker in <base>.node, such as a
+well, has marker 1, so improving keeps it in place.
 
 Options:
   -h, --help                show this help
@@ -381,6 +384,14 @@ void write_mesh(const TriangleUtilsMesh * mesh, const std::string & base, int fi
     {
         vertices.vertices.push_back({vertex_xy[2 * vertex], vertex_xy[2 * vertex + 1]});
     }
+    // a fixed vertex, such as a well, has marker 1, which reading the mesh
+    // again takes as fixed
+    int fixed_count = 0;
+    check_status(triangle_utils_mesh_fixed_vertex_count(mesh, &fixed_count));
+    std::vector<int> fixed(static_cast<std::size_t>(fixed_count));
+    check_status(triangle_utils_mesh_fixed_vertices(mesh, fixed_count, fixed.data()));
+    vertices.markers.assign(vertices.vertices.size(), 0);
+    for (const int vertex : fixed) vertices.markers[vertex] = 1;
 
     std::vector<int> corners(3 * static_cast<std::size_t>(triangle_count));
     check_status(triangle_utils_mesh_triangles(mesh, triangle_count, corners.data()));
@@ -456,6 +467,13 @@ MeshHandle read_mesh(const std::string & base, triangle_utils::VertexFile & vert
     MeshHandle mesh(created);
     check_status(triangle_utils_mesh_set_triangle_attributes(
         mesh.get(), triangle_count, triangles.attribute_count, triangles.attributes.data()));
+    // a vertex with a nonzero marker, such as a well, stays in place when
+    // the mesh is improved
+    std::vector<int> fixed;
+    for (std::size_t vertex = 0; vertex < vertices.markers.size(); vertex++)
+        if (vertices.markers[vertex] != 0) fixed.push_back(static_cast<int>(vertex));
+    check_status(triangle_utils_mesh_set_fixed_vertices(mesh.get(), static_cast<int>(fixed.size()),
+                                                        fixed.data()));
 
     std::error_code exists_error;
     const std::string poly_name = base + ".poly";
@@ -593,12 +611,6 @@ int improve_command(const std::vector<std::string> & arguments)
 
     triangle_utils::VertexFile vertices;
     const MeshHandle mesh = read_mesh(base, vertices);
-    // a vertex with a nonzero marker stays in place
-    std::vector<int> fixed;
-    for (std::size_t vertex = 0; vertex < vertices.markers.size(); vertex++)
-        if (vertices.markers[vertex] != 0) fixed.push_back(static_cast<int>(vertex));
-    check_status(triangle_utils_mesh_set_fixed_vertices(mesh.get(), static_cast<int>(fixed.size()),
-                                                        fixed.data()));
     TriangleUtilsMesh * improved = nullptr;
     check_status(triangle_utils_mesh_improve(mesh.get(), smoothing, maximum_angle, minimum_angle,
                                              iterations, tolerance, &improved));

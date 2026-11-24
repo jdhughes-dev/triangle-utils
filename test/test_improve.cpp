@@ -245,6 +245,61 @@ TEST(Improve, SmallestAngleIncreasesAndFixedVerticesStay)
     EXPECT_NEAR(ring_area, original_ring_area, TOLERANCE);
 }
 
+TEST(Improve, AreaLimitsHolesRegionsAndFixedVerticesAreKept)
+{
+    // a hole polygon with a point inside it, which the hole removes, and a
+    // region with an area limit on each side of a line
+    Geometry geometry;
+    geometry.polygons.push_back({{{0.0, 0.0}, {10.0, 0.0}, {10.0, 10.0}, {0.0, 10.0}}, 1.0, 1});
+    geometry.hole_polygons.push_back({{{6.0, 6.0}, {8.0, 6.0}, {8.0, 8.0}, {6.0, 8.0}}});
+    geometry.points.push_back({7.0, 7.0});
+    geometry.points.push_back({2.0, 8.0});
+    geometry.lines.push_back({{{0.0, 3.0}, {10.0, 3.0}}, 0.5, 2});
+    geometry.regions.push_back({{1.0, 1.0}, 1.0, 0.05});
+    geometry.regions.push_back({{1.0, 9.0}, 2.0, 0.0});
+    MeshOptions mesh_options;
+    mesh_options.minimum_angle = 25.0;
+    const Mesh mesh = generate_mesh(geometry, mesh_options);
+    // the point in the hole is not a vertex of the mesh, so only the other
+    // is fixed
+    ASSERT_EQ(mesh.fixed_vertices.size(), 1u);
+    EXPECT_EQ(mesh.vertices[mesh.fixed_vertices[0]].x, 2.0);
+    Mesh limited = mesh;
+    limited.triangle_area_limits.assign(mesh.triangles.size(), 0.0);
+    for (std::size_t triangle = 0; triangle < mesh.triangles.size(); triangle++)
+        if (mesh.triangle_attributes[triangle] == 1.0)
+            limited.triangle_area_limits[triangle] = 0.05;
+    RefineOptions refine_options;
+    refine_options.minimum_angle = 25.0;
+    refine_options.maximum_angle = 100.0;
+    const Mesh refined = refine_mesh(limited, refine_options);
+    Mesh carried = refined;
+    carried.triangle_area_limits.assign(refined.triangles.size(), 0.0);
+    for (std::size_t triangle = 0; triangle < refined.triangles.size(); triangle++)
+        if (refined.triangle_attributes[triangle] == 1.0)
+            carried.triangle_area_limits[triangle] = 0.05;
+
+    for (const Smoothing smoothing : {Smoothing::LAPLACIAN, Smoothing::CENTROIDAL})
+    {
+        ImproveOptions options;
+        options.smoothing = smoothing;
+        options.maximum_angle = 90.0;
+        const Mesh improved = improve_mesh(carried, options);
+        check_mesh(improved, 96.0);
+        double lower = 0.0;
+        for (std::size_t triangle = 0; triangle < improved.triangles.size(); triangle++)
+        {
+            if (improved.triangle_attributes[triangle] != 1.0) continue;
+            EXPECT_LE(signed_area(improved, triangle), 0.05 + TOLERANCE);
+            lower += signed_area(improved, triangle);
+        }
+        // the region below the line keeps its area: 10 by 3
+        EXPECT_NEAR(lower, 30.0, 1e-9);
+        EXPECT_EQ(improved.vertices[refined.fixed_vertices[0]].x, 2.0);
+        EXPECT_EQ(improved.vertices[refined.fixed_vertices[0]].y, 8.0);
+    }
+}
+
 TEST(Improve, ErrorsGiveTheReason)
 {
     const Mesh mesh = generate_mesh(polygon_geometry(), {});

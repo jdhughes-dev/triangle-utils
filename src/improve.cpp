@@ -81,6 +81,15 @@ std::vector<std::array<int, 3>> find_neighbors(const Mesh & mesh)
     return neighbors;
 }
 
+// Whether a new area for a triangle would exceed its area limit, where it
+// has a positive one, and its current area, so a triangle over its limit
+// may still shrink.
+bool over_limit(const Mesh & mesh, int triangle, double area, double current)
+{
+    return !mesh.triangle_area_limits.empty() && mesh.triangle_area_limits[triangle] > 0.0 &&
+           area > mesh.triangle_area_limits[triangle] && area > current;
+}
+
 // Whether two triangles carry the same attributes and area limit, so an
 // edge between them can be flipped without changing either.
 bool same_values(const Mesh & mesh, int first, int second)
@@ -130,6 +139,14 @@ void flip_to_delaunay(Mesh & mesh, const std::set<std::pair<int, int>> & segment
                     continue;
                 // the flipped triangles must both be counterclockwise
                 if (!(cross(v[c], v[a], v[d]) > 0.0 && cross(v[d], v[b], v[c]) > 0.0)) continue;
+                // the two share an area limit, which both flipped triangles must meet
+                const double larger =
+                    0.5 * std::max(cross(v[c], v[a], v[b]), cross(v[d], v[b], v[a]));
+                if (over_limit(mesh, static_cast<int>(first), 0.5 * cross(v[c], v[a], v[d]),
+                               larger) ||
+                    over_limit(mesh, static_cast<int>(first), 0.5 * cross(v[d], v[b], v[c]),
+                               larger))
+                    continue;
                 one = {c, a, d};
                 other = {d, b, c};
                 changed[first] = changed[second] = true;
@@ -215,9 +232,25 @@ Mesh improve_mesh(const Mesh & mesh, const ImproveOptions & options)
             if (fixed[vertex] || around[vertex].empty()) continue;
             // the shape of the triangles around the vertex with it at a point,
             // or none if a triangle would not be counterclockwise
+            const Point here = result.vertices[vertex];
+            // the mean length of the vertex's edges, the scale of its moves
+            double local_length = 0.0;
+            int edge_count = 0;
+            for (const int triangle : around[vertex])
+                for (const int corner : result.triangles[triangle])
+                    if (corner != static_cast<int>(vertex))
+                    {
+                        const Point & other = result.vertices[corner];
+                        local_length += std::hypot(other.x - here.x, other.y - here.y);
+                        edge_count++;
+                    }
+            local_length /= edge_count;
+            // the shape of the triangles around the vertex with it at a
+            // point, or none if a triangle would not be counterclockwise or
+            // would exceed its area limit
             auto shape_with = [&](const Point & at, Shape & shape)
             {
-                const double minimum_area = 1e-12 * mean_length * mean_length;
+                const double minimum_area = 1e-12 * local_length * local_length;
                 for (const int triangle : around[vertex])
                 {
                     std::array<Point, 3> points;
@@ -227,7 +260,13 @@ Mesh improve_mesh(const Mesh & mesh, const ImproveOptions & options)
                         points[corner] =
                             index == static_cast<int>(vertex) ? at : result.vertices[index];
                     }
-                    if (cross(points[0], points[1], points[2]) <= minimum_area) return false;
+                    const double twice_area = cross(points[0], points[1], points[2]);
+                    if (twice_area <= minimum_area) return false;
+                    const auto & corners = result.triangles[triangle];
+                    const double current =
+                        0.5 * cross(result.vertices[corners[0]], result.vertices[corners[1]],
+                                    result.vertices[corners[2]]);
+                    if (over_limit(result, triangle, 0.5 * twice_area, current)) return false;
                     add_triangle(shape, points[0], points[1], points[2]);
                 }
                 return true;
@@ -237,9 +276,9 @@ Mesh improve_mesh(const Mesh & mesh, const ImproveOptions & options)
             auto excess = [&](const Shape & shape)
             { return target > 0.0 ? std::max(shape.largest, target) : 0.0; };
 
-            const Point here = result.vertices[vertex];
             Shape now;
-            shape_with(here, now);
+            // a vertex whose triangles are already degenerate stays put
+            if (!shape_with(here, now)) continue;
 
             Point goal;
             if (options.smoothing == Smoothing::LAPLACIAN)
@@ -296,17 +335,6 @@ Mesh improve_mesh(const Mesh & mesh, const ImproveOptions & options)
             // so search steps in eight directions, shrinking, for the best move
             if (!moved && target > 0.0 && now.largest > target + ANGLE_MARGIN)
             {
-                double local_length = 0.0;
-                int edge_count = 0;
-                for (const int triangle : around[vertex])
-                    for (const int corner : result.triangles[triangle])
-                        if (corner != static_cast<int>(vertex))
-                        {
-                            const Point & other = result.vertices[corner];
-                            local_length += std::hypot(other.x - here.x, other.y - here.y);
-                            edge_count++;
-                        }
-                local_length /= edge_count;
                 Shape best_shape = now;
                 for (const double size : SEARCH_STEPS)
                 {

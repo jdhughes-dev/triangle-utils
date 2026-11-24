@@ -132,7 +132,7 @@ Figure~\ref{fig:closeups} shows the windows of Figure~\ref{fig:generated} before
 
 \section{Improving a Mesh}
 
-Improving moves the vertices of a mesh, other than those on its boundary, polygons, and lines and those of point features and wells, and replaces edges between triangles so the triangles are Delaunay. A vertex is moved toward the average of its neighboring vertices, or toward the centroids of its triangles, only where every triangle around it stays valid, no angle falls below the smallest angle of the mesh, and the largest angle around it decreases toward a given maximum angle. With a maximum angle of 90 degrees, improving removes the obtuse triangles that refining leaves, so the circumcenter of each triangle lies inside it. An obtuse angle at a point on the boundary where only two triangles meet cannot be removed by moving vertices, because the two angles there sum to 180 degrees; refining that part of the boundary adds triangles that can.
+Improving moves the vertices of a mesh, other than those on its boundary, polygons, and lines and those of point features and wells, and replaces the shared edge of two triangles wherever that makes their smallest angles larger. A vertex is moved toward the average of its neighboring vertices, or toward the centroids of its triangles, only where no triangle around it folds over or exceeds its largest area, no angle falls below the smallest angle of the mesh, and the largest angle around it decreases toward a given maximum angle. With a maximum angle of 90 degrees, improving removes the obtuse triangles that refining leaves, so the circumcenter of each triangle lies inside it. An obtuse angle at a point on the boundary where only two triangles meet cannot be removed by moving vertices, because the two angles there sum to 180 degrees; refining that part of the boundary adds triangles that can.
 
 By default, no move may make an angle smaller than the smallest angle of the mesh, so improving never makes that angle smaller; some obtuse triangles can be removed only by making an angle smaller, and a smaller minimum angle can be given to allow it.
 
@@ -141,21 +141,22 @@ Figure~\ref{fig:improved} shows the refined mesh of Figure~\ref{fig:refined} imp
 \begin{figure}[htbp]
   \centering
   \includegraphics{improved_mesh.pdf}
-  \caption{Triangles with an angle over \improveangle\ degrees (red) in the mesh of the example valley. \textit{A}, the mesh refined to a maximum angle of \maximumangle\ degrees (fig.~\ref{fig:refined}\textit{B}). \textit{B}, the same mesh improved toward a maximum angle of \improveangle\ degrees, keeping its smallest angle. \textit{C}, the same mesh improved with a minimum angle of \tradedangle\ degrees. Triangles left over \improveangle\ degrees have that angle at a point that does not move}
+  \caption{Triangles with an angle over \improveangle\ degrees (red) in the mesh of the example valley. \textit{A}, the mesh refined to a maximum angle of \maximumangle\ degrees (fig.~\ref{fig:refined}\textit{B}). \textit{B}, the same mesh improved toward a maximum angle of \improveangle\ degrees, keeping its smallest angle. \textit{C}, the same mesh improved with a minimum angle of \tradedangle\ degrees}
   \label{fig:improved}
 \end{figure}
 
 \section{Using triangle-utils}
 
-The \texttt{triangle-utils} program reads and writes the files of Triangle. The \texttt{generate} command meshes the segments, vertices, holes, and regions of a .poly file, such as one describing the boundary, river, and lake of a valley, and the \texttt{refine} command refines the mesh in a .node file and an .ele file, with the segments of a .poly file and the area of each triangle in an .area file if they exist:
+The \texttt{triangle-utils} program reads and writes the files of Triangle. The \texttt{generate} command meshes the segments, vertices, holes, and regions of a .poly file, such as one describing the boundary, river, and lake of a valley, the \texttt{refine} command refines the mesh in a .node file and an .ele file, with the segments of a .poly file and the area of each triangle in an .area file if they exist, and the \texttt{improve} command moves the vertices of such a mesh. A vertex with marker 1 in a .node file, as \texttt{generate} writes for the points of the .poly file, such as wells, stays in place:
 
 \begin{Verbatim}[fontsize=\small,commandchars=\\\{\}]
 triangle-utils generate -a \maximumareavalue -q \minimumangle -s \boundaryspacingvalue valley
 triangle-utils refine -A \maximumangle valley.1
-triangle-utils check valley.2
+triangle-utils improve -A \improveangle valley.2
+triangle-utils check valley.3
 \end{Verbatim}
 
-\noindent Each command writes its mesh to files named as Triangle names them, valley.1 for valley and valley.2 for valley.1; \texttt{triangle-utils generate -h} and \texttt{triangle-utils refine -h} list the options of each.
+\noindent Each command writes its mesh to files named as Triangle names them, valley.1 for valley and valley.2 for valley.1; \texttt{triangle-utils generate -h}, \texttt{refine -h}, and \texttt{improve -h} list the options of each.
 
 From Python, the triangle-utils module in the python folder of the repository calls the library directly, and meshes are returned as NumPy arrays. The example valley is generated and refined as follows, with the values given above; the script make\_figures.py in the doc/UserGuide folder, from which this is taken and which gives the coordinates of the boundary, river, lake, and wells, makes the figures of this guide:
 
@@ -174,6 +175,7 @@ for x, y in WELLS:
     geometry.add_ring(x, y, WELL_RADIUS, WELL_POINTS, WELL_REGION, WELL_AREA, WELL_MARKER)
 mesh = tu.generate(geometry, maximum_area=MAXIMUM_AREA, minimum_angle=MINIMUM_ANGLE)
 refined = tu.refine(mesh, minimum_angle=MINIMUM_ANGLE, maximum_angle=MAXIMUM_ANGLE)
+improved = tu.improve(refined, maximum_angle=IMPROVE_ANGLE)
 \end{Verbatim}
 
 \noindent The same functions are available to C, C++, and Fortran programs through the C interface declared in triangle\_utils.h.
