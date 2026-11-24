@@ -72,6 +72,14 @@ mesh from geometry).
   XT3D where accuracy matters more than run time. MODFLOW-USG has no XT3D,
   so there the choices end at GNC. `XT3D RHS` is not a cheaper XT3D.
 
+## Release
+
+- **Windows runtime DLLs:** the Windows DLL depends on its compiler's
+  runtime DLLs (the Intel build failed to load from Python without them in
+  #38), which Python since 3.8 does not look for on `PATH`; the tests load
+  it with `winmode=0`. Before #10, decide how the release provides them:
+  link them statically or ship them beside the DLL.
+
 ## Open questions
 
 - **Python wrapper:** no issue covers one; #5 has only ctypes tests. Decide

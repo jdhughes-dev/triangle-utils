@@ -77,7 +77,11 @@ SIGNATURES = {
 
 def load():
     """Open the library and declare its functions."""
-    library = ctypes.CDLL(os.environ["TRIANGLE_UTILS_LIBRARY"])
+    # on Windows, the standard search order (winmode 0), which includes PATH,
+    # finds the compiler's runtime DLLs the library depends on; by default
+    # Python does not search PATH for them
+    winmode = 0 if os.name == "nt" else None
+    library = ctypes.CDLL(os.environ["TRIANGLE_UTILS_LIBRARY"], winmode=winmode)
     for name, (result, arguments) in SIGNATURES.items():
         function = getattr(library, f"triangle_utils_{name}")
         function.restype = result
