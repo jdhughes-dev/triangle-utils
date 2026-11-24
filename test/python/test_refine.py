@@ -16,7 +16,7 @@ Cases:
 import ctypes
 
 import pytest
-from triangle_utils_api import ERROR, INVALID_ARGUMENT, MESH_POINTER, OK, doubles
+from triangle_utils._library import ERROR, INVALID_ARGUMENT, MESH_POINTER, OK, doubles
 
 SQUARE = [0.0, 0.0, 4.0, 0.0, 4.0, 4.0, 0.0, 4.0]
 

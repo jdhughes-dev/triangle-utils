@@ -9,6 +9,7 @@ python = ">=3.11"
 meson = ">=1.3.1"
 ninja = "*"
 pytest = "*"
+numpy = "*"
 ruff = "*"
 codespell = "*"
 clang-format = "23.1.*"
@@ -47,5 +48,16 @@ gxx = "15.*"
 CC = "gcc"
 CXX = "g++"
 
+# the user guide: figures drawn with matplotlib in FloPy's USGS styles, and
+# the PDF built with latexmk, which needs TeX Live and the usgslatex class
+# (MODFLOW-ORG/usgslatex) installed outside pixi
+[feature.doc.dependencies]
+flopy = "*"
+matplotlib-base = "*"
+
+[feature.doc.tasks]
+build-guide = { cmd = "python make_figures.py && latexmk -pdf -interaction=nonstopmode -halt-on-error triangle-utils.tex", cwd = "doc/UserGuide" }
+
 [environments]
 gcc = ["gcc"]
+doc = ["doc"]

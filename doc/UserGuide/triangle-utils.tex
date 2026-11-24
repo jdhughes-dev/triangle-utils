@@ -1,0 +1,160 @@
+\documentclass[11pt,twoside,twocolumn]{usgsreport}
+\usepackage{usgsfonts}
+\usepackage{usgsgeo}
+\usepackage{usgsreporta}
+
+\usepackage{graphicx}
+\usepackage{natbib}
+\usepackage{enumitem}
+\usepackage[T1]{fontenc}
+\usepackage{etoolbox}
+\usepackage{fancyvrb}
+
+\usepackage{hyperref}
+\hypersetup{
+    pdftitle={triangle-utils User Guide},
+    pdfauthor={triangle-utils developers},
+    pdfsubject={triangle-utils User Guide},
+    pdfkeywords={triangle-utils, Triangle, triangular grid, Voronoi grid, MODFLOW 6, MODFLOW-USG},
+    bookmarksnumbered=true,
+    bookmarksopen=true,
+    bookmarksopenlevel=1,
+    colorlinks=true,
+    allcolors={blue},
+    pdfstartview=Fit,
+    pdfpagemode=UseOutlines,
+    pdfpagelayout=TwoPageRight
+}
+
+\graphicspath{{./Figures/}}
+
+% the version and the values the text quotes, written by make_figures.py
+\input{values.tex}
+
+\renewcommand{\cooperator}{}
+\renewcommand{\reporttitle}{triangle-utils: User Guide}
+\renewcommand{\coverphoto}{cover.png}
+\renewcommand{\GSphotocredit}{Triangular mesh of an example valley created with triangle-utils.}
+\renewcommand{\reportseries}{}
+\renewcommand{\reportnumber}{}
+\renewcommand{\reportyear}{2026}
+\ifdef{\reportversion}{\renewcommand{\reportversion}{Version \tuversion}}{}
+\renewcommand{\theauthors}{triangle-utils developers}
+\renewcommand{\thetitlepageauthors}{Version \tuversion}
+\renewcommand{\reportcitingtheauthors}{triangle-utils developers}
+\renewcommand{\colophonmoreinfo}{}
+\renewcommand{\reportbodypages}{}
+\urlstyle{rm}
+\renewcommand{\reportwebsiteroot}{}
+\renewcommand{\reportwebsiteremainder}{}
+\ifdef{\usgsissn}{\renewcommand{\usgsissn}{}}{}
+\renewcommand{\theconventions}{}
+\definecolor{coverbar}{RGB}{0, 112, 60}
+\renewcommand{\bannercolor}{\color{coverbar}}
+\renewcommand{\reportrefname}{References Cited}
+
+\begin{document}
+
+% the class cover without the banner, the agency logo (a blank page in place
+% of the logo file), and the department and agency lines
+{\renewcommand{\coverruleoddpage}{}\renewcommand{\USGSvisidname}{blank}%
+ \renewcommand{\doiagency}{}\renewcommand{\textusgs}{}%
+ \ifdef{\makefrontcoveralt}{\makefrontcoveralt}{\makefrontcover}}
+\ifdef{\makefrontmatterabv}{\makefrontmatterabv}{\makefrontmatter}
+
+\onecolumn
+\pagestyle{body}
+\RaggedRight
+\setlength{\parindent}{2em}
+
+\section*{Abstract}
+\addcontentsline{toc}{section}{Abstract}
+
+triangle-utils is a set of utilities for building two-dimensional triangular meshes for groundwater models, such as MODFLOW~6 \citep{modflow6gwf}, from the boundaries, rivers, lakes, and wells of a model area. The utilities call Triangle \citep{shewchuk1996triangle}, a program that builds triangular meshes with guaranteed quality, and work on meshes in memory, so that they can be called from Python, C, C++, and Fortran as well as run as a command-line program. This guide describes generating a mesh from the features of a model area and refining a mesh so that its triangles are smaller where needed and have no angle over a limit, and demonstrates both on an example valley with a river, a lake, and three pumping wells.
+
+\section{Introduction}
+
+This guide describes triangle-utils version \tuversion, which is built with Triangle version \triangleversion\ as distributed in release \trianglerelease\ of the MODFLOW-ORG/triangle repository. The utilities generate a triangular mesh from the features of a model area and refine a mesh by area and by angle. Later versions will convert a triangular mesh to a Voronoi grid and write the discretization input of MODFLOW~6 and MODFLOW-USG, and this guide will describe each as it is added.
+
+A groundwater model that uses a triangular or Voronoi grid needs a mesh whose triangles follow the model boundary and the features that control flow, such as rivers and lakes, and are small where heads change rapidly, such as near pumping wells. The shape of the triangles matters as well. The flow between two cells of an unstructured grid is calculated from the head difference between the cell centers, which is accurate when the line between the centers is perpendicular to the face the cells share. For a triangular grid whose cell centers are the circumcenters of the triangles, that holds only when no triangle has an angle over 90 degrees, because the circumcenter of an obtuse triangle lies outside it.
+
+\section{Triangle and Its Terms of Use}
+
+Triangle generates Delaunay triangulations and quality meshes, in which no angle is smaller than a specified limit, by Delaunay refinement \citep{shewchuk2002delaunay}. triangle-utils builds Triangle from the MODFLOW-ORG/triangle repository, which distributes Triangle with the changes needed to build it on current compilers and to return its errors to the calling program instead of ending it. Triangle is copyrighted by its author and may be distributed only free of charge, with its copyright notice and with its source code available; distributing it as part of a commercial system requires an arrangement with the author. These terms apply to every program and library that contains triangle-utils. The code of triangle-utils itself is dedicated to the public domain under Creative Commons CC0 1.0. The command \texttt{triangle-utils --license} prints both.
+
+\section{Generating a Mesh}
+
+A mesh is generated from the features of the model area, each given by the coordinates of its points:
+
+\begin{itemize}
+  \item polygons, which bound the model area and the areas inside it, such as a lake, that the mesh follows;
+  \item hole polygons, whose inside is not meshed, and points inside holes bounded by polygons;
+  \item open lines that the mesh follows, such as rivers;
+  \item regions, each given by a point inside it, which give the triangles of the region an attribute and a largest triangle area;
+  \item points that the mesh includes as vertices, such as observation wells; and
+  \item rings of finer triangles around a point, such as a pumping well, made of a vertex at the point, a polygon of points around it at a given radius, and a region inside the polygon with its own attribute and largest triangle area.
+\end{itemize}
+
+Points are added along each polygon and line so that no two successive points are farther apart than a spacing given for that feature, which sets the size of the triangles along it. Points that appear in more than one feature, such as the end of a river on the model boundary, are merged into one vertex; points closer than a given distance can be merged as well, for features digitized separately whose shared points do not match exactly. The mesh covers the polygons, without the area inside a hole polygon or anything in it, and its triangles have no angle smaller than a given minimum angle, up to 34 degrees, and no area larger than a given largest area. Triangle spreads the attribute and area of a region only up to the polygons and lines around it, so a river that crosses the model area needs a region on each side.
+
+Figure~\ref{fig:generated} shows a mesh of an example valley of \valleyarea\ square kilometers (km$^2$), with points every 200 meters (m) along its boundary, every 50~m along the river, and every 60~m around the lake. Triangles are no larger than 40,000 square meters (m$^2$) in the aquifer and 3,600~m$^2$ in the lake, and have no angle smaller than 30 degrees. Each of the three wells is at the center of a ring with a radius of 50~m and 16 points, in which triangles are no larger than 300~m$^2$. The mesh has \generatedvertices\ vertices and \generatedtriangles\ triangles.
+
+\begin{figure}[htbp]
+  \centering
+  \includegraphics{generated_mesh.pdf}
+  \caption{Mesh generated for the example valley, colored by region. \textit{A}, the valley, with the river, the lake, and the rings around the three wells. \textit{B}, the mesh around the well at x = 3,300~m and y = 4,400~m (black dot)}
+  \label{fig:generated}
+\end{figure}
+
+\section{Refining a Mesh}
+
+Refining splits the triangles of an existing mesh, keeping its boundary, its polygons and lines, and the attributes of its regions. A mesh is refined so that each triangle is no larger than an area given for it, so that every triangle is no larger than a largest area, or so that no angle is smaller than a minimum angle or larger than a maximum angle. The area of each triangle can be set from a model quantity, such as a hydraulic gradient from an earlier simulation.
+
+Refining by a maximum angle reduces the obtuse triangles of a mesh. Triangle can reduce the largest angle to about 95 to 100 degrees, but not to 90 degrees, at which refining does not finish. Refining by a maximum angle therefore stops after a given number of triangles have been split, and the number of triangles left with an angle over the limit is reported. Triangle averages the attributes and area limits of two triangles when it replaces the edge between them, so attributes are kept exactly only where polygons or lines bound them.
+
+Figure~\ref{fig:refined} shows the mesh of Figure~\ref{fig:generated} refined to a maximum angle of 100 degrees. Of the \generatedtriangles\ triangles of the generated mesh, \generatedover\ have an angle over 100 degrees, the largest \generatedlargest\ degrees. The refined mesh has \refinedtriangles\ triangles, of which \refinedover\ have an angle over 100 degrees, the largest \refinedlargest\ degrees.
+
+\begin{figure}[htbp]
+  \centering
+  \includegraphics{refined_mesh.pdf}
+  \caption{Triangles with an angle over 100 degrees (red) in the mesh of the example valley. \textit{A}, the mesh generated with a minimum angle of 30 degrees (fig.~\ref{fig:generated}). \textit{B}, the same mesh refined to a maximum angle of 100 degrees}
+  \label{fig:refined}
+\end{figure}
+
+\section{Running triangle-utils}
+
+The \texttt{triangle-utils} program reads and writes the files of Triangle. The \texttt{generate} command meshes the segments, vertices, holes, and regions of a .poly file, and the \texttt{refine} command refines the mesh in a .node file and an .ele file, with the segments of a .poly file and the area of each triangle in an .area file if they exist:
+
+\begin{Verbatim}[fontsize=\small]
+triangle-utils generate -a 40000 -q 30 -s 200 valley
+triangle-utils refine -A 100 valley.1
+triangle-utils check valley.2
+\end{Verbatim}
+
+\noindent Each command writes its mesh to files named as Triangle names them, valley.1 for valley and valley.2 for valley.1; \texttt{triangle-utils generate -h} and \texttt{triangle-utils refine -h} list the options of each.
+
+From Python, the triangle-utils module in the python folder of the repository calls the library directly, and meshes are returned as NumPy arrays that FloPy \citep{bakker2016flopy, hughes2024flopy} can use. The example valley is generated and refined as follows; the script make\_figures.py in the doc/UserGuide folder makes the figures of this guide from it:
+
+\begin{Verbatim}[fontsize=\small]
+import triangle_utils as tu
+
+geometry = tu.Geometry()
+geometry.add_polygon(boundary, spacing=200.0, marker=1)
+geometry.add_line(river, spacing=50.0, marker=2)
+geometry.add_polygon(lake, spacing=60.0, marker=3)
+geometry.add_region(500, 1000, attribute=1)
+geometry.add_region(4000, 1000, attribute=1)
+geometry.add_region(1100, 5400, attribute=2, area_limit=3600.0)
+for x, y in wells:
+    geometry.add_ring(x, y, 50.0, 16, attribute=3, area_limit=300.0, marker=4)
+mesh = tu.generate(geometry, maximum_area=40000.0, minimum_angle=30.0)
+refined = tu.refine(mesh, minimum_angle=30.0, maximum_angle=100.0)
+\end{Verbatim}
+
+\noindent The same functions are available to C, C++, and Fortran programs through the C interface declared in triangle\_utils.h.
+
+\REFSECTION
+\bibliographystyle{usgs}
+\bibliography{triangle-utils}
+
+\end{document}

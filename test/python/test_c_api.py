@@ -25,7 +25,7 @@ Cases:
 import ctypes
 import math
 
-from triangle_utils_api import ERROR, INVALID_ARGUMENT, MESH_POINTER, OK
+from triangle_utils._library import ERROR, INVALID_ARGUMENT, MESH_POINTER, OK
 
 
 def not_null():

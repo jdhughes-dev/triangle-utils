@@ -47,6 +47,14 @@ The API also returns the versions of triangle-utils and Triangle, the license,
 and Triangle's copyright notice. Calls must not run concurrently, since
 Triangle keeps global state.
 
+## User guide
+
+The user guide in `doc/UserGuide/` describes the utilities for groundwater
+modelers, with examples; `pixi run -e doc build-guide` builds it, and CI
+uploads the PDF with each run of its workflow. The Python module in
+`python/triangle_utils/` calls the library from Python, with meshes as NumPy
+arrays.
+
 ## Command line
 
 ```shell

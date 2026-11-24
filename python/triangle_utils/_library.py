@@ -1,12 +1,14 @@
 """
 The C API's functions, status codes, and handles for ctypes.
 
-load() opens the library named by the TRIANGLE_UTILS_LIBRARY environment
-variable, which meson test sets, and declares each function's types.
+load() opens the library and declares each function's types: the library
+named by the TRIANGLE_UTILS_LIBRARY environment variable, which meson test
+sets, or else the one `pixi run build` installs in the repository.
 """
 
 import ctypes
 import os
+from pathlib import Path
 
 OK = 0
 ERROR = 1
@@ -83,13 +85,36 @@ SIGNATURES = {
 }
 
 
+# the repository, where `pixi run build` installs the library
+REPOSITORY = Path(__file__).resolve().parents[2]
+
+
+def library_path():
+    """The library to load."""
+    if "TRIANGLE_UTILS_LIBRARY" in os.environ:
+        return Path(os.environ["TRIANGLE_UTILS_LIBRARY"])
+    # the shared library, or its DLL, which Windows installs in bin
+    for pattern in (
+        "lib/libtriangle_utils.so",
+        "lib/libtriangle_utils.dylib",
+        "bin/*triangle_utils*.dll",
+    ):
+        found = sorted(REPOSITORY.glob(pattern))
+        if found:
+            return found[0]
+    raise FileNotFoundError(
+        "the triangle-utils library was not found; run `pixi run build`, or set "
+        "TRIANGLE_UTILS_LIBRARY to its path"
+    )
+
+
 def load():
     """Open the library and declare its functions."""
     # on Windows, the standard search order (winmode 0), which includes PATH,
     # finds the compiler's runtime DLLs the library depends on; by default
     # Python does not search PATH for them
     winmode = 0 if os.name == "nt" else None
-    library = ctypes.CDLL(os.environ["TRIANGLE_UTILS_LIBRARY"], winmode=winmode)
+    library = ctypes.CDLL(str(library_path()), winmode=winmode)
     for name, (result, arguments) in SIGNATURES.items():
         function = getattr(library, f"triangle_utils_{name}")
         function.restype = result

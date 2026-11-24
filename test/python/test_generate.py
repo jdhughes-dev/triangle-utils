@@ -15,7 +15,7 @@ Cases:
 import ctypes
 
 import pytest
-from triangle_utils_api import (
+from triangle_utils._library import (
     ERROR,
     GEOMETRY_POINTER,
     INVALID_ARGUMENT,
