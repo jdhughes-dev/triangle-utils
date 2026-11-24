@@ -70,7 +70,7 @@
 \section*{Abstract}
 \addcontentsline{toc}{section}{Abstract}
 
-triangle-utils is a set of utilities for building two-dimensional triangular meshes for groundwater models, such as MODFLOW~6 \citep{modflow6gwf}, from the boundaries, rivers, lakes, and wells of a model area. The utilities use Triangle \citep{shewchuk1996triangle}, which builds meshes whose triangles have no angle smaller than a specified limit. This guide describes generating a mesh that follows the boundary, rivers, and lakes of a model area and has smaller triangles around pumping wells, and refining a mesh so that its triangles are smaller where heads change rapidly and have no angle over a limit, which the flow calculation between the cells of a triangular grid needs. Both are demonstrated on an example valley with a river, a lake, and three pumping wells.
+triangle-utils is a set of utilities for building two-dimensional triangular meshes for groundwater models, such as MODFLOW~6 \citep{modflow6gwf}, from the boundaries, rivers, lakes, and wells of a model area. The utilities use Triangle \citep{shewchuk1996triangle}, which builds meshes whose triangles have no angle smaller than a specified limit. This guide describes generating a mesh that follows the boundary, rivers, and lakes of a model area and has smaller triangles around pumping wells, and refining a mesh by area and by angle, so that no triangle has an angle over a limit, which the flow calculation between the cells of a triangular grid needs. Generating a mesh and refining it by angle are demonstrated on an example valley with a river, a lake, and three pumping wells.
 
 \section{Introduction}
 
@@ -80,7 +80,7 @@ A groundwater model that uses a triangular or Voronoi grid needs a mesh whose tr
 
 \section{Triangle and Its Terms of Use}
 
-Triangle generates Delaunay triangulations and quality meshes, in which no angle is smaller than a specified limit, by Delaunay refinement \citep{shewchuk2002delaunay}. triangle-utils builds Triangle from the MODFLOW-ORG/triangle repository, which distributes Triangle with the changes needed to build it on current compilers and to return its errors to the calling program instead of ending it. Triangle is copyrighted by its author and may be distributed only free of charge, with its copyright notice and with its source code available; distributing it as part of a commercial system requires an arrangement with the author. These terms apply to every program and library that contains triangle-utils. The code of triangle-utils itself is dedicated to the public domain under Creative Commons CC0 1.0. The command \texttt{triangle-utils --license} prints both.
+Triangle generates Delaunay triangulations and quality meshes, in which no angle is smaller than a specified limit, by Delaunay refinement \citep{shewchuk2002delaunay}. triangle-utils builds Triangle from the MODFLOW-ORG/triangle repository, which distributes Triangle with the changes needed to build it on current compilers and to return its errors to the calling program instead of ending it. Triangle is copyrighted by its author and may be distributed only free of charge, with its copyright notice and with its source code available; distributing it as part of a commercial system requires an arrangement with the author. These terms apply to every program and library built from triangle-utils, since each contains Triangle. The code of triangle-utils itself is dedicated to the public domain under Creative Commons CC0 1.0. The command \texttt{triangle-utils --license} prints both.
 
 \section{Generating a Mesh}
 
@@ -102,28 +102,28 @@ Figure~\ref{fig:generated} shows a mesh of an example valley of \valleyarea\ squ
 \begin{figure}[htbp]
   \centering
   \includegraphics{generated_mesh.pdf}
-  \caption{Mesh generated for the example valley, colored by region. \textit{A}, the valley, with the river, the lake, and the rings around the three wells. \textit{B}, the mesh around the well at x = \wellx~m and y = \welly~m}
+  \caption{Mesh generated for the example valley, colored by region. \textit{A}, the valley, with the river, the lake, and the rings around the three wells. \textit{B}, the mesh around the well at x = \wellx~m and y = \welly~m. The ring around each well gives it triangles of no more than \wellarea~m$^2$ while the triangles around the ring grow to the size of those in the aquifer}
   \label{fig:generated}
 \end{figure}
 
 \section{Refining a Mesh}
 
-Refining splits the triangles of an existing mesh, keeping its boundary, its polygons and lines, and the attributes of its regions. A mesh is refined so that each triangle is no larger than an area given for it, so that every triangle is no larger than a largest area, or so that no angle is smaller than a minimum angle or larger than a maximum angle. The area of each triangle can be set from a model quantity, such as a hydraulic gradient from an earlier simulation.
+Refining splits the triangles of an existing mesh, keeping its boundary and its polygons and lines. A mesh is refined so that each triangle is no larger than an area given for it, so that every triangle is no larger than a largest area, or so that no angle is smaller than a minimum angle or larger than a maximum angle. The area of each triangle can be set from a model quantity, such as a hydraulic gradient from an earlier simulation.
 
-Refining by a maximum angle reduces the obtuse triangles of a mesh. Triangle can reduce the largest angle to about 95 to 100 degrees, but not to 90 degrees, at which refining does not finish. Refining by a maximum angle stops after a given number of triangles have been split, and the number of triangles left with an angle over the limit is reported. The attributes and area limits of regions are kept exactly only where polygons or lines bound them; elsewhere they are averaged with those of neighboring triangles.
+Refining by a maximum angle reduces the obtuse triangles of a mesh. Triangle can reduce the largest angle to about 95 to 100 degrees, but not to 90 degrees, at which refining does not finish. Refining by a maximum angle stops after a given number of triangles have been split, and the triangles left with an angle over the limit can be counted. The attributes and area limits of regions are kept exactly only where polygons or lines bound them; elsewhere they are averaged with those of neighboring triangles.
 
-Figure~\ref{fig:refined} shows the mesh of Figure~\ref{fig:generated} refined to a maximum angle of \maximumangle\ degrees. Of the \generatedtriangles\ triangles of the generated mesh, \generatedover\ have an angle over \maximumangle\ degrees, the largest \generatedlargest\ degrees. The refined mesh has \refinedtriangles\ triangles, of which \refinedover\ have an angle over \maximumangle\ degrees, the largest \refinedlargest\ degrees.
+Figure~\ref{fig:refined} shows the mesh of Figure~\ref{fig:generated} refined to a maximum angle of \maximumangle\ degrees. In the generated mesh, \generatedover\ triangles have an angle over \maximumangle\ degrees, the largest \generatedlargest\ degrees. The refined mesh has \refinedtriangles\ triangles, of which \refinedover\ have an angle over \maximumangle\ degrees, the largest \refinedlargest\ degrees.
 
 \begin{figure}[htbp]
   \centering
   \includegraphics{refined_mesh.pdf}
-  \caption{Triangles with an angle over \maximumangle\ degrees (red) in the mesh of the example valley, with the lake (blue) and the river (blue line). \textit{A}, the mesh generated with a minimum angle of \minimumangle\ degrees (fig.~\ref{fig:generated}). \textit{B}, the same mesh refined to a maximum angle of \maximumangle\ degrees}
+  \caption{Triangles with an angle over \maximumangle\ degrees (red) in the mesh of the example valley. \textit{A}, the mesh generated with a minimum angle of \minimumangle\ degrees (fig.~\ref{fig:generated}). \textit{B}, the same mesh refined to a maximum angle of \maximumangle\ degrees, which leaves \refinedover\ triangles over it}
   \label{fig:refined}
 \end{figure}
 
 \section{Using triangle-utils}
 
-The \texttt{triangle-utils} program reads and writes the files of Triangle. The \texttt{generate} command meshes the segments, vertices, holes, and regions of a .poly file, and the \texttt{refine} command refines the mesh in a .node file and an .ele file, with the segments of a .poly file and the area of each triangle in an .area file if they exist:
+The \texttt{triangle-utils} program reads and writes the files of Triangle. The \texttt{generate} command meshes the segments, vertices, holes, and regions of a .poly file, such as one describing the boundary, river, and lake of a valley, and the \texttt{refine} command refines the mesh in a .node file and an .ele file, with the segments of a .poly file and the area of each triangle in an .area file if they exist:
 
 \begin{Verbatim}[fontsize=\small,commandchars=\\\{\}]
 triangle-utils generate -a \maximumareavalue -q \minimumangle -s \boundaryspacingvalue valley
@@ -133,7 +133,7 @@ triangle-utils check valley.2
 
 \noindent Each command writes its mesh to files named as Triangle names them, valley.1 for valley and valley.2 for valley.1; \texttt{triangle-utils generate -h} and \texttt{triangle-utils refine -h} list the options of each.
 
-From Python, the triangle-utils module in the python folder of the repository calls the library directly, and meshes are returned as NumPy arrays that FloPy \citep{bakker2016flopy, hughes2024flopy} can use. The example valley is generated and refined as follows, with the values given above; the script make\_figures.py in the doc/UserGuide folder, from which this is taken, makes the figures of this guide:
+From Python, the triangle-utils module in the python folder of the repository calls the library directly, and meshes are returned as NumPy arrays. The example valley is generated and refined as follows, with the values given above; the script make\_figures.py in the doc/UserGuide folder, from which this is taken and which gives the coordinates of the boundary, river, lake, and wells, makes the figures of this guide:
 
 \begin{Verbatim}[fontsize=\small]
 import triangle_utils as tu

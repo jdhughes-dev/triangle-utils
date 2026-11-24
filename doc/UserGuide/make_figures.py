@@ -11,6 +11,7 @@ from pathlib import Path
 
 import flopy.plot.styles as styles
 import matplotlib.pyplot as plt
+import numpy as np
 from matplotlib.collections import PolyCollection
 from matplotlib.colors import to_rgba
 from matplotlib.patches import Patch
@@ -67,6 +68,15 @@ WELL_AREA = 300.0
 MINIMUM_ANGLE = 30.0
 MAXIMUM_ANGLE = 100.0
 
+# the axis limits of a valley panel: a margin around the boundary, and room
+# above it for the explanation
+_x, _y = np.array(BOUNDARY, dtype=float).T
+MARGIN = 100.0
+X_LIMITS = (_x.min() - MARGIN, _x.max() + MARGIN)
+Y_LIMITS = (_y.min() - MARGIN, _y.max() + 0.3 * (_y.max() - _y.min()))
+# the close-up of a well: the valley panel's shape at this fraction of its size
+CLOSE_UP_FRACTION = 0.1
+
 # region attributes
 AQUIFER, LAKE_REGION, WELL_REGION = 1, 2, 3
 REGION_NAMES = {AQUIFER: "Aquifer", LAKE_REGION: "Lake", WELL_REGION: "Well ring"}
@@ -97,7 +107,7 @@ def valley_geometry():
 
 
 def draw_mesh(ax, mesh, highlight=None):
-    """Draw the triangles colored by region, and the river and boundary."""
+    """Draw the triangles colored by region, the river, and the wells."""
     regions = mesh.attributes[:, 0].astype(int)
     colors = [REGION_COLORS[region] for region in regions]
     if highlight is not None:
@@ -120,9 +130,8 @@ def draw_mesh(ax, mesh, highlight=None):
     ax.xaxis.set_major_formatter(THOUSANDS)
     ax.yaxis.set_major_formatter(THOUSANDS)
     ax.set_aspect("equal")
-    ax.set_xlim(-100, 4700)
-    # room above the valley for the explanation
-    ax.set_ylim(-100, 10500)
+    ax.set_xlim(*X_LIMITS)
+    ax.set_ylim(*Y_LIMITS)
 
 
 def mesh_figure(mesh):
@@ -137,9 +146,10 @@ def mesh_figure(mesh):
         styles.ylabel(ax=axd["A"], label="y, in meters")
         draw_mesh(axd["B"], mesh)
         x, y = WELLS[0]
-        # the valley panel's shape, 4,800 by 9,700 m, at a tenth of its size
-        axd["B"].set_xlim(x - 240, x + 240)
-        axd["B"].set_ylim(y - 485, y + 485)
+        half_width = 0.5 * CLOSE_UP_FRACTION * (X_LIMITS[1] - X_LIMITS[0])
+        half_height = 0.5 * CLOSE_UP_FRACTION * (Y_LIMITS[1] - Y_LIMITS[0])
+        axd["B"].set_xlim(x - half_width, x + half_width)
+        axd["B"].set_ylim(y - half_height, y + half_height)
         styles.heading(ax=axd["B"], letter="B", heading="Around a well")
         styles.xlabel(ax=axd["B"], label="x, in meters")
         handles = [
@@ -186,6 +196,8 @@ def refine_figure(mesh, refined):
         styles.ylabel(ax=axd["A"], label="y, in meters")
         handles = [
             Patch(facecolor="#e31a1c", label=f"Angle over {MAXIMUM_ANGLE:g} degrees"),
+            Patch(facecolor=REGION_COLORS[LAKE_REGION], edgecolor="0.35", label="Lake"),
+            plt.Line2D([], [], color="#1f78b4", label="River"),
             plt.Line2D(
                 [],
                 [],
@@ -224,8 +236,8 @@ def cover_figure(mesh):
         if marker == RIVER_MARKER:
             ax.plot(*mesh.vertices[segment].T, color="#6baed6", lw=1.2)
     ax.set_aspect("equal")
-    ax.set_xlim(-100, 4700)
-    ax.set_ylim(-100, 8100)
+    ax.set_xlim(*X_LIMITS)
+    ax.set_ylim(_y.min() - MARGIN, _y.max() + MARGIN)
     ax.set_axis_off()
     fig.savefig(
         FIGURES / "cover.png",

@@ -7,8 +7,11 @@ Cases:
                          attribute and the well's area limit.
   - test_refine        : refining the mesh by area limits and a maximum angle
                          keeps its area and segments, and counts what is left.
-  - test_shapes        : arrays of the wrong shape or length raise ValueError
-                         before the library reads them.
+  - test_shapes        : arrays of the wrong shape, length, or range, and
+                         values too large for an int, raise ValueError before
+                         the library reads them.
+  - test_points_are_copied : changing a list after adding it does not change
+                         the mesh.
   - test_version       : the versions of triangle-utils, Triangle, and its
                          release are returned.
   - test_error         : the library's reason is raised as Error.
@@ -80,10 +83,25 @@ def test_shapes():
     unsegmented = tu.Mesh(mesh.vertices, mesh.triangles, segment_markers=[1])
     with pytest.raises(ValueError, match="without segments"):
         tu.refine(unsegmented)
+    wrapped = tu.Mesh(mesh.vertices, mesh.triangles.astype(np.int64) + 2**32)
+    with pytest.raises(ValueError, match="triangles must be from"):
+        tu.refine(wrapped)
+    with pytest.raises(ValueError, match="maximum_angle_splits must be"):
+        tu.refine(mesh, maximum_angle_splits=2**40)
     geometry = tu.Geometry()
-    geometry.add_polygon([0, 0, 1])
     with pytest.raises(ValueError, match="points must have 2 columns"):
-        tu.generate(geometry)
+        geometry.add_polygon([0, 0, 1])
+    with pytest.raises(ValueError, match="point_count must be"):
+        geometry.add_ring(1, 1, 0.5, 2**40)
+
+
+def test_points_are_copied():
+    # a list changed after it is added does not change the mesh
+    square = [[0.0, 0.0], [1.0, 0.0], [1.0, 1.0], [0.0, 1.0]]
+    geometry = tu.Geometry()
+    geometry.add_polygon(square)
+    square[2] = [5.0, 5.0]
+    assert tu.generate(geometry).triangle_areas().sum() == pytest.approx(1.0)
 
 
 def test_error():

@@ -45,10 +45,12 @@ jobs:
         with:
           path: triangle-utils
 
+      # pinned, since its install script runs here; move the pin on purpose
       - name: Checkout usgslatex
         uses: actions/checkout@v7
         with:
           repository: MODFLOW-ORG/usgslatex
+          ref: b40a0f362f734dabf59ccc742bc066ae10525b6c
           path: usgslatex
 
       # the packages the guide reads and the programs that build it, as for

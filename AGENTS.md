@@ -286,7 +286,8 @@ MODFLOW-ORG/triangle and MODFLOW-ORG/gridgen.
   - downloads, uploads, or other network access the task does not need.
     Downloads are expected only through the pixi environments (conda-forge),
     the Meson wraps for Triangle and GoogleTest, and the CI workflows
-    (including TeX Live and MODFLOW-ORG/usgslatex for the user guide);
+    (including TeX Live, through `zauguin/install-texlive`, and
+    MODFLOW-ORG/usgslatex at a pinned commit, for the user guide);
   - programs run other than git, Meson, Ninja, the compilers, clang-format,
     ruff, codespell, the utilities themselves, pytest, pixi tasks, Python
     for `scripts/clang_format.py` and `doc/UserGuide/make_figures.py`, and

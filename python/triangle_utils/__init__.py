@@ -25,6 +25,10 @@ __all__ = [
 
 _library = None
 
+# the range of the library's int
+INT_MIN = int(np.iinfo(np.intc).min)
+INT_MAX = int(np.iinfo(np.intc).max)
+
 
 def _api():
     """The library, opened on first use."""
@@ -57,7 +61,7 @@ def _ints(values):
     return array, array.ctypes.data_as(ctypes.POINTER(ctypes.c_int))
 
 
-@dataclass
+@dataclass(eq=False)
 class Mesh:
     """A triangular mesh; indices are zero based."""
 
@@ -147,7 +151,16 @@ def _integers(values, name):
             array != np.round(array)
         ):
             raise ValueError(f"{name} must be whole numbers")
+    if array.size and (array.min() < INT_MIN or array.max() > INT_MAX):
+        raise ValueError(f"{name} must be from {INT_MIN} to {INT_MAX}")
     return array.astype(np.intc)
+
+
+def _int(value, name):
+    """A whole number for an int argument; ValueError if it does not fit."""
+    if int(value) != value or not INT_MIN <= value <= INT_MAX:
+        raise ValueError(f"{name} must be a whole number from {INT_MIN} to {INT_MAX}")
+    return int(value)
 
 
 def _rows(values, columns, name, dtype):
@@ -237,21 +250,26 @@ class Geometry:
 
     _features: list = field(default_factory=list, init=False, repr=False)
 
+    # each feature's points and values are copied and checked when it is
+    # added, so changing the caller's arrays later changes nothing
+
+    def _add_chain(self, name, points, spacing, marker):
+        points = np.array(_rows(points, 2, "points", np.float64))
+        self._features.append(
+            (name, "points", points, float(spacing), _int(marker, "marker"))
+        )
+
     def add_polygon(self, points, spacing=0.0, marker=0):
         """Add a boundary or internal boundary the mesh follows."""
-        self._features.append(
-            ("geometry_add_polygon", "points", points, spacing, marker)
-        )
+        self._add_chain("geometry_add_polygon", points, spacing, marker)
 
     def add_hole_polygon(self, points, spacing=0.0, marker=0):
         """Add a polygon whose inside, and everything in it, is not meshed."""
-        self._features.append(
-            ("geometry_add_hole_polygon", "points", points, spacing, marker)
-        )
+        self._add_chain("geometry_add_hole_polygon", points, spacing, marker)
 
     def add_line(self, points, spacing=0.0, marker=0):
         """Add an open line the mesh follows, such as a river."""
-        self._features.append(("geometry_add_line", "points", points, spacing, marker))
+        self._add_chain("geometry_add_line", points, spacing, marker)
 
     def add_hole(self, x, y):
         """Add a point inside a hole bounded by the polygons."""
@@ -265,6 +283,7 @@ class Geometry:
 
     def add_points(self, points):
         """Add points the mesh includes as vertices."""
+        points = np.array(_rows(points, 2, "points", np.float64))
         self._features.append(("geometry_add_points", "points", points))
 
     def add_ring(
@@ -278,10 +297,10 @@ class Geometry:
                 x,
                 y,
                 radius,
-                point_count,
+                _int(point_count, "point_count"),
                 attribute,
                 area_limit,
-                marker,
+                _int(marker, "marker"),
             )
         )
 
@@ -296,7 +315,7 @@ class Geometry:
                 if kind is None:
                     _check(function(handle, *arguments))
                     continue
-                points, pointer = _doubles(_rows(arguments[0], 2, "points", np.float64))
+                points, pointer = _doubles(arguments[0])
                 _check(function(handle, len(points), pointer, *arguments[1:]))
         except BaseException:
             api.triangle_utils_geometry_free(handle)
@@ -343,6 +362,7 @@ def refine(
     conforming_delaunay=False,
 ):
     """Refine a mesh by its area limits and these limits; 0 is no limit."""
+    maximum_angle_splits = _int(maximum_angle_splits, "maximum_angle_splits")
     api = _api()
     mesh_handle = _to_handle(mesh)
     try:
