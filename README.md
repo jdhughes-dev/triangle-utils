@@ -30,7 +30,7 @@ global state.
 
 ```shell
 triangle-utils check <base>    # check the mesh in <base>.node, .ele, and .neigh
-triangle-utils --version       # the versions of triangle-utils and Triangle
+triangle-utils --version       # the versions of triangle-utils, Triangle, and its release
 triangle-utils --license       # the license and Triangle's copyright and terms
 ```
 

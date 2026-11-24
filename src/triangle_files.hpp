@@ -64,9 +64,11 @@ struct PolyFile
     std::vector<Region> regions;
 };
 
-// The readers read a file as Triangle does, in the C locale, and take its
-// name for error messages; they throw Error if the file is not valid. The writers throw Error
-// if an array does not match its counts or the file cannot be written.
+// The readers read a file as Triangle does, and take its name for error
+// messages; they throw Error if the file is not valid. They read numbers in
+// the C library's locale, which is "C" unless the program sets another. The
+// writers throw Error if an array does not match its counts, a value is not
+// finite, the first number is not 0 or 1, or the file cannot be written.
 
 // Read a .node file.
 VertexFile read_node(std::istream & input, const std::string & name);

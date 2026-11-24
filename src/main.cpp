@@ -195,4 +195,9 @@ int main(int argc, char * argv[])
         std::cerr << PROGRAM << ": error: " << error.what() << "\n";
         return EXIT_ERROR;
     }
+    catch (...)
+    {
+        std::cerr << PROGRAM << ": error: an unknown error occurred\n";
+        return EXIT_ERROR;
+    }
 }

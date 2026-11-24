@@ -95,7 +95,8 @@ MODFLOW-ORG/triangle and MODFLOW-ORG/gridgen.
   `.ele`, `.neigh`) as Triangle does, so the utilities work with `triangle`
   input and output: numbering from 0 or 1 as the first vertex sets it, and
   missing header fields, attributes, and markers read as Triangle's
-  defaults, and only the first 3 corners of a triangle. The differences
+  defaults, only the first 3 corners of a triangle, and item numbers
+  after the first vertex's ignored. The differences
   are on purpose: a number must be a whole field, an integer in decimal and
   a real finite, and a segment endpoint out of range is an error rather
   than a skipped segment.

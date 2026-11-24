@@ -175,6 +175,18 @@ void prepare(std::ostream & output)
     output.precision(std::numeric_limits<double>::max_digits10);
 }
 
+void check_first_number(int first_number)
+{
+    if (first_number != 0 && first_number != 1)
+        throw Error(message("the first number is ", first_number, ", but it must be 0 or 1"));
+}
+
+// Throw Error if a value would not be read back.
+void check_finite(double value, const char * what)
+{
+    if (!std::isfinite(value)) throw Error(message(what, " ", value, " is not finite"));
+}
+
 // Throw Error if an array does not have the size its counts need.
 void check_size(std::size_t size, std::size_t expected, const char * what)
 {
@@ -190,6 +202,14 @@ void write_vertices(std::ostream & output, const VertexFile & vertices)
                "vertex attributes");
     if (!vertices.markers.empty())
         check_size(vertices.markers.size(), vertices.vertices.size(), "vertex markers");
+    check_first_number(vertices.first_number);
+    for (const Point & vertex : vertices.vertices)
+    {
+        check_finite(vertex.x, "a vertex coordinate");
+        check_finite(vertex.y, "a vertex coordinate");
+    }
+    for (const double attribute : vertices.attributes)
+        check_finite(attribute, "a vertex attribute");
     const bool has_markers = !vertices.markers.empty();
     output << vertices.vertices.size() << " 2 " << vertices.attribute_count << " "
            << (has_markers ? 1 : 0) << "\n";
@@ -231,7 +251,7 @@ TriangleFile read_ele(std::istream & input, const std::string & name, const Vert
     if (reader.size() > 1)
     {
         const int corners = reader.integer(1, "the corner count");
-        if (corners < 3 || corners > 6) reader.fail("the corner count must be 3 to 6");
+        if (corners < 3) reader.fail("the corner count must be at least 3");
         corner_count = static_cast<std::size_t>(corners);
     }
     if (reader.size() > 2)
@@ -239,7 +259,7 @@ TriangleFile read_ele(std::istream & input, const std::string & name, const Vert
 
     for (std::size_t triangle = 0; triangle < count; triangle++)
     {
-        reader.require(1 + corner_count, "a triangle");
+        reader.require(4, "a triangle");
         std::array<int, 3> corners{};
         for (std::size_t corner = 0; corner < 3; corner++)
         {
@@ -357,6 +377,9 @@ void write_ele(std::ostream & output, const TriangleFile & triangles, int first_
     check_size(triangles.attributes.size(),
                triangles.triangles.size() * static_cast<std::size_t>(triangles.attribute_count),
                "triangle attributes");
+    check_first_number(first_number);
+    for (const double attribute : triangles.attributes)
+        check_finite(attribute, "a triangle attribute");
     prepare(output);
     output << triangles.triangles.size() << " 3 " << triangles.attribute_count << "\n";
     for (std::size_t triangle = 0; triangle < triangles.triangles.size(); triangle++)
@@ -380,6 +403,19 @@ void write_poly(std::ostream & output, const PolyFile & poly, int first_number)
     prepare(output);
     write_vertices(output, poly.vertices);
     if (!poly.vertices.vertices.empty()) first_number = poly.vertices.first_number;
+    check_first_number(first_number);
+    for (const Point & hole : poly.holes)
+    {
+        check_finite(hole.x, "a hole coordinate");
+        check_finite(hole.y, "a hole coordinate");
+    }
+    for (const Region & region : poly.regions)
+    {
+        check_finite(region.point.x, "a region coordinate");
+        check_finite(region.point.y, "a region coordinate");
+        check_finite(region.attribute, "a region attribute");
+        check_finite(region.area_limit, "a maximum area");
+    }
     const bool has_markers = !poly.segment_markers.empty();
     if (has_markers)
         check_size(poly.segment_markers.size(), poly.segments.size(), "segment markers");
@@ -411,6 +447,7 @@ void write_poly(std::ostream & output, const PolyFile & poly, int first_number)
 void write_neigh(std::ostream & output, const std::vector<std::array<int, 3>> & neighbors,
                  int first_number)
 {
+    check_first_number(first_number);
     prepare(output);
     output << neighbors.size() << " 3\n";
     for (std::size_t triangle = 0; triangle < neighbors.size(); triangle++)
