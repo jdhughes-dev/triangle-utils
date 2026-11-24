@@ -76,9 +76,11 @@ struct MeshOptions
     bool conforming_delaunay = false;
 };
 
-// Mesh the geometry. The mesh covers the polygons and rings (or what the
-// segments enclose, without polygons), less everything inside a hole
-// polygon; a repeated segment keeps the first one's marker. It has the
+// Mesh the geometry. The mesh covers the polygons (or what the segments
+// enclose, without polygons), less everything inside a hole polygon. A
+// region's attribute and limit spread only up to segments. A repeated
+// segment keeps the first one's marker, and Triangle gives a boundary segment
+// with marker 0 the marker 1. It has the
 // neighbors and segments, and one triangle attribute, its region's, when there
 // are regions or rings. Throws Error if the geometry or options are not valid,
 // Triangle cannot mesh them, or no triangle is left.

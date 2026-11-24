@@ -3,6 +3,8 @@
 
 #include <algorithm>
 #include <cmath>
+#include <set>
+#include <utility>
 #include <string>
 #include <vector>
 
@@ -74,12 +76,21 @@ double length_on(const Mesh & mesh, const Point & start, const Point & end)
     return length;
 }
 
-// Check the properties every generated mesh has.
+// Check the properties every generated mesh has, including that each segment
+// is an edge of a triangle.
 void check_mesh(const Mesh & mesh, double area)
 {
     check_sizes(mesh);
     check_triangles(mesh);
     check_neighbors(mesh);
+    std::set<std::pair<int, int>> edges;
+    for (const auto & corners : mesh.triangles)
+    {
+        for (int corner = 0; corner < 3; corner++)
+            edges.insert(std::minmax(corners[corner], corners[(corner + 1) % 3]));
+    }
+    for (const auto & segment : mesh.segments)
+        EXPECT_TRUE(edges.contains(std::minmax(segment[0], segment[1])));
     EXPECT_NEAR(total_area(mesh), area, TOLERANCE * area);
 }
 
@@ -148,6 +159,28 @@ TEST(Geometry, HolePolygonsRemoveEverythingInside)
     const Mesh mesh = generate_mesh(geometry, options);
     // 100, less the union of the first two holes (9 + 4 - 1) and the third (9)
     check_mesh(mesh, 100.0 - 12.0 - 9.0);
+}
+
+TEST(Geometry, SmallAreaLimitsAreMet)
+{
+    // a limit Triangle would read wrongly in scientific notation
+    Geometry geometry;
+    geometry.polygons.push_back(square(0.0, 0.01));
+    MeshOptions options;
+    options.maximum_area = 1e-7;
+    const Mesh mesh = generate_mesh(geometry, options);
+    check_mesh(mesh, 1e-4);
+    EXPECT_GE(mesh.triangles.size(), 1000u);
+    for (std::size_t triangle = 0; triangle < mesh.triangles.size(); triangle++)
+        EXPECT_LE(signed_area(mesh, triangle), 1e-7 * (1.0 + TOLERANCE));
+}
+
+TEST(Geometry, RingsAcrossTheBoundaryAddNoArea)
+{
+    Geometry geometry;
+    geometry.polygons.push_back(square(0.0, 10.0));
+    geometry.rings.push_back({{10.0, 5.0}, 2.0, 16, 1.0, 0.05, 0});
+    check_mesh(generate_mesh(geometry, {}), 100.0);
 }
 
 TEST(Geometry, LinesOutsideThePolygonsAddNoArea)

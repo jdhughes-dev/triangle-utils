@@ -7,6 +7,7 @@
 #include <array>
 #include <cmath>
 #include <cstdint>
+#include <iomanip>
 #include <limits>
 #include <locale>
 #include <map>
@@ -140,14 +141,22 @@ private:
     std::set<std::pair<int, int>> m_segment_keys;
 };
 
-// A number for Triangle's switches, written so it reads back exactly.
+// A positive number for Triangle's switches, in fixed notation with 17
+// significant digits, since Triangle reads only digits and a point there.
 std::string switch_number(double value)
 {
+    // the digits after the point that give 17 significant digits
+    const int decimals = std::max(0, 16 - static_cast<int>(std::floor(std::log10(value))));
     std::ostringstream text;
     text.imbue(std::locale::classic());
-    text.precision(std::numeric_limits<double>::max_digits10);
-    text << value;
-    return text.str();
+    text << std::fixed << std::setprecision(decimals) << value;
+    std::string result = text.str();
+    if (result.find('.') != std::string::npos)
+    {
+        result.erase(result.find_last_not_of('0') + 1);
+        if (result.back() == '.') result.pop_back();
+    }
+    return result;
 }
 
 // Whether a point is inside a polygon, by the even-odd rule.
@@ -424,9 +433,9 @@ Mesh generate_mesh(const Geometry & geometry, const MeshOptions & options)
     run_triangle(switches, input, output);
     Mesh mesh = from_triangulateio(output.get());
 
-    // Triangle's removal of a hole stops at any segment, and a line that
-    // leaves the polygons and returns encloses area outside them, so remove
-    // the triangles inside a hole polygon or outside every polygon and ring
+    // Triangle's removal of a hole stops at any segment, and a line or ring
+    // that leaves the polygons encloses area outside them, so remove the
+    // triangles inside a hole polygon or outside every polygon
     std::vector<bool> keep(mesh.triangles.size(), true);
     bool removes = false;
     for (std::size_t triangle = 0; triangle < mesh.triangles.size(); triangle++)
@@ -437,12 +446,10 @@ Mesh generate_mesh(const Geometry & geometry, const MeshOptions & options)
             center.x += mesh.vertices[corner].x / 3.0;
             center.y += mesh.vertices[corner].y / 3.0;
         }
+        // the polygons are the domain; without them, what the segments enclose
         bool in_domain = geometry.polygons.empty();
         for (const Chain & polygon : geometry.polygons)
             in_domain = in_domain || inside(center, polygon.points);
-        for (const Ring & ring : geometry.rings)
-            in_domain = in_domain || std::hypot(center.x - ring.center.x,
-                                                center.y - ring.center.y) < ring.radius;
         for (const Chain & hole : geometry.hole_polygons)
             in_domain = in_domain && !inside(center, hole.points);
         keep[triangle] = in_domain;

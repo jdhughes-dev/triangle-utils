@@ -27,12 +27,14 @@ Geometry is a handle that polygons, hole polygons, holes, regions, points,
 lines, and rings are added to, each with its own spacing and marker where it
 has segments; `triangle_utils_mesh_generate()` meshes it with a maximum area, a
 minimum angle, a distance within which points are merged, and conforming
-Delaunay triangles if a Voronoi grid will follow. The mesh covers the polygons
-and rings, less everything inside a hole polygon, including polygons and lines
-there; where segments repeat, the first one's marker is kept. The API also
-returns the versions of triangle-utils and Triangle, the license, and
-Triangle's copyright notice. Calls must not run concurrently, since Triangle
-keeps global state.
+Delaunay triangles if a Voronoi grid will follow. The mesh covers the polygons,
+less everything inside a hole polygon, including polygons, lines, and rings
+there. A region's attribute and limit spread only up to segments, so a line
+across a polygon needs a region on each side. Where segments repeat, the first
+one's marker is kept, and Triangle gives a boundary segment with marker 0 the
+marker 1. The API also returns the versions of triangle-utils and Triangle, the
+license, and Triangle's copyright notice. Calls must not run concurrently,
+since Triangle keeps global state.
 
 ## Command line
 
