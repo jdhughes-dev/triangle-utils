@@ -422,7 +422,26 @@ Mesh generate_mesh(const Geometry & geometry, const MeshOptions & options)
         throw Error(message("the merge distance is ", options.merge_distance,
                             ", but it must be finite and at least 0"));
 
-    Builder builder(options.merge_distance);
+    // points closer than a rounding error of the geometry's size, or than the
+    // merge distance, are merged, and a point that close to a segment splits
+    // it; left to Triangle, a point that near another vertex or segment
+    // leaves an edge too short to refine
+    double extent = 0.0;
+    auto extend = [&](const Point & point)
+    {
+        if (std::isfinite(point.x) && std::isfinite(point.y))
+            extent = std::max({extent, std::abs(point.x), std::abs(point.y)});
+    };
+    for (const auto * chains : {&geometry.polygons, &geometry.hole_polygons, &geometry.lines})
+        for (const Chain & chain : *chains)
+            for (const Point & point : chain.points) extend(point);
+    for (const Point & point : geometry.points) extend(point);
+    for (const Ring & ring : geometry.rings)
+        if (std::isfinite(ring.radius))
+            extend({std::abs(ring.center.x) + ring.radius, std::abs(ring.center.y) + ring.radius});
+    const double tolerance = std::max(options.merge_distance, SPLIT_TOLERANCE * extent);
+
+    Builder builder(tolerance);
     std::vector<Point> holes = geometry.holes;
     std::vector<Region> regions = geometry.regions;
 
@@ -501,12 +520,7 @@ Mesh generate_mesh(const Geometry & geometry, const MeshOptions & options)
                            {item.point.x, item.point.y, item.attribute, area_limit});
     }
 
-    // a point on another feature's segment splits it; the tolerance is the
-    // merge distance, or a rounding error of the geometry's size
-    double extent = 0.0;
-    for (const Point & vertex : builder.vertices())
-        extent = std::max({extent, std::abs(vertex.x), std::abs(vertex.y)});
-    builder.split_segments_at_vertices(std::max(options.merge_distance, SPLIT_TOLERANCE * extent));
+    builder.split_segments_at_vertices(tolerance);
 
     triangulateio input{};
     input.pointlist = builder.vertices().empty() ? nullptr : &builder.vertices()[0].x;

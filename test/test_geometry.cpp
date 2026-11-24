@@ -269,18 +269,67 @@ TEST(Geometry, ALineEndingOnAnEdgeSplitsIt)
                 1e-6);
 }
 
-TEST(Geometry, APointOnAnEdgeSplitsIt)
+TEST(Geometry, PointsARoundingErrorOffAreMergedOrSplit)
 {
-    // a point on a sloped edge, not one of its points, becomes a vertex of
-    // the boundary
-    Geometry geometry;
-    geometry.polygons.push_back({{{0.0, 0.0}, {10.0, 0.0}, {10.0, 10.0}}});
-    geometry.points.push_back({1.0 / 3.0 * 10.0, 1.0 / 3.0 * 10.0});
+    // the end of a river a rounding error from a densified point of the
+    // boundary, and a point a rounding error off a sloped edge; each made
+    // Triangle crash or never finish
+    const Chain triangle_polygon{{{0.0, 0.0}, {10.0, 0.0}, {10.0, 7.0}}, 4.2, 1};
+    const Point densified = densify(triangle_polygon, true)[5];
     MeshOptions options;
     options.minimum_angle = 30.0;
+    options.maximum_area = 0.5;
+    for (const int steps : {-3, -1, 1, 2})
+    {
+        Point end = densified;
+        for (int step = 0; step < std::abs(steps); step++)
+            end.x = std::nextafter(end.x, steps > 0 ? 20.0 : -20.0);
+        Geometry geometry;
+        geometry.polygons.push_back(triangle_polygon);
+        geometry.lines.push_back({{end, {8.0, 3.0}}, 0.0, 2});
+        const Mesh mesh = generate_mesh(geometry, options);
+        check_mesh(mesh, 35.0);
+        // the boundary keeps its marker where it was split
+        for (std::size_t segment = 0; segment < mesh.segments.size(); segment++)
+        {
+            const Point & first = mesh.vertices[mesh.segments[segment][0]];
+            const Point & second = mesh.vertices[mesh.segments[segment][1]];
+            if (first.y == 0.0 && second.y == 0.0) EXPECT_EQ(mesh.segment_markers[segment], 1);
+        }
+    }
+
+    Geometry geometry;
+    geometry.polygons.push_back({{{0.0, 0.0}, {10.0, 0.0}, {10.0, 10.0}}});
+    geometry.points.push_back({std::nextafter(10.0 / 3.0, 0.0), 10.0 / 3.0});
     const Mesh mesh = generate_mesh(geometry, options);
     check_mesh(mesh, 50.0);
     EXPECT_NEAR(length_on(mesh, {0.0, 0.0}, {10.0, 10.0}), std::hypot(10.0, 10.0), 1e-9);
+}
+
+TEST(Geometry, PointsOnEdgesInLargeCoordinates)
+{
+    // the river of the #42 valley, in coordinates like UTM northings
+    Geometry geometry;
+    const double x0 = 500000.0, y0 = 4500000.0;
+    geometry.polygons.push_back({{{x0, y0},
+                                  {x0 + 4000.0, y0},
+                                  {x0 + 4600.0, y0 + 2200.0},
+                                  {x0 + 2600.0, y0 + 8000.0},
+                                  {x0 + 600.0, y0 + 7600.0}},
+                                 200.0,
+                                 1});
+    geometry.lines.push_back({{{x0 + 1800.0, y0 + 7840.0}, {x0 + 2400.0, y0}}, 50.0, 2});
+    geometry.regions.push_back({{x0 + 500.0, y0 + 1000.0}, 1.0, 0.0});
+    geometry.regions.push_back({{x0 + 3500.0, y0 + 1000.0}, 1.0, 0.0});
+    MeshOptions options;
+    options.minimum_angle = 30.0;
+    options.maximum_area = 40000.0;
+    const Mesh mesh = generate_mesh(geometry, options);
+    check_sizes(mesh);
+    check_triangles(mesh);
+    check_neighbors(mesh);
+    EXPECT_NEAR(length_on(mesh, {x0 + 1800.0, y0 + 7840.0}, {x0 + 2400.0, y0}),
+                std::hypot(600.0, 7840.0), 1e-3);
 }
 
 TEST(Geometry, RegionsCarryAttributesAndLimits)
@@ -391,12 +440,15 @@ TEST(Geometry, RepeatedPointsAreMerged)
     check_mesh(mesh, 50.0);
     EXPECT_EQ(mesh.vertices.size(), 6u);
 
-    // nearly the same points are merged within a distance, and only then
-    geometry.polygons[1].points[0].x = 5.0 + 1e-9;
-    geometry.polygons[1].points[3].x = 5.0 - 1e-9;
+    // points a rounding error apart are merged; points farther apart only
+    // within the merge distance
+    geometry.polygons[1].points[0].x = std::nextafter(5.0, 6.0);
+    EXPECT_EQ(generate_mesh(geometry, {}).vertices.size(), 6u);
+    geometry.polygons[1].points[0].x = 5.0 + 1e-6;
+    geometry.polygons[1].points[3].x = 5.0 - 1e-6;
     EXPECT_GT(generate_mesh(geometry, {}).vertices.size(), 6u);
     MeshOptions options;
-    options.merge_distance = 1e-6;
+    options.merge_distance = 1e-5;
     mesh = generate_mesh(geometry, options);
     check_mesh(mesh, 50.0);
     EXPECT_EQ(mesh.vertices.size(), 6u);
