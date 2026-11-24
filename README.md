@@ -63,8 +63,10 @@ an output base name (`-o`); `triangle-utils generate -h` describes them.
 triangle-utils generate -a 0.5 -q 30 -s 1 domain   # writes domain.1.*
 ```
 
-Each command writes `x.1` for input `x`, and `x.2` for `x.1`, as Triangle
-names its output, unless `-o` names it. The program exits with 0 on success,
+`generate` and `refine` write `x.1` for input `x`, and `x.2` for `x.1`, as
+Triangle names its output, unless `-o` names it; `refine` also reads
+`<base>.poly` and `<base>.area` if they exist. Neither writes vertex
+attributes or markers. The program exits with 0 on success,
 1 on an error, and 2 on a usage error.
 
 ## License

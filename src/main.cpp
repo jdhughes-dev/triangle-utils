@@ -83,8 +83,8 @@ Refine the mesh in <base>.node and <base>.ele, keeping its boundary, the
 segments in <base>.poly if it exists (each an edge of the mesh), and its
 triangle attributes where segments bound them; triangles are split to meet
 their limits in <base>.area if it exists, which, like the attributes, are
-averaged across edges Triangle flips where no segment bounds them. Write the mesh to
-<output>.node, .ele, .neigh, and .poly, without vertex attributes or
+averaged across edges Triangle flips where no segment bounds them. Write the
+mesh to <output>.node, .ele, .neigh, and .poly, without vertex attributes or
 markers, or holes and regions.
 
 Options:

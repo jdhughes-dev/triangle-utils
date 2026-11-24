@@ -37,6 +37,7 @@ Cases:
                          (1).
 """
 
+import math
 import os
 import subprocess
 
@@ -290,6 +291,17 @@ def read_triangles(base):
     return [tuple(xy[int(v)] for v in row[1:4]) for row in ele[1:]]
 
 
+def largest_angle(corners):
+    """The largest angle of a triangle in degrees."""
+    largest = 0.0
+    for index in range(3):
+        (ax, ay), (bx, by), (cx, cy) = (corners[(index + k) % 3] for k in range(3))
+        ux, uy, vx, vy = bx - ax, by - ay, cx - ax, cy - ay
+        angle = math.degrees(math.atan2(abs(ux * vy - uy * vx), ux * vx + uy * vy))
+        largest = max(largest, angle)
+    return largest
+
+
 def test_refine(tmp_path):
     (tmp_path / "box.poly").write_text(BOX_POLY)
     base = str(tmp_path / "box")
@@ -302,7 +314,11 @@ def test_refine(tmp_path):
     status, output, _ = run("refine", "-a", "0.2", "-A", "100", f"{base}.1")
     assert status == 0
     assert output.startswith(f"{base}.2: ")
-    assert output.endswith(" with an angle over 100 degrees\n")
+    # the reported count is that of the written mesh
+    reported = int(output.rsplit("; ", 1)[1].split()[0])
+    assert reported == sum(
+        largest_angle(corners) > 100.0 for corners in read_triangles(f"{base}.2")
+    )
     area, largest = read_mesh_area(f"{base}.2", 1)
     assert area == pytest.approx(8.0)
     assert largest <= 0.2 + 1e-12

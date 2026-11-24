@@ -30,7 +30,7 @@ struct RefineOptions
 };
 
 // Refine a mesh with Triangle, keeping its boundary and segments, each of
-// which must be an edge of a triangle; each triangle with a positive area
+// which must be an edge of a triangle; triangles must not overlap or repeat; each triangle with a positive area
 // limit in the mesh is split to meet it. Triangle averages the attributes and
 // area limits of two triangles when it flips the edge between them (or drops
 // the limit if either has none), so they stay exact only where segments bound

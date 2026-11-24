@@ -86,10 +86,23 @@ Mesh refine_mesh(const Mesh & mesh, const RefineOptions & options)
         if (!std::isfinite(limit)) throw Error("an area limit is not finite");
     // Triangle keeps a segment only on an edge of the mesh, so each must be
     // one, and only once
+    // Triangle assumes each directed edge belongs to one triangle; one used
+    // twice means triangles overlap or repeat, which can make it loop forever
+    std::set<std::pair<int, int>> directed_edges;
     std::set<std::pair<int, int>> edges;
-    for (const auto & corners : mesh.triangles)
+    for (std::size_t triangle = 0; triangle < mesh.triangles.size(); triangle++)
+    {
+        const auto & corners = mesh.triangles[triangle];
         for (std::size_t corner = 0; corner < 3; corner++)
-            edges.insert(std::minmax(corners[corner], corners[(corner + 1) % 3]));
+        {
+            const int start = corners[corner];
+            const int end = corners[(corner + 1) % 3];
+            if (!directed_edges.insert({start, end}).second)
+                throw Error(message("triangle ", triangle, " runs along edge ", start, "-", end,
+                                    " the same way as another triangle, so they overlap"));
+            edges.insert(std::minmax(start, end));
+        }
+    }
     std::set<std::pair<int, int>> segments;
     for (std::size_t segment = 0; segment < mesh.segments.size(); segment++)
     {

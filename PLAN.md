@@ -46,6 +46,8 @@ mesh from geometry), #7 (refine).
 - Changes on Triangle's `main` for triangle-utils:
   - MODFLOW-ORG/triangle#59 (merged in #60, 5cee628): build with icx on
     Windows, with `/fp:strict`; the meshes match the MSVC build.
+  - MODFLOW-ORG/triangle#43 (in 1.6.2): the `u` switch's test,
+    `triangle_set_unsuitable()`, which refining by maximum angle uses (#7).
   - MODFLOW-ORG/triangle#61 (merged in #62, fd28514): the library keeps
     Triangle's messages (`triangle_messages()`) and can stop printing them
     (`triangle_set_print()`).

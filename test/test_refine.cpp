@@ -118,6 +118,18 @@ TEST(Refine, AreaLimitsKeepBoundarySegmentsAndAttributes)
     EXPECT_NEAR(inner, 9.0, TOLERANCE);
     EXPECT_NEAR(length_on(refined, {0.0, 0.0}, {10.0, 0.0}), 10.0, TOLERANCE);
     EXPECT_NEAR(length_on(refined, {2.0, 2.0}, {5.0, 2.0}), 3.0, TOLERANCE);
+    bool inner_marked = false;
+    for (std::size_t segment = 0; segment < refined.segments.size(); segment++)
+    {
+        const Point & first = refined.vertices[refined.segments[segment][0]];
+        const Point & second = refined.vertices[refined.segments[segment][1]];
+        if (first.y == 2.0 && second.y == 2.0 && first.x >= 2.0 && second.x <= 5.0)
+        {
+            EXPECT_EQ(refined.segment_markers[segment], 3);
+            inner_marked = true;
+        }
+    }
+    EXPECT_TRUE(inner_marked);
     for (std::size_t segment = 0; segment < refined.segments.size(); segment++)
     {
         const Point & first = refined.vertices[refined.segments[segment][0]];
@@ -132,6 +144,21 @@ TEST(Refine, AreaLimitsKeepBoundarySegmentsAndAttributes)
     check_mesh(finer, 100.0);
     for (std::size_t triangle = 0; triangle < finer.triangles.size(); triangle++)
         EXPECT_LE(signed_area(finer, triangle), 0.1 + TOLERANCE);
+}
+
+TEST(Refine, WithoutSegmentsTheBoundaryIsKept)
+{
+    Mesh square;
+    square.vertices = {{0.0, 0.0}, {1.0, 0.0}, {1.0, 1.0}, {0.0, 1.0}};
+    square.triangles = {{0, 1, 2}, {0, 2, 3}};
+    RefineOptions options;
+    options.maximum_area = 0.01;
+    options.conforming_delaunay = true;
+    const Mesh refined = refine_mesh(square, options);
+    check_mesh(refined, 1.0);
+    // Triangle makes the boundary segments, with marker 1
+    EXPECT_NEAR(length_on(refined, {0.0, 0.0}, {1.0, 0.0}), 1.0, TOLERANCE);
+    for (const int marker : refined.segment_markers) EXPECT_EQ(marker, 1);
 }
 
 TEST(Refine, MaximumAngleIsReachedOrReported)
@@ -154,6 +181,14 @@ TEST(Refine, MaximumAngleIsReachedOrReported)
     const Mesh stopped = refine_mesh(mesh, options);
     check_mesh(stopped, 58.0);
     EXPECT_GT(count_angles_over(stopped, 90.0), 0u);
+
+    // with no splits, the maximum angle changes nothing
+    options.maximum_angle = 100.0;
+    options.maximum_angle_splits = 0;
+    RefineOptions plain;
+    plain.minimum_angle = 30.0;
+    EXPECT_EQ(refine_mesh(mesh, options).triangles.size(),
+              refine_mesh(mesh, plain).triangles.size());
 }
 
 TEST(Refine, ErrorsGiveTheReason)
@@ -173,6 +208,16 @@ TEST(Refine, ErrorsGiveTheReason)
     EXPECT_NE(error_message([&] { refine_mesh(limits, {}); }).find("area limits"),
               std::string::npos);
     EXPECT_EQ(error_message([] { refine_mesh({}, {}); }), "the mesh has no triangles to refine");
+
+    // triangles must not overlap or repeat, which can make Triangle loop
+    Mesh overlapping;
+    overlapping.vertices = {{0.0, 0.0}, {1.0, 0.0}, {0.0, 1.0}, {1.0, 1.0}};
+    overlapping.triangles = {{0, 1, 2}, {0, 1, 3}};
+    EXPECT_EQ(error_message([&] { refine_mesh(overlapping, {}); }),
+              "triangle 1 runs along edge 0-1 the same way as another triangle, so they overlap");
+    overlapping.triangles = {{0, 1, 2}, {0, 1, 2}};
+    EXPECT_NE(error_message([&] { refine_mesh(overlapping, {}); }).find("overlap"),
+              std::string::npos);
 
     // a segment must be an edge of a triangle, and only once
     Mesh square;
