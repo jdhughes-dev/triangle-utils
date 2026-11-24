@@ -20,6 +20,12 @@ Cases:
                          wrong ones and a wrong count, unchanged.
   - test_invalid       : null pointers and negative counts are invalid
                          arguments, and the mesh is null.
+  - test_fixed_vertices : a mesh takes fixed vertices and returns them, and
+                         rejects one out of range, a negative or wrong count,
+                         and a null array, unchanged.
+  - test_improve       : an interior vertex moves to the middle of a square
+                         unless it is fixed; a bad smoothing and a null result
+                         pointer are invalid arguments, and the result is null.
 """
 
 import ctypes
@@ -177,3 +183,84 @@ def test_invalid(library):
     finally:
         library.triangle_utils_mesh_free(mesh)
     library.triangle_utils_mesh_free(None)
+
+
+def square_with_center(library, x, y):
+    """A unit square with one interior vertex, in four triangles."""
+    return create_mesh(
+        library,
+        [0.0, 0.0, 1.0, 0.0, 1.0, 1.0, 0.0, 1.0, x, y],
+        [0, 1, 4, 1, 2, 4, 2, 3, 4, 3, 0, 4],
+    )
+
+
+def fixed_of(library, mesh):
+    count = ctypes.c_int(-1)
+    assert (
+        library.triangle_utils_mesh_fixed_vertex_count(mesh, ctypes.byref(count)) == OK
+    )
+    fixed = (ctypes.c_int * max(count.value, 1))()
+    assert library.triangle_utils_mesh_fixed_vertices(mesh, count.value, fixed) == OK
+    return list(fixed)[: count.value]
+
+
+def test_fixed_vertices(library):
+    status, mesh = square_with_center(library, 0.3, 0.4)
+    try:
+        assert status == OK
+        assert fixed_of(library, mesh) == []
+        fixed = (ctypes.c_int * 2)(4, 1)
+        assert library.triangle_utils_mesh_set_fixed_vertices(mesh, 2, fixed) == OK
+        assert fixed_of(library, mesh) == [4, 1]
+        out_of_range = (ctypes.c_int * 1)(5)
+        status = library.triangle_utils_mesh_set_fixed_vertices(mesh, 1, out_of_range)
+        assert status == ERROR
+        assert b"fixed vertex 5 is not a vertex of the mesh" in (
+            library.triangle_utils_last_error()
+        )
+        status = library.triangle_utils_mesh_set_fixed_vertices(mesh, -1, fixed)
+        assert status == INVALID_ARGUMENT
+        status = library.triangle_utils_mesh_set_fixed_vertices(mesh, 1, None)
+        assert status == INVALID_ARGUMENT
+        assert fixed_of(library, mesh) == [4, 1]
+        status = library.triangle_utils_mesh_fixed_vertices(mesh, 1, fixed)
+        assert status == INVALID_ARGUMENT
+    finally:
+        library.triangle_utils_mesh_free(mesh)
+
+
+def improved_center(library, mesh):
+    improved = not_null()
+    status = library.triangle_utils_mesh_improve(
+        mesh, 0, 0.0, 0.0, 100, 1e-4, ctypes.byref(improved)
+    )
+    assert status == OK
+    try:
+        xy = (ctypes.c_double * 10)()
+        assert library.triangle_utils_mesh_vertices(improved, 5, xy) == OK
+        return xy[8], xy[9]
+    finally:
+        library.triangle_utils_mesh_free(improved)
+
+
+def test_improve(library):
+    status, mesh = square_with_center(library, 0.3, 0.4)
+    try:
+        assert status == OK
+        x, y = improved_center(library, mesh)
+        assert math.isclose(x, 0.5, abs_tol=1e-3)
+        assert math.isclose(y, 0.5, abs_tol=1e-3)
+        fixed = (ctypes.c_int * 1)(4)
+        assert library.triangle_utils_mesh_set_fixed_vertices(mesh, 1, fixed) == OK
+        assert improved_center(library, mesh) == (0.3, 0.4)
+        improved = not_null()
+        status = library.triangle_utils_mesh_improve(
+            mesh, 2, 0.0, 0.0, 100, 1e-4, ctypes.byref(improved)
+        )
+        assert status == INVALID_ARGUMENT
+        assert not improved
+        assert b"the smoothing is 2" in library.triangle_utils_last_error()
+        status = library.triangle_utils_mesh_improve(mesh, 0, 0.0, 0.0, 100, 1e-4, None)
+        assert status == INVALID_ARGUMENT
+    finally:
+        library.triangle_utils_mesh_free(mesh)

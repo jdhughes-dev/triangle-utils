@@ -300,6 +300,51 @@ TEST(Improve, AreaLimitsHolesRegionsAndFixedVerticesAreKept)
     }
 }
 
+TEST(Improve, AMinimumAngleAboveTheMeshsStillMovesVertices)
+{
+    MeshOptions mesh_options;
+    mesh_options.maximum_area = 1.0;
+    mesh_options.minimum_angle = 25.0;
+    const Mesh mesh = generate_mesh(polygon_geometry(), mesh_options);
+    const double before = smallest_angle(mesh);
+    ImproveOptions options;
+    options.minimum_angle = 40.0;
+    const Mesh improved = improve_mesh(mesh, options);
+    check_mesh(improved, total_area(mesh));
+    EXPECT_GT(smallest_angle(improved), before + 0.5);
+}
+
+// Two triangles with an attribute each and no segment between them, which
+// improving must not move apart.
+TEST(Improve, VerticesBetweenRegionsStay)
+{
+    MeshOptions mesh_options;
+    mesh_options.maximum_area = 0.5;
+    mesh_options.minimum_angle = 25.0;
+    Mesh mesh = generate_mesh(polygon_geometry(), mesh_options);
+    mesh.triangle_attributes.assign(mesh.triangles.size(), 1.0);
+    mesh.triangle_attribute_count = 1;
+    for (std::size_t triangle = 0; triangle < mesh.triangles.size(); triangle++)
+    {
+        const auto & t = mesh.triangles[triangle];
+        const double x =
+            (mesh.vertices[t[0]].x + mesh.vertices[t[1]].x + mesh.vertices[t[2]].x) / 3.0;
+        if (x > 4.0) mesh.triangle_attributes[triangle] = 2.0;
+    }
+    auto area_of = [](const Mesh & m, double attribute)
+    {
+        double area = 0.0;
+        for (std::size_t triangle = 0; triangle < m.triangles.size(); triangle++)
+            if (m.triangle_attributes[triangle] == attribute) area += signed_area(m, triangle);
+        return area;
+    };
+    ImproveOptions options;
+    options.maximum_angle = 90.0;
+    const Mesh improved = improve_mesh(mesh, options);
+    check_mesh(improved, total_area(mesh));
+    EXPECT_NEAR(area_of(improved, 2.0), area_of(mesh, 2.0), TOLERANCE * total_area(mesh));
+}
+
 TEST(Improve, ErrorsGiveTheReason)
 {
     const Mesh mesh = generate_mesh(polygon_geometry(), {});

@@ -37,14 +37,15 @@ struct ImproveOptions
 };
 
 // Improve a mesh: move each vertex that is not fixed (on a segment or the
-// boundary, or in the mesh's fixed vertices) toward where the smoothing
-// puts it, only where no triangle inverts, no angle falls below the minimum
-// angle (the mesh's smallest by default), and the worst angle around the
-// vertex improves; then flip edges that are not segments so the triangles
-// are Delaunay. No move or flip takes a triangle over its area limit. The
-// triangles, their attributes and area limits, and the segments are kept;
-// the result has neighbors. Throws Error if the mesh or options are not
-// valid.
+// boundary, where triangles of different attributes or area limits meet, or
+// in the mesh's fixed vertices) toward where the smoothing puts it, only
+// where no triangle inverts, no angle falls below the minimum angle (the
+// mesh's smallest by default) or the vertex's own smallest angle if that is
+// lower, and the worst angle around the vertex improves; then flip edges
+// that are not segments so the triangles are Delaunay. No move or flip
+// takes a triangle over its area limit. The triangles, their attributes and
+// area limits, and the segments are kept; the result has neighbors. Throws
+// Error if the mesh or options are not valid.
 Mesh improve_mesh(const Mesh & mesh, const ImproveOptions & options);
 
 } // namespace triangle_utils

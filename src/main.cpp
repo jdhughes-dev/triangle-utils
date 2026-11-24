@@ -111,8 +111,10 @@ constexpr const char * IMPROVE_USAGE = R"(usage: triangle-utils improve [options
 
 Improve the mesh in <base>.node and <base>.ele by moving its vertices and
 flipping edges, keeping in place the vertices on the segments of <base>.poly
-if it exists, on the boundary, and with a nonzero marker in <base>.node.
-Write the mesh to <output>.node, .ele, .neigh, and .poly.
+if it exists, on the boundary, where triangles of different attributes or
+area limits meet, and with a nonzero marker in <base>.node, such as wells;
+no triangle grows beyond its limit in <base>.area if it exists. Write the
+mesh to <output>.node, .ele, .neigh, and .poly.
 
 Options:
   -h, --help                show this help

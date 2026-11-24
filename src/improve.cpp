@@ -187,6 +187,19 @@ Mesh improve_mesh(const Mesh & mesh, const ImproveOptions & options)
         fixed[segment[0]] = fixed[segment[1]] = true;
     }
     for (const int vertex : result.fixed_vertices) fixed[vertex] = true;
+    // a vertex where triangles with different attributes or area limits meet,
+    // which marks the edge of a region even without a segment
+    {
+        std::vector<int> first(result.vertices.size(), -1);
+        for (std::size_t triangle = 0; triangle < result.triangles.size(); triangle++)
+            for (const int vertex : result.triangles[triangle])
+            {
+                if (first[vertex] < 0)
+                    first[vertex] = static_cast<int>(triangle);
+                else if (!same_values(result, first[vertex], static_cast<int>(triangle)))
+                    fixed[vertex] = true;
+            }
+    }
     // vertices on the boundary, where an edge has one triangle
     {
         const auto neighbors = find_neighbors(result);
@@ -314,7 +327,12 @@ Mesh improve_mesh(const Mesh & mesh, const ImproveOptions & options)
             // whether the vertex at a point is better than now
             auto better = [&](const Point & at, Shape & then)
             {
-                if (!shape_with(at, then) || then.smallest < floor - ANGLE_MARGIN) return false;
+                // the floor, or the vertex's own smallest angle if that is
+                // lower, so a vertex beside a triangle below the floor can
+                // still move without making it worse
+                const double local_floor = std::min(floor, now.smallest);
+                if (!shape_with(at, then) || then.smallest < local_floor - ANGLE_MARGIN)
+                    return false;
                 return excess(then) < excess(now) - ANGLE_MARGIN ||
                        (excess(then) <= excess(now) + ANGLE_MARGIN &&
                         then.smallest > now.smallest + ANGLE_MARGIN);

@@ -82,11 +82,13 @@ an output base name (`-o`); `triangle-utils generate -h` describes them.
 triangle-utils generate -a 0.5 -q 30 -s 1 domain   # writes domain.1.*
 ```
 
-`generate` and `refine` write `x.1` for input `x`, and `x.2` for `x.1`, as
-Triangle names its output, unless `-o` names it; `refine` also reads
-`<base>.poly` and `<base>.area` if they exist. Neither writes vertex
-attributes or markers. The program exits with 0 on success,
-1 on an error, and 2 on a usage error.
+`generate`, `refine`, and `improve` write `x.1` for input `x`, and `x.2` for
+`x.1`, as Triangle names its output, unless `-o` names it; `refine` and
+`improve` also read `<base>.poly` and `<base>.area` if they exist. A vertex
+that improving must not move, such as a well, has marker 1 in the `.node`
+files they write, and a vertex with any nonzero marker in a `.node` file they
+read is kept in place; no vertex attributes are written. The program exits
+with 0 on success, 1 on an error, and 2 on a usage error.
 
 ## License
 
