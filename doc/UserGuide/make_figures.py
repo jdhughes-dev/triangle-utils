@@ -359,6 +359,8 @@ def main():
         "refinedover": int((refined.largest_angles() > MAXIMUM_ANGLE).sum()),
         "refinedlargest": f"{refined.largest_angles().max():.1f}",
         "valleyarea": f"{mesh.triangle_areas().sum() / 1e6:.2f}",
+        # the merge tolerance, 1e-12 of the largest coordinate, in micrometers
+        "valleytolerance": f"{1e-12 * np.abs(np.array(BOUNDARY)).max() * 1e6:.3f}",
         "boundaryspacing": f"{BOUNDARY_SPACING:,.0f}",
         "riverspacing": f"{RIVER_SPACING:,.0f}",
         "lakespacing": f"{LAKE_SPACING:,.0f}",

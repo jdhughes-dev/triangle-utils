@@ -450,11 +450,11 @@ TEST(Geometry, RepeatedPointsAreMerged)
     // within the merge distance
     geometry.polygons[1].points[0].x = std::nextafter(5.0, 6.0);
     EXPECT_EQ(generate_mesh(geometry, {}).vertices.size(), 6u);
-    geometry.polygons[1].points[0].x = 5.0 + 1e-6;
-    geometry.polygons[1].points[3].x = 5.0 - 1e-6;
+    geometry.polygons[1].points[0].x = 5.0 + 1e-9;
+    geometry.polygons[1].points[3].x = 5.0 - 1e-9;
     EXPECT_GT(generate_mesh(geometry, {}).vertices.size(), 6u);
     MeshOptions options;
-    options.merge_distance = 1e-5;
+    options.merge_distance = 1e-6;
     mesh = generate_mesh(geometry, options);
     check_mesh(mesh, 50.0);
     EXPECT_EQ(mesh.vertices.size(), 6u);
