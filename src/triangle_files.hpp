@@ -64,8 +64,11 @@ struct PolyFile
     std::vector<Region> regions;
 };
 
-// Read a .node file; name is used in error messages. Throws Error if the file
-// is not valid.
+// The readers read a file as Triangle does and take its name for error
+// messages; they throw Error if the file is not valid. The writers throw Error
+// if an array does not match its counts or the file cannot be written.
+
+// Read a .node file.
 VertexFile read_node(std::istream & input, const std::string & name);
 
 // Read an .ele file whose corners are vertices of a .node file.

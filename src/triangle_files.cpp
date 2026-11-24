@@ -2,7 +2,7 @@
 
 #include "triangle_files.hpp"
 
-#include <charconv>
+#include <cerrno>
 #include <cmath>
 #include <cstdint>
 #include <cstdlib>
@@ -70,11 +70,17 @@ public:
     int integer(std::size_t field, const char * what) const
     {
         const std::string & text = m_fields.at(field);
-        int value = 0;
-        const auto [end, error] = std::from_chars(text.data(), text.data() + text.size(), value);
-        if (error != std::errc() || end != text.data() + text.size())
+        char * end = nullptr;
+        errno = 0;
+        // a whole field in decimal; Triangle also reads hexadecimal and octal
+        // and ignores what follows the digits
+        const long value = std::strtol(text.c_str(), &end, 10);
+        if (end == text.c_str() || end != text.c_str() + text.size())
             fail(message(what, " \"", text, "\" is not an integer"));
-        return value;
+        if (errno == ERANGE || value < std::numeric_limits<int>::min() ||
+            value > std::numeric_limits<int>::max())
+            fail(message(what, " \"", text, "\" is too large"));
+        return static_cast<int>(value);
     }
 
     double real(std::size_t field, const char * what) const
@@ -124,13 +130,15 @@ private:
 VertexFile read_vertices(LineReader & reader)
 {
     VertexFile result;
-    reader.require(4, "the vertex header");
+    // as Triangle does, a header without a dimension, attribute count, or
+    // marker count has 2, 0, and 0, and any marker count but 0 means markers
+    reader.require(1, "the vertex header");
     const std::size_t count = reader.count(0, "the vertex count");
-    if (reader.integer(1, "the dimension") != 2) reader.fail("the dimension must be 2");
-    result.attribute_count = static_cast<int>(reader.count(2, "the vertex attribute count"));
-    const int marker_count = reader.integer(3, "the vertex marker count");
-    if (marker_count != 0 && marker_count != 1)
-        reader.fail("the vertex marker count must be 0 or 1");
+    if (reader.size() > 1 && reader.integer(1, "the dimension") != 2)
+        reader.fail("the dimension must be 2");
+    if (reader.size() > 2)
+        result.attribute_count = static_cast<int>(reader.count(2, "the vertex attribute count"));
+    const int marker_count = reader.optional_integer(3, "the vertex marker count") != 0 ? 1 : 0;
 
     for (std::size_t vertex = 0; vertex < count; vertex++)
     {
@@ -162,8 +170,21 @@ void prepare(std::ostream & output)
     output.precision(std::numeric_limits<double>::max_digits10);
 }
 
+// Throw Error if an array does not have the size its counts need.
+void check_size(std::size_t size, std::size_t expected, const char * what)
+{
+    if (size != expected)
+        throw Error(message("there are ", size, " ", what, ", but ", expected, " are needed"));
+}
+
 void write_vertices(std::ostream & output, const VertexFile & vertices)
 {
+    if (vertices.attribute_count < 0) throw Error("the vertex attribute count is negative");
+    check_size(vertices.attributes.size(),
+               vertices.vertices.size() * static_cast<std::size_t>(vertices.attribute_count),
+               "vertex attributes");
+    if (!vertices.markers.empty())
+        check_size(vertices.markers.size(), vertices.vertices.size(), "vertex markers");
     const bool has_markers = !vertices.markers.empty();
     output << vertices.vertices.size() << " 2 " << vertices.attribute_count << " "
            << (has_markers ? 1 : 0) << "\n";
@@ -197,11 +218,14 @@ TriangleFile read_ele(std::istream & input, const std::string & name, const Vert
 {
     LineReader reader(input, name);
     TriangleFile result;
-    reader.require(3, "the triangle header");
+    // as Triangle does, a header without a corner count or attribute count
+    // has 3 and 0
+    reader.require(1, "the triangle header");
     const std::size_t count = reader.count(0, "the triangle count");
-    if (reader.integer(1, "the corner count") != 3)
+    if (reader.size() > 1 && reader.integer(1, "the corner count") != 3)
         reader.fail("the corner count must be 3; triangles with 6 corners (o2) are not supported");
-    result.attribute_count = static_cast<int>(reader.count(2, "the triangle attribute count"));
+    if (reader.size() > 2)
+        result.attribute_count = static_cast<int>(reader.count(2, "the triangle attribute count"));
 
     for (std::size_t triangle = 0; triangle < count; triangle++)
     {
@@ -236,11 +260,9 @@ PolyFile read_poly(std::istream & input, const std::string & name,
         vertices = separate_vertices;
     }
 
-    reader.require(2, "the segment header");
+    reader.require(1, "the segment header");
     const std::size_t segment_count = reader.count(0, "the segment count");
-    const int marker_count = reader.integer(1, "the segment marker count");
-    if (marker_count != 0 && marker_count != 1)
-        reader.fail("the segment marker count must be 0 or 1");
+    const int marker_count = reader.optional_integer(1, "the segment marker count") != 0 ? 1 : 0;
     for (std::size_t segment = 0; segment < segment_count; segment++)
     {
         reader.require(3, "a segment");
@@ -321,6 +343,10 @@ void write_node(std::ostream & output, const VertexFile & vertices)
 
 void write_ele(std::ostream & output, const TriangleFile & triangles, int first_number)
 {
+    if (triangles.attribute_count < 0) throw Error("the triangle attribute count is negative");
+    check_size(triangles.attributes.size(),
+               triangles.triangles.size() * static_cast<std::size_t>(triangles.attribute_count),
+               "triangle attributes");
     prepare(output);
     output << triangles.triangles.size() << " 3 " << triangles.attribute_count << "\n";
     for (std::size_t triangle = 0; triangle < triangles.triangles.size(); triangle++)
@@ -345,6 +371,8 @@ void write_poly(std::ostream & output, const PolyFile & poly, int first_number)
     write_vertices(output, poly.vertices);
     if (!poly.vertices.vertices.empty()) first_number = poly.vertices.first_number;
     const bool has_markers = !poly.segment_markers.empty();
+    if (has_markers)
+        check_size(poly.segment_markers.size(), poly.segments.size(), "segment markers");
     output << poly.segments.size() << " " << (has_markers ? 1 : 0) << "\n";
     for (std::size_t segment = 0; segment < poly.segments.size(); segment++)
     {

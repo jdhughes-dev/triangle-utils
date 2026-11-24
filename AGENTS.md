@@ -40,8 +40,10 @@ MODFLOW-ORG/triangle and MODFLOW-ORG/gridgen.
 - `meson.build` — the project, its version, the floating-point options,
   and the dependencies; `src/meson.build` generates
   `triangle_utils_version.h`, the version as macros, builds the core as a
-  static library (`core_dep`, which the GoogleTest tests link), and the C
-  API as a shared library that exports only the API (`api_dep`).
+  static library (`core_dep`, which the GoogleTest tests link), the C API
+  as a shared library that exports only the API (`api_dep`), the file
+  readers and writers as a static library (`files_dep`), and the
+  `triangle-utils` program.
 - `subprojects/triangle.wrap` — Triangle from GitHub's archive of a
   MODFLOW-ORG/triangle commit, or a release's source archive (see
   `PLAN.md`), with its hash; `subprojects/gtest.wrap` — GoogleTest from
@@ -54,8 +56,9 @@ MODFLOW-ORG/triangle and MODFLOW-ORG/gridgen.
   API: `triangle_utils.h`, its documentation, and `triangle_utils.cpp`.
   Add a new API function to `src/triangle_utils.def` (Windows),
   `src/triangle_utils.map` (Linux), and `src/triangle_utils.exports`
-  (macOS). The command line: `main.cpp`, which calls only the C API, and
-  `triangle_files.hpp` and `.cpp`, which read and write Triangle's files.
+  (macOS). The command line: `main.cpp`, which reads files into the core's
+  types and calls only the C API for the rest, and `triangle_files.hpp` and
+  `.cpp`, which read and write Triangle's files.
 - `test/` — the GoogleTest tests; `test_c_header.c`, which builds the API
   header as C; and `python/`, the pytest tests of the C API through
   `ctypes` and of the program, which `meson test` runs except under the
@@ -91,7 +94,10 @@ MODFLOW-ORG/triangle and MODFLOW-ORG/gridgen.
 - **File formats:** read and write Triangle's formats (`.node`, `.poly`,
   `.ele`, `.neigh`) as Triangle does, so the utilities work with `triangle`
   input and output: numbering from 0 or 1 as the first vertex sets it, and
-  missing attributes and markers read as 0.
+  missing header fields, attributes, and markers read as Triangle's
+  defaults. Two differences are on purpose: an integer must be a whole
+  decimal field, and a segment endpoint out of range is an error rather
+  than a skipped segment.
 
 ## Triangle
 

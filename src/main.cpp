@@ -1,11 +1,13 @@
 // The triangle-utils command line: reads Triangle's files, calls the C API,
 // and writes the results.
 
+#include <filesystem>
 #include <fstream>
 #include <iostream>
 #include <memory>
 #include <stdexcept>
 #include <string>
+#include <system_error>
 #include <vector>
 
 #include "error.hpp"
@@ -29,7 +31,8 @@ Commands:
 
 Options:
   -h, --help    show this help
-  --version     show the versions of triangle-utils and Triangle
+  --version     show the versions of triangle-utils, Triangle, and the
+                MODFLOW-ORG/triangle release
   --license     show the license and Triangle's copyright and terms
 
 Run 'triangle-utils <command> -h' for the options of a command.
@@ -113,10 +116,16 @@ int check_command(const std::vector<std::string> & arguments)
     MeshHandle mesh(created);
 
     const std::string neigh_name = base + ".neigh";
-    std::ifstream neigh_file(neigh_name);
-    const bool has_neighbors = static_cast<bool>(neigh_file);
+    std::error_code exists_error;
+    const bool has_neighbors = std::filesystem::exists(neigh_name, exists_error);
+    if (exists_error)
+        throw triangle_utils::Error(
+            triangle_utils::message("cannot tell whether ", neigh_name, " exists"));
     if (has_neighbors)
     {
+        std::ifstream neigh_file(neigh_name);
+        if (!neigh_file)
+            throw triangle_utils::Error(triangle_utils::message("cannot open ", neigh_name));
         std::vector<int> neighbors;
         for (const auto & triangle : triangle_utils::read_neigh(
                  neigh_file, neigh_name, vertices.first_number, triangles.triangles.size()))
@@ -168,7 +177,10 @@ int main(int argc, char * argv[])
 {
     try
     {
-        return run(std::vector<std::string>(argv + 1, argv + argc));
+        const int status = run(std::vector<std::string>(argv + 1, argv + argc));
+        std::cout.flush();
+        if (!std::cout) throw triangle_utils::Error("cannot write to standard output");
+        return status;
     }
     catch (const UsageError & error)
     {

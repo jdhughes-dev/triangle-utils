@@ -179,6 +179,41 @@ TEST(TriangleFiles, TriangleNumberingAndMissingValues)
     EXPECT_EQ(read.regions[0].area_limit, 4.0);
 }
 
+TEST(TriangleFiles, ShortHeadersAndTriangleValues)
+{
+    // as Triangle reads them: a header with only a count has dimension 2 and
+    // no attributes or markers, any marker count but 0 means markers, and an
+    // integer may have a sign
+    const VertexFile vertices = read_node_text("3\n1 0 0\n2 1 0\n3 0 1\n");
+    EXPECT_EQ(vertices.vertices.size(), 3u);
+    EXPECT_EQ(vertices.attribute_count, 0);
+    EXPECT_TRUE(vertices.markers.empty());
+    EXPECT_EQ(read_node_text("1 2 0 2\n1 0 0 4\n").markers, (std::vector<int>{4}));
+
+    std::istringstream ele("1\n+1 1 2 3\n");
+    EXPECT_EQ(read_ele(ele, "test.ele", vertices).triangles,
+              (std::vector<std::array<int, 3>>{{0, 1, 2}}));
+    std::istringstream poly("3\n1 0 0\n2 1 0\n3 0 1\n1\n1 1 2\n0\n");
+    const PolyFile read = read_poly(poly, "test.poly");
+    EXPECT_EQ(read.segments, (std::vector<std::array<int, 2>>{{0, 1}}));
+    EXPECT_TRUE(read.segment_markers.empty());
+}
+
+TEST(TriangleFiles, WritersCheckSizes)
+{
+    VertexFile vertices;
+    vertices.vertices = {{0.0, 0.0}, {1.0, 0.0}};
+    vertices.attribute_count = 1;
+    vertices.attributes = {1.0};
+    std::ostringstream output;
+    EXPECT_EQ(error_message([&] { write_node(output, vertices); }),
+              "there are 1 vertex attributes, but 2 are needed");
+    vertices.attributes = {1.0, 2.0};
+    vertices.markers = {1};
+    EXPECT_EQ(error_message([&] { write_node(output, vertices); }),
+              "there are 1 vertex markers, but 2 are needed");
+}
+
 TEST(TriangleFiles, ErrorsNameTheFileAndLine)
 {
     EXPECT_EQ(error_message([] { read_node_text("1 3 0 0\n1 0 0\n"); }),
@@ -189,6 +224,8 @@ TEST(TriangleFiles, ErrorsNameTheFileAndLine)
               "test.node line 3: the y coordinate \"x\" is not a number");
     EXPECT_EQ(error_message([] { read_node_text("1 2 0 0\n1 0 nan\n"); }),
               "test.node line 2: the y coordinate \"nan\" is not finite");
+    EXPECT_EQ(error_message([] { read_node_text("1 2 0 0\n1.0 0 0\n"); }),
+              "test.node line 2: the vertex number \"1.0\" is not an integer");
     EXPECT_EQ(error_message([] { read_node_text("-1 2 0 0\n"); }),
               "test.node line 1: the vertex count is -1, but it must be 0 to 715827882");
 
