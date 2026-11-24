@@ -9,31 +9,31 @@ and update it in the pull request that changes the plan.
 
 Every open issue, in this order; each depends only on those before it
 (see its `Depends on` lines and comments). Done: #2 (build), #3 (CI), #4
-(core mesh type and property checks).
+(core mesh type and property checks), #5 (C API skeleton and ctypes
+tests).
 
-1. #5 C API skeleton and ctypes tests
-2. #6 Triangle files and the command-line program
-3. #11 generate a mesh from geometry
-4. #7 refine
-5. #8 improve by moving vertices
-6. #9 Voronoi and DISV
-7. #12 map lines and boundaries to cells
-8. #13 DISU connection data
-9. #19 layers, DISV and DISU output
-10. #23 ghost-node correction
-11. #14 grid quality report
-12. #18 model checks with MODFLOW 6, MODFLOW-USG, and MODFLOW-USG-Transport
-13. #20 different refinement by layer
-14. #15 structured grids, merging cells, and refinement by a field
-15. #21 user guide
-16. #22 Read the Docs
-17. #24 release notes
-18. #10 release and conda-forge package
+1. #6 Triangle files and the command-line program
+2. #11 generate a mesh from geometry
+3. #7 refine
+4. #8 improve by moving vertices
+5. #9 Voronoi and DISV
+6. #12 map lines and boundaries to cells
+7. #13 DISU connection data
+8. #19 layers, DISV and DISU output
+9. #23 ghost-node correction
+10. #14 grid quality report
+11. #18 model checks with MODFLOW 6, MODFLOW-USG, and MODFLOW-USG-Transport
+12. #20 different refinement by layer
+13. #15 structured grids, merging cells, and refinement by a field
+14. #21 user guide
+15. #22 Read the Docs
+16. #24 release notes
+17. #10 release and conda-forge package
 
 ## Triangle
 
 - Triangle is built from MODFLOW-ORG/triangle as a static subproject
-  (`subprojects/triangle.wrap`), now commit 5cee628 on Triangle's `main`
+  (`subprojects/triangle.wrap`), now commit fd28514 on Triangle's `main`
   (after v1.6.2).
 - A Triangle change triangle-utils needs is a pull request to Triangle's
   `main`, with no Triangle release (#10). The wrap then points at that
@@ -48,6 +48,9 @@ Every open issue, in this order; each depends only on those before it
 - Changes on Triangle's `main` for triangle-utils:
   - MODFLOW-ORG/triangle#59 (merged in #60, 5cee628): build with icx on
     Windows, with `/fp:strict`; the meshes match the MSVC build.
+  - MODFLOW-ORG/triangle#61 (merged in #62, fd28514): the library keeps
+    Triangle's messages (`triangle_messages()`) and can stop printing them
+    (`triangle_set_print()`).
 
 ## Decisions
 
@@ -58,6 +61,9 @@ Every open issue, in this order; each depends only on those before it
   `-ffp-contract=off`, and `-fp-model=precise` or `/fp:precise` for icx and
   MSVC. Triangle's C keeps its own, which are stricter (`/fp:strict` for
   icx on Windows), since its exact predicates need them.
+- **Triangle's errors:** the core calls Triangle through `run_triangle()`,
+  which turns off Triangle's printing and throws its reason, so the C API's
+  last error includes it (#5, MODFLOW-ORG/triangle#61).
 - **Obtuse triangles:** refinement by maximum angle stops at about 95 to
   100 degrees (#7); moving vertices removes the rest (#8).
 - **Corrections for triangle grids**, in order (#14, #21): a Voronoi grid
@@ -69,8 +75,5 @@ Every open issue, in this order; each depends only on those before it
 
 ## Open questions
 
-- **Triangle's error text:** Triangle prints the reason for an error on
-  standard output, so the C API's last-error message (#5) cannot include
-  it without a change to Triangle. Decide in #5.
 - **Python wrapper:** no issue covers one; #5 has only ctypes tests. Decide
   before #19, which returns arrays for FloPy.

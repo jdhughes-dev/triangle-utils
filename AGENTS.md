@@ -38,17 +38,25 @@ MODFLOW-ORG/triangle and MODFLOW-ORG/gridgen.
   terms (see Licenses below).
 - `meson.build` — the project, its version, the floating-point options,
   and the dependencies; `src/meson.build` generates
-  `triangle_utils_version.h`, the version as macros, and builds the core
-  as a static library (`core_dep`, which the tests link).
+  `triangle_utils_version.h`, the version as macros, builds the core as a
+  static library (`core_dep`, which the GoogleTest tests link), and the C
+  API as a shared library that exports only the API (`api_dep`).
 - `subprojects/triangle.wrap` — Triangle from GitHub's archive of a
   MODFLOW-ORG/triangle commit, or a release's source archive (see
   `PLAN.md`), with its hash; `subprojects/gtest.wrap` — GoogleTest from
   the Meson WrapDB.
 - `src/` — the core: `mesh.hpp` and `mesh.cpp` (the mesh type, its
   conversion to and from Triangle's `triangulateio`, `TriangleOutput`,
-  which frees Triangle's output, and the property checks) and `error.hpp`
-  (the one error type it throws, and `message()`).
-- `test/` — the GoogleTest tests.
+  which frees Triangle's output, and the property checks),
+  `run_triangle.hpp` (calls Triangle and throws its reason for an error),
+  and `error.hpp` (the one error type it throws, and `message()`); the C
+  API: `triangle_utils.h`, its documentation, and `triangle_utils.cpp`.
+  Add a new API function to `src/triangle_utils.def` (Windows),
+  `src/triangle_utils.map` (Linux), and `src/triangle_utils.exports`
+  (macOS).
+- `test/` — the GoogleTest tests; `test_c_header.c`, which builds the API
+  header as C; and `python/`, the pytest tests of the C API through
+  `ctypes`, which `meson test` runs except under the sanitizers.
 - `scripts/clang_format.py` — runs clang-format on the tracked C and C++
   files, for `pixi run check-format` and `fix-format`.
 - `.github/workflows/ci.yml` — builds and tests on Linux, macOS, and

@@ -22,10 +22,41 @@ version_dep = declare_dependency(
 core_lib = static_library(
   'triangle_utils_core',
   'mesh.cpp',
+  'run_triangle.cpp',
   dependencies: triangle_dep,
 )
 core_dep = declare_dependency(
   include_directories: include_directories('.'),
   link_with: core_lib,
   dependencies: [triangle_dep, version_dep],
+)
+
+# the C API as a shared library that exports only the API; Windows uses
+# triangle_utils.def
+export_args = []
+export_files = []
+if host_machine.system() == 'darwin'
+  export_args = ['-Wl,-exported_symbols_list,' + meson.current_source_dir() / 'triangle_utils.exports']
+  export_files = ['triangle_utils.exports']
+elif host_machine.system() != 'windows'
+  export_args = ['-Wl,--version-script=' + meson.current_source_dir() / 'triangle_utils.map']
+  export_files = ['triangle_utils.map']
+endif
+api_lib = shared_library(
+  'triangle_utils',
+  'triangle_utils.cpp',
+  dependencies: core_dep,
+  name_prefix: 'lib',
+  version: meson.project_version(),
+  soversion: version_parts[0],
+  vs_module_defs: 'triangle_utils.def',
+  link_args: export_args,
+  link_depends: export_files,
+  install: true,
+)
+install_headers('triangle_utils.h')
+api_dep = declare_dependency(
+  include_directories: include_directories('.'),
+  link_with: api_lib,
+  dependencies: version_dep,
 )

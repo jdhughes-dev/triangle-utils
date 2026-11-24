@@ -1,0 +1,11 @@
+EXPORTS
+  triangle_utils_last_error
+  triangle_utils_version
+  triangle_utils_version_numbers
+  triangle_utils_triangle_version
+  triangle_utils_triangle_release
+  triangle_utils_license
+  triangle_utils_triangle_copyright
+  triangle_utils_mesh_create
+  triangle_utils_mesh_free
+  triangle_utils_mesh_counts
