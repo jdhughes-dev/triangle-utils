@@ -8,6 +8,7 @@
     triangle_utils_license;
     triangle_utils_triangle_copyright;
     triangle_utils_mesh_create;
+    triangle_utils_mesh_set_neighbors;
     triangle_utils_mesh_free;
     triangle_utils_mesh_counts;
   local:

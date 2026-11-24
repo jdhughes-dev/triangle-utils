@@ -16,6 +16,8 @@ Cases:
   - test_mesh_error    : a clockwise triangle, a corner out of range, and a
                          vertex not finite are errors with their reason, and
                          the mesh is null.
+  - test_neighbors     : a mesh takes neighbors across its edges and rejects
+                         wrong ones and a wrong count, unchanged.
   - test_invalid       : null pointers and negative counts are invalid
                          arguments, and the mesh is null.
 """
@@ -61,6 +63,12 @@ def library():
         ctypes.c_int,
         ctypes.POINTER(ctypes.c_int),
         ctypes.POINTER(MESH_POINTER),
+    ]
+    library.triangle_utils_mesh_set_neighbors.restype = ctypes.c_int
+    library.triangle_utils_mesh_set_neighbors.argtypes = [
+        MESH_POINTER,
+        ctypes.c_int,
+        ctypes.POINTER(ctypes.c_int),
     ]
     library.triangle_utils_mesh_free.restype = None
     library.triangle_utils_mesh_free.argtypes = [MESH_POINTER]
@@ -163,6 +171,30 @@ def test_mesh_error(library):
     assert library.triangle_utils_last_error() == (
         b"vertex 1 has a coordinate that is not finite"
     )
+
+
+def test_neighbors(library):
+    status, mesh = create_mesh(
+        library, [0.0, 0.0, 1.0, 0.0, 1.0, 1.0, 0.0, 1.0], [0, 1, 2, 0, 2, 3]
+    )
+    try:
+        assert status == OK
+        right = (ctypes.c_int * 6)(-1, 1, -1, -1, -1, 0)
+        wrong = (ctypes.c_int * 6)(-1, -1, -1, -1, -1, 0)
+        assert library.triangle_utils_mesh_set_neighbors(mesh, 2, right) == OK
+        assert library.triangle_utils_mesh_set_neighbors(mesh, 2, wrong) == ERROR
+        assert library.triangle_utils_last_error().startswith(
+            b"triangle 0 has neighbor -1 opposite corner 1"
+        )
+        status = library.triangle_utils_mesh_set_neighbors(mesh, 1, right)
+        assert status == INVALID_ARGUMENT
+        assert library.triangle_utils_last_error() == (
+            b"the triangle count is 1, but the mesh has 2 triangles"
+        )
+        status = library.triangle_utils_mesh_set_neighbors(mesh, 2, None)
+        assert status == INVALID_ARGUMENT
+    finally:
+        library.triangle_utils_mesh_free(mesh)
 
 
 def test_invalid(library):
