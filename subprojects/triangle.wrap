@@ -1,8 +1,8 @@
 [wrap-file]
-directory = triangle-5cee62873c6e86254e2c3ae6342b3b05108feb77
-source_url = https://github.com/MODFLOW-ORG/triangle/archive/5cee62873c6e86254e2c3ae6342b3b05108feb77.tar.gz
-source_filename = triangle-5cee62873c6e86254e2c3ae6342b3b05108feb77.tar.gz
-source_hash = 7f2411bab776b9d6167603f371196d18fd4496d609f397fa0550272ce7a2bcce
+directory = triangle-fd28514bd2dbfea8a16732f7e44a0e0a7d63745a
+source_url = https://github.com/MODFLOW-ORG/triangle/archive/fd28514bd2dbfea8a16732f7e44a0e0a7d63745a.tar.gz
+source_filename = triangle-fd28514bd2dbfea8a16732f7e44a0e0a7d63745a.tar.gz
+source_hash = d3cb92fdecc62b096a075ce52e93c7de0dd5a88f1eb2404c766458dff9ace59e
 
 [provide]
 dependency_names = triangle

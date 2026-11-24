@@ -1,12 +1,15 @@
-// Tests that Triangle builds as a subproject and meshes a unit square.
+// Tests that Triangle meshes a unit square and that its errors are thrown with its reason.
 
 #include <span>
+#include <string>
 
 #include <gtest/gtest.h>
 
+#include "error.hpp"
 #include "mesh.hpp"
-#include "triangle_status.h"
+#include "run_triangle.hpp"
 
+using triangle_utils::run_triangle;
 using triangle_utils::TriangleOutput;
 
 namespace
@@ -27,7 +30,7 @@ TEST(Triangulate, UnitSquareWithAreaLimit)
     int segments[] = {0, 1, 1, 2, 2, 3, 3, 0};
     // the a switch below gives the same limit
     constexpr double AREA_LIMIT = 0.01;
-    char switches[] = "pzqa0.01Q";
+    const std::string switches = "pzqa0.01";
 
     triangulateio input{};
     input.pointlist = vertices;
@@ -36,7 +39,7 @@ TEST(Triangulate, UnitSquareWithAreaLimit)
     input.numberofsegments = 4;
     TriangleOutput output;
 
-    ASSERT_EQ(triangulate_status(switches, &input, &output.get(), nullptr), 0);
+    run_triangle(switches, input, output);
 
     // a unit square needs at least 1 / AREA_LIMIT triangles
     const int triangle_count = output.get().numberoftriangles;
@@ -54,4 +57,27 @@ TEST(Triangulate, UnitSquareWithAreaLimit)
         total_area += area;
     }
     EXPECT_NEAR(total_area, 1.0, 1e-12);
+}
+
+TEST(Triangulate, ErrorGivesTriangleReason)
+{
+    double vertices[] = {0.0, 0.0, 1.0, 0.0};
+    triangulateio input{};
+    input.pointlist = vertices;
+    input.numberofpoints = 2;
+    TriangleOutput output;
+
+    testing::internal::CaptureStdout();
+    try
+    {
+        run_triangle("z", input, output);
+        ADD_FAILURE() << "two vertices did not throw";
+    }
+    catch (const triangle_utils::Error & error)
+    {
+        EXPECT_STREQ(error.what(), "Triangle could not mesh the input: Input must have at "
+                                   "least three input vertices.");
+    }
+    EXPECT_EQ(testing::internal::GetCapturedStdout(), "") << "Triangle printed its message";
+    EXPECT_EQ(output.get().pointlist, nullptr);
 }

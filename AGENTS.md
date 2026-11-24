@@ -13,7 +13,8 @@ MODFLOW-ORG/triangle and MODFLOW-ORG/gridgen.
 
 - **Configure the build directory:** `pixi run setup`; Meson downloads
   Triangle and GoogleTest into `subprojects/` on the first run
-- **Build** (installs the version header to `include/`): `pixi run build`
+- **Build** (installs the C API library to `lib/`, or `bin/` for the
+  Windows DLL, and its headers to `include/`): `pixi run build`
 - **Run the tests:** `pixi run test`; it does not rebuild, so run
   `pixi run build` first
 - **Remove the build directory:** `pixi run clean`
@@ -38,17 +39,25 @@ MODFLOW-ORG/triangle and MODFLOW-ORG/gridgen.
   terms (see Licenses below).
 - `meson.build` — the project, its version, the floating-point options,
   and the dependencies; `src/meson.build` generates
-  `triangle_utils_version.h`, the version as macros, and builds the core
-  as a static library (`core_dep`, which the tests link).
+  `triangle_utils_version.h`, the version as macros, builds the core as a
+  static library (`core_dep`, which the GoogleTest tests link), and the C
+  API as a shared library that exports only the API (`api_dep`).
 - `subprojects/triangle.wrap` — Triangle from GitHub's archive of a
   MODFLOW-ORG/triangle commit, or a release's source archive (see
   `PLAN.md`), with its hash; `subprojects/gtest.wrap` — GoogleTest from
   the Meson WrapDB.
 - `src/` — the core: `mesh.hpp` and `mesh.cpp` (the mesh type, its
   conversion to and from Triangle's `triangulateio`, `TriangleOutput`,
-  which frees Triangle's output, and the property checks) and `error.hpp`
-  (the one error type it throws, and `message()`).
-- `test/` — the GoogleTest tests.
+  which frees Triangle's output, and the property checks),
+  `run_triangle.hpp` (calls Triangle and throws its reason for an error),
+  and `error.hpp` (the one error type it throws, and `message()`); the C
+  API: `triangle_utils.h`, its documentation, and `triangle_utils.cpp`.
+  Add a new API function to `src/triangle_utils.def` (Windows),
+  `src/triangle_utils.map` (Linux), and `src/triangle_utils.exports`
+  (macOS).
+- `test/` — the GoogleTest tests; `test_c_header.c`, which builds the API
+  header as C; and `python/`, the pytest tests of the C API through
+  `ctypes`, which `meson test` runs except under the sanitizers.
 - `scripts/clang_format.py` — runs clang-format on the tracked C and C++
   files, for `pixi run check-format` and `fix-format`.
 - `.github/workflows/ci.yml` — builds and tests on Linux, macOS, and
@@ -87,9 +96,11 @@ MODFLOW-ORG/triangle and MODFLOW-ORG/gridgen.
   package: it is the unmodified netlib source, without the 64-bit Windows
   pointer fix (MODFLOW-ORG/triangle#2), the ARM fix (#25), or the
   floating-point flags in its `meson.build`.
-- **Calls:** call Triangle through `triangulate_status()`, never
-  `triangulate()`, which ends the program on an error. Memory Triangle
-  allocated before an error is not freed.
+- **Calls:** call Triangle through `run_triangle()` (`src/run_triangle.hpp`),
+  which calls `triangulate_status()`, never `triangulate()`, which ends the
+  program on an error. It turns off Triangle's printing for the process and
+  throws Triangle's reason. Memory Triangle allocated before an error is not
+  freed.
 - **Changes:** never copy or modify Triangle's source here; a change to
   Triangle is a pull request to MODFLOW-ORG/triangle, under the rules in its
   `AGENTS.md`.
@@ -116,8 +127,9 @@ MODFLOW-ORG/triangle and MODFLOW-ORG/gridgen.
   release; a compatible addition is a minor release; a fix is a patch
   release. The shared library's `soversion` is the major version.
 - **Reporting:** the C API returns the triangle-utils version, Triangle's
-  version (`triangle_version()`), and the MODFLOW-ORG/triangle release it
-  was built with (`triangle_release_version()`). The public header also
+  version, and the MODFLOW-ORG/triangle release it was built with, passed
+  through from Triangle's `triangle_version()` and
+  `triangle_release_version()`. The public header also
   defines the version as macros, so a caller can check it at compile time.
 
 ## Command line
@@ -127,7 +139,8 @@ MODFLOW-ORG/triangle and MODFLOW-ORG/gridgen.
 - **Information:** `-h` and `--help`, for the program and for each command;
   `--version`, which prints the triangle-utils version, Triangle's version,
   and the MODFLOW-ORG/triangle release; and `--license`, which prints the
-  CC0 notice and Triangle's copyright and terms (`triangle_copyright()`).
+  CC0 notice and Triangle's copyright and terms
+  (`triangle_utils_triangle_copyright()`).
 - **Exit status:** 0 on success, 1 on an error, and 2 on a usage error.
   Write errors to standard error and results to the named files or
   standard output.

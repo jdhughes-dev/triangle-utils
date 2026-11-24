@@ -8,6 +8,7 @@ BreakBeforeBraces: Allman
 AccessModifierOffset: -4
 IndentCaseLabels: true
 NamespaceIndentation: None
+IndentExternBlock: NoIndent
 FixNamespaceComments: false
 DerivePointerAlignment: false
 PointerAlignment: Middle
