@@ -130,6 +130,21 @@ Figure~\ref{fig:closeups} shows the windows of Figure~\ref{fig:generated} before
   \label{fig:closeups}
 \end{figure}
 
+\section{Improving a Mesh}
+
+Improving moves the vertices of a mesh, other than those on its boundary, polygons, and lines and those of point features and wells, and replaces edges between triangles so the triangles are Delaunay. A vertex is moved toward the average of its neighboring vertices, or toward the centroids of its triangles, only where every triangle around it stays valid, no angle falls below the smallest angle of the mesh, and the largest angle around it decreases toward a given maximum angle. With a maximum angle of 90 degrees, improving removes the obtuse triangles that refining leaves, so the circumcenter of each triangle lies inside it. An obtuse angle at a point on the boundary where only two triangles meet cannot be removed by moving vertices, because the two angles there sum to 180 degrees; refining that part of the boundary adds triangles that can.
+
+By default, no move may make an angle smaller than the smallest angle of the mesh, so improving never makes that angle smaller; some obtuse triangles can be removed only by making an angle smaller, and a smaller minimum angle can be given to allow it.
+
+Figure~\ref{fig:improved} shows the refined mesh of Figure~\ref{fig:refined} improved toward a maximum angle of \improveangle\ degrees. The refined mesh has \refinedoverninety\ triangles with an angle over \improveangle\ degrees and a smallest angle of \refinedsmallest\ degrees. Improved with that smallest angle kept, the mesh has \improvedoverninety\ triangles over \improveangle\ degrees: \improvedboundaryover\ with the angle at a point on the boundary where two triangles meet, \improvedfixedover\ at another point that does not move (on the river, the lake, or a ring), and \improvedfreeover\ at a vertex that could move only by making an angle smaller than \improvedsmallest\ degrees. Improved with a minimum angle of \tradedangle\ degrees, it has \tradedoverninety: \tradedboundaryover, \tradedfixedover, and \tradedfreeover\ of those kinds, with a smallest angle of \tradedsmallest\ degrees.
+
+\begin{figure}[htbp]
+  \centering
+  \includegraphics{improved_mesh.pdf}
+  \caption{Triangles with an angle over \improveangle\ degrees (red) in the mesh of the example valley. \textit{A}, the mesh refined to a maximum angle of \maximumangle\ degrees (fig.~\ref{fig:refined}\textit{B}). \textit{B}, the same mesh improved toward a maximum angle of \improveangle\ degrees, keeping its smallest angle. \textit{C}, the same mesh improved with a minimum angle of \tradedangle\ degrees. Triangles left over \improveangle\ degrees have that angle at a point that does not move}
+  \label{fig:improved}
+\end{figure}
+
 \section{Using triangle-utils}
 
 The \texttt{triangle-utils} program reads and writes the files of Triangle. The \texttt{generate} command meshes the segments, vertices, holes, and regions of a .poly file, such as one describing the boundary, river, and lake of a valley, and the \texttt{refine} command refines the mesh in a .node file and an .ele file, with the segments of a .poly file and the area of each triangle in an .area file if they exist:

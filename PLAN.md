@@ -12,12 +12,12 @@ Every open issue, in this order; each depends only on those before it
 (core mesh type and property checks), #5 (C API skeleton and ctypes
 tests), #6 (Triangle files and the command-line program), #11 (generate a
 mesh from geometry), #7 (refine), #40 (start the user guide), #42 (a point
-on an edge splits it).
+on an edge splits it), #8 (improve by moving vertices).
 
-1. #8 improve by moving vertices
-2. #9 Voronoi and DISV
-3. #12 map lines and boundaries to cells
-4. #13 DISU connection data
+1. #9 Voronoi and DISV
+2. #12 map lines and boundaries to cells
+3. #13 DISU connection data
+4. #46 package the Python module for PyPI
 5. #19 layers, DISV and DISU output
 6. #23 ghost-node correction
 7. #43 hybrid grid, Voronoi cells around features and triangles elsewhere
@@ -72,7 +72,10 @@ on an edge splits it).
   which turns off Triangle's printing and throws its reason, so the C API's
   last error includes it (#5, MODFLOW-ORG/triangle#61).
 - **Obtuse triangles:** refinement by maximum angle stops at about 95 to
-  100 degrees (#7); moving vertices removes the rest (#8).
+  100 degrees (#7); moving vertices removes the rest away from the
+  boundary (#8). A boundary point where two triangles meet keeps an obtuse
+  angle if it has one, since its two angles sum to 180 degrees; removing it
+  needs a third triangle there, which only refinement can add.
 - **Corrections for triangle grids**, in order (#14, #21): a Voronoi grid
   or a triangle grid with circumcenters and no obtuse triangles needs none,
   so a grid with obtuse triangles is first refined by maximum angle (#7)
@@ -85,8 +88,8 @@ on an edge splits it).
 - **Windows runtime DLLs:** the Windows DLL depends on its compiler's
   runtime DLLs (the Intel build failed to load from Python without them in
   #38), which Python since 3.8 does not look for on `PATH`; the tests load
-  it with `winmode=0`. Before #10, decide how the release provides them:
-  link them statically or ship them beside the DLL.
+  it with `winmode=0`. #46 links the runtimes statically, so a wheel needs
+  nothing beside it; the release (#10) does the same for its archives.
 
 ## User guide
 
@@ -98,6 +101,5 @@ on an edge splits it).
 ## Open questions
 
 - **Python wrapper:** `python/triangle_utils/` (#40) is a minimal module,
-  meshes in and out as NumPy arrays, for the guide and the tests. Decide
-  before #19 how it is packaged and installed and what it returns for
-  FloPy.
+  meshes in and out as NumPy arrays. #46 packages it for PyPI, with the
+  library inside each wheel; #19 decides what it returns for FloPy.

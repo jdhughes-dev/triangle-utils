@@ -45,9 +45,13 @@ so a set number of splits stops it, and
 boundary segments with marker 0 the marker 1, as generating does. Refining
 keeps triangle attributes and per-triangle area limits exact only where
 segments bound them, since Triangle averages them across the edges it flips.
-The API also returns the versions of triangle-utils and Triangle, the license,
-and Triangle's copyright notice. Calls must not run concurrently, since
-Triangle keeps global state.
+`triangle_utils_mesh_improve()` moves the vertices that are not fixed and flips
+edges, toward a maximum angle such as 90 degrees, without making the smallest
+angle smaller unless a smaller minimum angle is given; a mesh's fixed vertices,
+which `generate` sets to its point features and ring centers, do not move. The
+API also returns the versions of triangle-utils and Triangle, the license, and
+Triangle's copyright notice. Calls must not run concurrently, since Triangle
+keeps global state.
 
 ## User guide
 
@@ -62,6 +66,7 @@ arrays.
 ```shell
 triangle-utils generate [options] <base>  # mesh <base>.poly to <base>.1.*
 triangle-utils refine [options] <base>    # refine <base>.node and .ele
+triangle-utils improve [options] <base>   # move its vertices
 triangle-utils check <base>   # check <base>.node, .ele, and .neigh
 triangle-utils --version      # the versions of triangle-utils and Triangle,
                               # and the MODFLOW-ORG/triangle release

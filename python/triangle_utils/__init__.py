@@ -19,6 +19,7 @@ __all__ = [
     "Mesh",
     "count_angles_over",
     "generate",
+    "improve",
     "refine",
     "version",
 ]
@@ -78,6 +79,9 @@ class Mesh:
     segment_markers: np.ndarray = None
     # an area limit for each triangle, for refine(), or None
     area_limits: np.ndarray = None
+    # vertices improve() must not move, besides those on segments and the
+    # boundary, such as wells; generate() sets its points and ring centers
+    fixed_vertices: np.ndarray = None
 
     def triangle_areas(self):
         """The area of each triangle."""
@@ -140,7 +144,21 @@ def _from_handle(handle):
             handle, segment_count, segment_pointer, marker_pointer
         )
     )
-    return Mesh(vertices, triangles, attributes, neighbors, segments, markers)
+    fixed_count = ctypes.c_int()
+    _check(
+        api.triangle_utils_mesh_fixed_vertex_count(handle, ctypes.byref(fixed_count))
+    )
+    fixed, fixed_pointer = _ints(np.zeros(fixed_count.value))
+    _check(api.triangle_utils_mesh_fixed_vertices(handle, fixed_count, fixed_pointer))
+    return Mesh(
+        vertices,
+        triangles,
+        attributes,
+        neighbors,
+        segments,
+        markers,
+        fixed_vertices=fixed,
+    )
 
 
 def _integers(values, name):
@@ -206,6 +224,9 @@ def _to_handle(mesh):
             _check_length(markers, len(segments), "segment_markers", "segments")
     elif mesh.segment_markers is not None and len(mesh.segment_markers) > 0:
         raise ValueError("segment_markers are given without segments")
+    fixed = None
+    if mesh.fixed_vertices is not None:
+        fixed = _integers(mesh.fixed_vertices, "fixed_vertices").reshape(-1)
     limits = None
     if mesh.area_limits is not None:
         limits = np.asarray(mesh.area_limits, dtype=np.float64).reshape(-1)
@@ -238,6 +259,11 @@ def _to_handle(mesh):
         if limits is not None:
             limits, pointer = _doubles(limits)
             _check(api.triangle_utils_mesh_set_area_limits(handle, count, pointer))
+        if fixed is not None:
+            fixed, pointer = _ints(fixed)
+            _check(
+                api.triangle_utils_mesh_set_fixed_vertices(handle, len(fixed), pointer)
+            )
     except BaseException:
         api.triangle_utils_mesh_free(handle)
         raise
@@ -410,3 +436,43 @@ def version():
         api.triangle_utils_triangle_version().decode(),
         api.triangle_utils_triangle_release().decode(),
     )
+
+
+def improve(
+    mesh,
+    smoothing="laplacian",
+    maximum_angle=0.0,
+    minimum_angle=0.0,
+    iterations=100,
+    tolerance=1e-4,
+):
+    """Improve a mesh by moving the vertices that are not fixed and flipping
+    edges; smoothing is "laplacian" or "centroidal", and a minimum angle of 0
+    keeps the mesh's smallest angle from decreasing."""
+    choices = {"laplacian": 0, "centroidal": 1}
+    if smoothing not in choices:
+        raise ValueError(
+            f'smoothing must be "laplacian" or "centroidal", not {smoothing!r}'
+        )
+    iterations = _int(iterations, "iterations")
+    api = _api()
+    mesh_handle = _to_handle(mesh)
+    try:
+        improved = MESH_POINTER()
+        _check(
+            api.triangle_utils_mesh_improve(
+                mesh_handle,
+                choices[smoothing],
+                maximum_angle,
+                minimum_angle,
+                iterations,
+                tolerance,
+                ctypes.byref(improved),
+            )
+        )
+    finally:
+        api.triangle_utils_mesh_free(mesh_handle)
+    try:
+        return _from_handle(improved)
+    finally:
+        api.triangle_utils_mesh_free(improved)

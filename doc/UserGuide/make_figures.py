@@ -277,6 +277,107 @@ def refine_figure(mesh, refined, windows):
         plt.close(fig)
 
 
+# the largest angle improving aims for, in degrees; 90 puts every
+# circumcenter inside its triangle
+IMPROVE_ANGLE = 90.0
+# a smallest angle below the generated mesh's, which improving may trade for
+# fewer triangles over the improving angle, in degrees
+TRADED_ANGLE = 25.0
+
+
+def smallest_angle(mesh):
+    """The smallest angle of a mesh in degrees."""
+    corners = mesh.vertices[mesh.triangles]
+    smallest = 180.0
+    for corner in range(3):
+        to_next = corners[:, (corner + 1) % 3] - corners[:, corner]
+        to_previous = corners[:, (corner + 2) % 3] - corners[:, corner]
+        cross = np.abs(
+            to_next[:, 0] * to_previous[:, 1] - to_next[:, 1] * to_previous[:, 0]
+        )
+        dot = (to_next * to_previous).sum(axis=1)
+        smallest = min(smallest, np.degrees(np.arctan2(cross, dot)).min())
+    return smallest
+
+
+def obtuse_kinds(mesh, limit):
+    """The angles over the limit at a boundary point where two triangles
+    meet, at another vertex that does not move (on a segment, or a well),
+    and at a vertex that moves."""
+    triangle_count = np.bincount(mesh.triangles.ravel(), minlength=len(mesh.vertices))
+    on_boundary = np.zeros(len(mesh.vertices), dtype=bool)
+    for triangle, corners in enumerate(mesh.triangles):
+        for corner in range(3):
+            if mesh.neighbors[triangle, corner] == -1:
+                on_boundary[corners[(corner + 1) % 3]] = True
+                on_boundary[corners[(corner + 2) % 3]] = True
+    fixed = on_boundary.copy()
+    fixed[mesh.segments.ravel()] = True
+    fixed[mesh.fixed_vertices] = True
+    kinds = {"boundary": 0, "fixed": 0, "free": 0}
+    points = mesh.vertices[mesh.triangles]
+    for triangle, corners in enumerate(mesh.triangles):
+        for corner in range(3):
+            at = points[triangle, corner]
+            to_next = points[triangle, (corner + 1) % 3] - at
+            to_previous = points[triangle, (corner + 2) % 3] - at
+            angle = np.degrees(
+                np.arctan2(
+                    abs(to_next[0] * to_previous[1] - to_next[1] * to_previous[0]),
+                    to_next @ to_previous,
+                )
+            )
+            if angle <= limit:
+                continue
+            vertex = corners[corner]
+            if on_boundary[vertex] and triangle_count[vertex] == 2:
+                kinds["boundary"] += 1
+            elif fixed[vertex]:
+                kinds["fixed"] += 1
+            else:
+                kinds["free"] += 1
+    return kinds
+
+
+def improve_figure(refined, improved, traded):
+    """Triangles over the improving angle before and after improving, keeping
+    the smallest angle and with a lower one."""
+    with styles.USGSMap():
+        fig, axd = plt.subplot_mosaic(
+            [["A", "B", "C"]], figsize=(6.7, 4.6), layout="constrained"
+        )
+        panels = (
+            ("A", refined, "Refined"),
+            ("B", improved, "Improved"),
+            ("C", traded, f"Improved, {TRADED_ANGLE:g}\u00b0 minimum"),
+        )
+        for letter, item, heading in panels:
+            draw_mesh(
+                axd[letter], item, highlight=item.largest_angles() > IMPROVE_ANGLE
+            )
+            styles.heading(ax=axd[letter], letter=letter, heading=heading)
+            styles.xlabel(ax=axd[letter], label="x, in meters")
+        styles.ylabel(ax=axd["A"], label="y, in meters")
+        handles = [
+            Patch(facecolor="#e31a1c", label=f"Angle over {IMPROVE_ANGLE:g} degrees"),
+            Patch(facecolor=REGION_COLORS[LAKE_REGION], edgecolor="0.35", label="Lake"),
+            plt.Line2D([], [], color="#1f78b4", label="River"),
+            well_handle(),
+        ]
+        # below the panels, which are too narrow for it
+        legend = fig.legend(
+            handles=handles,
+            labels=[h.get_label() for h in handles],
+            loc="outside lower center",
+            ncols=len(handles),
+            title="EXPLANATION",
+            frameon=False,
+        )
+        legend.get_title().set_fontweight("bold")
+        fig.savefig(FIGURES / "improved_mesh.pdf")
+        plt.close(fig)
+
+
 def close_up_figure(mesh, refined, windows):
     """The close-up windows before and after refining."""
     with styles.USGSMap():
@@ -343,6 +444,11 @@ def main():
     mesh_figure(mesh, windows)
     refine_figure(mesh, refined, windows)
     close_up_figure(mesh, refined, windows)
+    improved = tu.improve(refined, maximum_angle=IMPROVE_ANGLE)
+    traded = tu.improve(
+        refined, maximum_angle=IMPROVE_ANGLE, minimum_angle=TRADED_ANGLE
+    )
+    improve_figure(refined, improved, traded)
     cover_figure(refined)
     # the class puts this page in place of the agency logo on the cover
     blank = plt.figure(figsize=(1, 1))
@@ -358,6 +464,20 @@ def main():
         "refinedtriangles": len(refined.triangles),
         "refinedover": int((refined.largest_angles() > MAXIMUM_ANGLE).sum()),
         "refinedlargest": f"{refined.largest_angles().max():.1f}",
+        "improveangle": f"{IMPROVE_ANGLE:g}",
+        "refinedoverninety": int((refined.largest_angles() > IMPROVE_ANGLE).sum()),
+        "improvedoverninety": int((improved.largest_angles() > IMPROVE_ANGLE).sum()),
+        "improvedboundaryover": obtuse_kinds(improved, IMPROVE_ANGLE)["boundary"],
+        "improvedfixedover": obtuse_kinds(improved, IMPROVE_ANGLE)["fixed"],
+        "improvedfreeover": obtuse_kinds(improved, IMPROVE_ANGLE)["free"],
+        "refinedsmallest": f"{smallest_angle(refined):.1f}",
+        "improvedsmallest": f"{smallest_angle(improved):.1f}",
+        "tradedangle": f"{TRADED_ANGLE:g}",
+        "tradedoverninety": int((traded.largest_angles() > IMPROVE_ANGLE).sum()),
+        "tradedboundaryover": obtuse_kinds(traded, IMPROVE_ANGLE)["boundary"],
+        "tradedfixedover": obtuse_kinds(traded, IMPROVE_ANGLE)["fixed"],
+        "tradedfreeover": obtuse_kinds(traded, IMPROVE_ANGLE)["free"],
+        "tradedsmallest": f"{smallest_angle(traded):.1f}",
         "valleyarea": f"{mesh.triangle_areas().sum() / 1e6:.2f}",
         # the merge tolerance, 1e-12 of the largest coordinate, in micrometers
         "valleytolerance": f"{1e-12 * np.abs(np.array(BOUNDARY)).max() * 1e6:.3f}",

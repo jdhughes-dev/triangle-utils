@@ -22,6 +22,7 @@ version_dep = declare_dependency(
 core_lib = static_library(
   'triangle_utils_core',
   'geometry.cpp',
+  'improve.cpp',
   'mesh.cpp',
   'refine.cpp',
   'run_triangle.cpp',

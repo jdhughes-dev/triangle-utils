@@ -7,6 +7,8 @@ Cases:
                          attribute and the well's area limit.
   - test_refine        : refining the mesh by area limits and a maximum angle
                          keeps its area and segments, and counts what is left.
+  - test_improve       : improving toward 90 degrees removes obtuse triangles,
+                         keeps the area, and does not move the ring's center.
   - test_shapes        : arrays of the wrong shape, length, or range, and
                          values too large for an int, raise ValueError before
                          the library reads them.
@@ -62,6 +64,21 @@ def test_version():
     assert utils.count(".") == 2
     assert triangle == "1.6"
     assert release.startswith("1.6.")
+
+
+def test_improve():
+    mesh = tu.generate(square_geometry(), minimum_angle=25)
+    refined = tu.refine(mesh, minimum_angle=25, maximum_angle=100)
+    improved = tu.improve(refined, maximum_angle=90)
+    assert improved.triangle_areas().sum() == pytest.approx(96.0)
+    assert tu.count_angles_over(improved, 90) < tu.count_angles_over(refined, 90)
+    # the ring's center, a fixed vertex, does not move
+    assert len(mesh.fixed_vertices) == 1
+    np.testing.assert_array_equal(improved.fixed_vertices, refined.fixed_vertices)
+    center = refined.vertices[refined.fixed_vertices[0]]
+    np.testing.assert_array_equal(improved.vertices[improved.fixed_vertices[0]], center)
+    with pytest.raises(ValueError, match="smoothing must be"):
+        tu.improve(refined, smoothing="other")
 
 
 def test_shapes():
