@@ -77,13 +77,14 @@ struct MeshOptions
 };
 
 // Mesh the geometry. The mesh covers the polygons (or what the segments
-// enclose, without polygons), less everything inside a hole polygon. A
-// region's attribute and limit spread only up to segments. A repeated
-// segment keeps the first one's marker, and Triangle gives a boundary segment
-// with marker 0 the marker 1. It has the
-// neighbors and segments, and one triangle attribute, its region's, when there
-// are regions or rings. Throws Error if the geometry or options are not valid,
-// Triangle cannot mesh them, or no triangle is left.
+// enclose, without polygons), less everything inside a hole polygon, and has
+// only the vertices its triangles use. A region's attribute and limit, and a
+// ring's, spread only up to segments. A repeated segment keeps the first
+// one's marker, and segments and vertices with marker 0 on the mesh's
+// boundary get marker 1, as Triangle gives them. The mesh has neighbors and
+// segments, and one triangle attribute, its region's, when there are regions
+// or rings. Throws Error if the geometry or options are not valid, Triangle
+// cannot mesh them, or no triangle is left.
 Mesh generate_mesh(const Geometry & geometry, const MeshOptions & options);
 
 // The points of a chain with points added so no step is longer than its

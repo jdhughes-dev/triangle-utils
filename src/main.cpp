@@ -329,7 +329,8 @@ int generate_command(const std::vector<std::string> & arguments)
     if (bases.size() != 1) throw UsageError("generate: give one <base>");
     const std::string & base = bases[0];
     if (output_base.empty()) output_base = base + ".1";
-    if (output_base == base)
+    if (std::filesystem::absolute(output_base).lexically_normal() ==
+        std::filesystem::absolute(base).lexically_normal())
         throw UsageError("generate: the output would replace the input; give another -o");
 
     // the .poly file's vertices, or the .node file's if it has none, as

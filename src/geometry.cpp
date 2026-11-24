@@ -176,7 +176,8 @@ bool inside(const Point & point, const std::vector<Point> & polygon)
 }
 
 // Keep the marked triangles, with the vertices and segments they use,
-// renumbered; a removed neighbor becomes NO_NEIGHBOR.
+// renumbered; a removed neighbor becomes NO_NEIGHBOR, and, as Triangle does,
+// segments and vertices with marker 0 on the new boundary get marker 1.
 void keep_triangles(Mesh & mesh, const std::vector<bool> & keep)
 {
     std::vector<int> new_triangle(mesh.triangles.size(), NO_NEIGHBOR);
@@ -184,7 +185,8 @@ void keep_triangles(Mesh & mesh, const std::vector<bool> & keep)
     Mesh kept;
     kept.triangle_attribute_count = mesh.triangle_attribute_count;
     const std::size_t attribute_count = static_cast<std::size_t>(mesh.triangle_attribute_count);
-    std::set<std::pair<int, int>> edges;
+    // the number of kept triangles on each edge, by its new vertices
+    std::map<std::pair<int, int>, int> edges;
     for (std::size_t triangle = 0; triangle < mesh.triangles.size(); triangle++)
     {
         if (!keep[triangle]) continue;
@@ -201,8 +203,9 @@ void keep_triangles(Mesh & mesh, const std::vector<bool> & keep)
                     kept.vertex_markers.push_back(mesh.vertex_markers[vertex]);
             }
             corners[corner] = new_vertex[vertex];
-            edges.insert(std::minmax(vertex, mesh.triangles[triangle][(corner + 1) % 3]));
         }
+        for (std::size_t corner = 0; corner < 3; corner++)
+            edges[std::minmax(corners[corner], corners[(corner + 1) % 3])]++;
         kept.triangles.push_back(corners);
         for (std::size_t attribute = 0; attribute < attribute_count; attribute++)
             kept.triangle_attributes.push_back(
@@ -228,10 +231,25 @@ void keep_triangles(Mesh & mesh, const std::vector<bool> & keep)
     for (std::size_t segment = 0; segment < mesh.segments.size(); segment++)
     {
         const auto & ends = mesh.segments[segment];
-        if (!edges.contains(std::minmax(ends[0], ends[1]))) continue;
+        if (new_vertex[ends[0]] < 0 || new_vertex[ends[1]] < 0) continue;
+        const auto edge = std::minmax(new_vertex[ends[0]], new_vertex[ends[1]]);
+        const auto found = edges.find(edge);
+        if (found == edges.end()) continue;
         kept.segments.push_back({new_vertex[ends[0]], new_vertex[ends[1]]});
         if (!mesh.segment_markers.empty())
-            kept.segment_markers.push_back(mesh.segment_markers[segment]);
+        {
+            const int marker = mesh.segment_markers[segment];
+            kept.segment_markers.push_back(marker == 0 && found->second == 1 ? 1 : marker);
+        }
+    }
+    if (!kept.vertex_markers.empty())
+    {
+        for (const auto & [edge, count] : edges)
+        {
+            if (count != 1) continue;
+            for (const int vertex : {edge.first, edge.second})
+                if (kept.vertex_markers[vertex] == 0) kept.vertex_markers[vertex] = 1;
+        }
     }
     mesh = std::move(kept);
 }
@@ -367,9 +385,9 @@ Mesh generate_mesh(const Geometry & geometry, const MeshOptions & options)
         if (!(item.radius > 0.0 && std::isfinite(item.radius)))
             throw Error(message("ring ", ring, " has a radius of ", item.radius,
                                 ", but it must be positive"));
-        if (item.point_count < 3)
-            throw Error(message("ring ", ring, " has ", item.point_count,
-                                " points, but at least 3 are needed"));
+        if (item.point_count < 3 || item.point_count > MAX_INPUT_COUNT)
+            throw Error(message("ring ", ring, " has ", item.point_count, " points, but 3 to ",
+                                MAX_INPUT_COUNT, " are needed"));
         // the distance between the circle's points, and from them to the
         // center, must survive merging
         const double chord = 2.0 * item.radius * std::sin(std::numbers::pi / item.point_count);
@@ -455,7 +473,12 @@ Mesh generate_mesh(const Geometry & geometry, const MeshOptions & options)
         keep[triangle] = in_domain;
         removes = removes || !in_domain;
     }
-    if (removes) keep_triangles(mesh, keep);
+    // also drop vertices no triangle uses, such as points outside the domain
+    std::vector<bool> used(mesh.vertices.size(), false);
+    for (const auto & corners : mesh.triangles)
+        for (const int corner : corners) used[corner] = true;
+    const bool unused = std::find(used.begin(), used.end(), false) != used.end();
+    if (removes || unused) keep_triangles(mesh, keep);
     // Triangle removes the triangles outside the segments, so a domain
     // whose boundary is not closed by them has none
     if (mesh.triangles.empty())

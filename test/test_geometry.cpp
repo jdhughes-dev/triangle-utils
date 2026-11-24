@@ -91,6 +91,10 @@ void check_mesh(const Mesh & mesh, double area)
     }
     for (const auto & segment : mesh.segments)
         EXPECT_TRUE(edges.contains(std::minmax(segment[0], segment[1])));
+    // every vertex is a corner of a triangle
+    std::set<int> used;
+    for (const auto & corners : mesh.triangles) used.insert(corners.begin(), corners.end());
+    EXPECT_EQ(used.size(), mesh.vertices.size());
     EXPECT_NEAR(total_area(mesh), area, TOLERANCE * area);
 }
 
@@ -192,6 +196,35 @@ TEST(Geometry, LinesOutsideThePolygonsAddNoArea)
     const Mesh mesh = generate_mesh(geometry, {});
     check_mesh(mesh, 100.0);
     EXPECT_NEAR(length_on(mesh, {5.0, 5.0}, {5.0, 15.0}), 5.0, TOLERANCE);
+}
+
+TEST(Geometry, OnlyUsedVerticesAndBoundaryMarkers)
+{
+    // a point outside the polygon, and a hole polygon at a corner
+    Geometry geometry;
+    geometry.polygons.push_back(square(0.0, 10.0));
+    geometry.points.push_back({20.0, 20.0});
+    geometry.hole_polygons.push_back(square(0.0, 4.0));
+    check_mesh(generate_mesh(geometry, {}), 84.0);
+
+    // after triangles outside are removed, the new boundary segments and
+    // vertices get marker 1, as Triangle gives the rest
+    geometry = {};
+    geometry.polygons.push_back(square(0.0, 10.0));
+    geometry.lines.push_back({{{5.0, 5.0}, {5.0, 15.0}, {8.0, 15.0}, {8.0, 8.0}}, 0.0, 3});
+    const Mesh mesh = generate_mesh(geometry, {});
+    check_mesh(mesh, 100.0);
+    for (std::size_t segment = 0; segment < mesh.segments.size(); segment++)
+    {
+        const Point & first = mesh.vertices[mesh.segments[segment][0]];
+        const Point & second = mesh.vertices[mesh.segments[segment][1]];
+        if (first.y == 10.0 && second.y == 10.0) EXPECT_EQ(mesh.segment_markers[segment], 1);
+    }
+    for (std::size_t vertex = 0; vertex < mesh.vertices.size(); vertex++)
+    {
+        // where the river crosses, a vertex has the river's marker
+        if (mesh.vertices[vertex].y == 10.0) EXPECT_NE(mesh.vertex_markers[vertex], 0);
+    }
 }
 
 TEST(Geometry, RegionsCarryAttributesAndLimits)

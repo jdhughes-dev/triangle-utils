@@ -147,7 +147,7 @@ int triangle_utils_geometry_add_hole(TriangleUtilsGeometry * geometry, double x,
 /* Add a region by a point inside it: its triangles get the attribute and
    are at most area_limit in area, or have no limit if it is not positive.
    A region spreads only up to segments, so a line across a polygon needs a
-   region on each side. */
+   region on each side; so does a ring's region. */
 int triangle_utils_geometry_add_region(TriangleUtilsGeometry * geometry, double x, double y,
                                        double attribute, double area_limit);
 
@@ -168,9 +168,10 @@ int triangle_utils_geometry_add_ring(TriangleUtilsGeometry * geometry, double x,
    it is 0; and every triangle is Delaunay if conforming_delaunay is not 0,
    as a Voronoi grid needs. The mesh covers the polygons (or what the
    segments enclose, without polygons), less everything inside a hole
-   polygon; where segments repeat, the first one's marker is kept, and
-   Triangle gives a boundary segment with marker 0 the marker 1. The mesh has neighbors and segments. *mesh is NULL after
-   a failure. */
+   polygon, and has only the vertices its triangles use. Where segments
+   repeat, the first one's marker is kept, and segments with marker 0 on
+   the mesh's boundary get marker 1, as Triangle gives them. The mesh has
+   neighbors and segments. *mesh is NULL after a failure. */
 int triangle_utils_mesh_generate(const TriangleUtilsGeometry * geometry, double maximum_area,
                                  double minimum_angle, double merge_distance,
                                  int conforming_delaunay, TriangleUtilsMesh ** mesh);

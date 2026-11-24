@@ -30,18 +30,19 @@ minimum angle, a distance within which points are merged, and conforming
 Delaunay triangles if a Voronoi grid will follow. The mesh covers the polygons,
 less everything inside a hole polygon, including polygons, lines, and rings
 there. A region's attribute and limit spread only up to segments, so a line
-across a polygon needs a region on each side. Where segments repeat, the first
-one's marker is kept, and Triangle gives a boundary segment with marker 0 the
-marker 1. The API also returns the versions of triangle-utils and Triangle, the
-license, and Triangle's copyright notice. Calls must not run concurrently,
-since Triangle keeps global state.
+across a polygon, or a ring, needs a region on each side. Where segments
+repeat, the first one's marker is kept, and segments with marker 0 on the
+mesh's boundary get marker 1, as Triangle gives them. The API also returns the
+versions of triangle-utils and Triangle, the license, and Triangle's copyright
+notice. Calls must not run concurrently, since Triangle keeps global state.
 
 ## Command line
 
 ```shell
 triangle-utils generate [options] <base>  # mesh <base>.poly to <base>.1.*
 triangle-utils check <base>   # check <base>.node, .ele, and .neigh
-triangle-utils --version      # the versions of triangle-utils and Triangle
+triangle-utils --version      # the versions of triangle-utils and Triangle,
+                              # and the MODFLOW-ORG/triangle release
 triangle-utils --license      # the license, and Triangle's copyright
 ```
 
