@@ -422,12 +422,18 @@ TEST(Geometry, RingsRefineAroundAPoint)
     }
     EXPECT_GT(largest_outside, 1.0);
 
-    // a ring whose points would merge is an error, not a region over all
+    // a ring whose points would merge is an error, not a region over all,
+    // with a merge distance or with the tolerance of large coordinates
     MeshOptions options;
     options.merge_distance = 0.01;
     geometry.rings[0].radius = 0.001;
     EXPECT_EQ(error_message([&] { generate_mesh(geometry, options); }),
-              "ring 0's points are closer than the merge distance 0.01");
+              "ring 0's points are closer than the merge tolerance 0.01");
+    Geometry large;
+    large.polygons.push_back(square(0.0, 1e6));
+    large.rings.push_back({{5e5, 5e5}, 1e-7, 8, 7.0, 0.0, 0});
+    EXPECT_EQ(error_message([&] { generate_mesh(large, {}); }),
+              "ring 0's points are closer than the merge tolerance 1e-06");
 }
 
 TEST(Geometry, RepeatedPointsAreMerged)

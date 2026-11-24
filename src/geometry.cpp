@@ -30,10 +30,12 @@ namespace
 // with int, with room for the triangles it adds
 constexpr double MAX_INPUT_COUNT = std::numeric_limits<int>::max() / 3;
 
-// the distance, relative to the largest coordinate, within which a point is
-// taken to lie on a segment; well above double rounding (about 1e-16) and
-// well below any feature a mesh resolves
-constexpr double SPLIT_TOLERANCE = 1e-9;
+// the distance, relative to the largest coordinate, within which points
+// are merged and a point is taken to lie on a segment: thousands of times
+// double rounding (about 1e-16), so coordinates that differ only in their
+// last digits match, and far below any feature a mesh resolves (4.5
+// micrometers at a UTM northing of 4,500 km)
+constexpr double SPLIT_TOLERANCE = 1e-12;
 
 // the largest minimum angle; Triangle may not finish above it
 constexpr double MAX_MINIMUM_ANGLE = 34.0;
@@ -183,7 +185,10 @@ public:
                         const double along = ((point.x - a.x) * dx + (point.y - a.y) * dy) / length;
                         const double off =
                             std::abs((point.x - a.x) * dy - (point.y - a.y) * dx) / length;
-                        if (off <= tolerance && along > tolerance && along < length - tolerance)
+                        // a vertex nearer an end than the tolerance was merged with it
+                        if (off <= tolerance && along > 0.0 && along < length &&
+                            std::hypot(point.x - a.x, point.y - a.y) >= tolerance &&
+                            std::hypot(point.x - b.x, point.y - b.y) >= tolerance)
                             on.push_back({along, vertex});
                     }
                 }
@@ -484,9 +489,9 @@ Mesh generate_mesh(const Geometry & geometry, const MeshOptions & options)
         // the distance between the circle's points, and from them to the
         // center, must survive merging
         const double chord = 2.0 * item.radius * std::sin(std::numbers::pi / item.point_count);
-        if (std::min(chord, item.radius) < options.merge_distance)
-            throw Error(message("ring ", ring, "'s points are closer than the merge distance ",
-                                options.merge_distance));
+        if (std::min(chord, item.radius) < tolerance)
+            throw Error(message("ring ", ring, "'s points are closer than the merge tolerance ",
+                                tolerance));
         std::vector<Point> circle;
         for (int point = 0; point < item.point_count; point++)
         {

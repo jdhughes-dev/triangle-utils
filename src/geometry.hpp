@@ -68,7 +68,7 @@ struct MeshOptions
     double maximum_area = 0.0;
     // the smallest angle in degrees, at most 34, or no quality limit if 0
     double minimum_angle = 0.0;
-    // points closer than this, or than 1e-9 of the largest coordinate if
+    // points closer than this, or than 1e-12 of the largest coordinate if
     // that is larger, are merged, and a point that close to a segment
     // splits it
     double merge_distance = 0.0;

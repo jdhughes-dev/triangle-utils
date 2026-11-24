@@ -72,7 +72,7 @@ Options:
   -s, --spacing <s>         add points along the segments so none is
                             farther than s from the next (default 0, none)
   -m, --merge-distance <d>  merge points closer than d, and split a segment
-                            a point is that close to (default 0: 1e-9 of
+                            a point is that close to (default 0: 1e-12 of
                             the largest coordinate)
   -D, --conforming-delaunay make every triangle Delaunay, as a Voronoi grid
                             needs

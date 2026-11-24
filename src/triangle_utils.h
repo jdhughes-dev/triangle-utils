@@ -182,8 +182,8 @@ int triangle_utils_geometry_add_ring(TriangleUtilsGeometry * geometry, double x,
 
 /* Mesh the geometry. Triangles are at most maximum_area in area and have no
    angle under minimum_angle degrees (at most 34), each with no limit if 0;
-   points closer than merge_distance, or than 1e-9 of the largest coordinate
-   if that is larger, are merged, and a point that close to a segment splits
+   points closer than merge_distance, or than 1e-12 of the largest
+   coordinate if that is larger, are merged, and a point that close to a segment splits
    it; and every triangle is Delaunay if conforming_delaunay is not 0, as a
    Voronoi grid needs. The mesh covers the polygons (or what the
    segments enclose, without polygons), less everything inside a hole
