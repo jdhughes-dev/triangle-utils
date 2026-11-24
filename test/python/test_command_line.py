@@ -26,6 +26,9 @@ Cases:
   - test_generate      : a closed box with a square hole, given in a .poly
                          file numbered from 1, meshes to its area within the
                          maximum area, and check accepts the mesh.
+  - test_generate_options : -s, -D, -m, and -o mesh to the same area, -s adds
+                         points, and a .poly without vertices, numbered from
+                         0, takes them from the .node file.
   - test_generate_errors : a bad option value is a usage error (2), and a
                          boundary not closed and a missing file are errors
                          (1).
@@ -94,6 +97,10 @@ def test_license():
         (("generate", "-a", "big", "box"), 'generate: -a needs a number, not "big"'),
         (("generate", "box", "-o"), "generate: -o needs a value"),
         (("generate",), "generate: give one <base>"),
+        (
+            ("generate", "-o", "box", "box"),
+            "generate: the output would replace the input; give another -o",
+        ),
         (("--bogus",), "unknown option --bogus"),
         (("bogus",), "unknown command bogus"),
         (("--version", "extra"), "--version takes no arguments"),
@@ -197,8 +204,8 @@ BOX_POLY = """8 2 0 1
 """
 
 
-def read_mesh_area(base):
-    """The total area of the triangles in a mesh's .node and .ele files."""
+def read_mesh_area(base, first_number):
+    """The total area and largest triangle of a mesh's .node and .ele files."""
     node = [line.split() for line in open(f"{base}.node") if line.strip()]
     ele = [line.split() for line in open(f"{base}.ele") if line.strip()]
     first = int(node[1][0])
@@ -210,7 +217,7 @@ def read_mesh_area(base):
         triangle = 0.5 * ((bx - ax) * (cy - ay) - (cx - ax) * (by - ay))
         area += triangle
         largest = max(largest, triangle)
-    assert first == 1
+    assert first == first_number
     return area, largest
 
 
@@ -220,7 +227,7 @@ def test_generate(tmp_path):
     status, output, _ = run("generate", "-a", "0.1", "--minimum-angle=25", base)
     assert status == 0
     assert output.startswith(f"{base}.1: ")
-    area, largest = read_mesh_area(f"{base}.1")
+    area, largest = read_mesh_area(f"{base}.1", 1)
     assert area == pytest.approx(8.0)
     assert largest <= 0.1 + 1e-12
     status, output, _ = run("check", f"{base}.1")
@@ -237,3 +244,34 @@ def test_generate_errors(tmp_path):
     status, _, errors = run("generate", str(tmp_path / "missing"))
     assert status == 1
     assert "cannot open" in errors
+
+
+def vertex_count(base):
+    """The number of vertices in a .node file."""
+    return int(open(f"{base}.node").readline().split()[0])
+
+
+def test_generate_options(tmp_path):
+    (tmp_path / "box.poly").write_text(BOX_POLY)
+    base = str(tmp_path / "box")
+    assert run("generate", base)[0] == 0
+    plain = vertex_count(f"{base}.1")
+    out = str(tmp_path / "spaced")
+    status, output, _ = run(
+        "generate", "-s", "0.25", "-D", "-m", "1e-9", "-o", out, base
+    )
+    assert status == 0
+    assert output.startswith(f"{out}: ")
+    assert vertex_count(out) > plain
+    assert read_mesh_area(out, 1)[0] == pytest.approx(8.0)
+
+    # the vertices in a .node file, numbered from 0
+    node = "4 2 0 0\n0 0 0\n1 2 0\n2 2 2\n3 0 2\n"
+    poly = "0 2 0 0\n4 0\n0 0 1\n1 1 2\n2 2 3\n3 3 0\n0\n"
+    (tmp_path / "zero.node").write_text(node)
+    (tmp_path / "zero.poly").write_text(poly)
+    status, _, _ = run("generate", "-a", "0.5", str(tmp_path / "zero"))
+    assert status == 0
+    area, largest = read_mesh_area(str(tmp_path / "zero.1"), 0)
+    assert area == pytest.approx(4.0)
+    assert largest <= 0.5 + 1e-12

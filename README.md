@@ -7,7 +7,6 @@ work with two-dimensional triangular meshes:
 - **Improve** mesh quality by moving vertices and triangulating again
 - **Convert** a triangular mesh to a Voronoi mesh clipped to the domain, for
   MODFLOW 6 DISV grids
-
 - **Generate** a mesh from geometry in memory: polygons, holes, regions,
   points, lines the mesh follows, and rings of finer triangles around wells
 
@@ -22,24 +21,35 @@ command-line program reads Triangle's file formats (`.node`, `.poly`, `.ele`,
 
 `triangle_utils.h` declares the API and documents each function. A function
 that can fail returns a status code, and `triangle_utils_last_error()` gives
-the reason, which includes Triangle's own when it cannot mesh the input. A
-mesh is an opaque handle with create and free functions, and getters for its
-arrays. Geometry is a handle that polygons, hole polygons, holes, regions,
-points, lines, and rings are added to, each with its own spacing and marker
-where it has segments; `triangle_utils_mesh_generate()` meshes it with a
-maximum area, a minimum angle, a distance within which points are merged,
-and conforming Delaunay triangles if a Voronoi grid will follow. The API also returns the
-versions of triangle-utils and Triangle, the license, and Triangle's
-copyright notice. Calls must not run concurrently, since Triangle keeps
-global state.
+the reason, which includes Triangle's own when it cannot mesh the input. A mesh
+is an opaque handle with create and free functions, and getters for its arrays.
+Geometry is a handle that polygons, hole polygons, holes, regions, points,
+lines, and rings are added to, each with its own spacing and marker where it
+has segments; `triangle_utils_mesh_generate()` meshes it with a maximum area, a
+minimum angle, a distance within which points are merged, and conforming
+Delaunay triangles if a Voronoi grid will follow. The mesh covers the polygons
+and rings, less everything inside a hole polygon, including polygons and lines
+there; where segments repeat, the first one's marker is kept. The API also
+returns the versions of triangle-utils and Triangle, the license, and
+Triangle's copyright notice. Calls must not run concurrently, since Triangle
+keeps global state.
 
 ## Command line
 
 ```shell
-triangle-utils generate [options] <base>  # mesh <base>.poly into <base>.1.*
-triangle-utils check <base>    # check the mesh in <base>.node, .ele, and .neigh
-triangle-utils --version       # the versions of triangle-utils, Triangle, and its release
-triangle-utils --license       # the license and Triangle's copyright and terms
+triangle-utils generate [options] <base>  # mesh <base>.poly to <base>.1.*
+triangle-utils check <base>   # check <base>.node, .ele, and .neigh
+triangle-utils --version      # the versions of triangle-utils and Triangle
+triangle-utils --license      # the license, and Triangle's copyright
+```
+
+`generate` takes Triangle's maximum area (`-a`) and minimum angle (`-q`),
+a spacing for points added along the segments (`-s`), a distance within
+which points are merged (`-m`), conforming Delaunay triangles (`-D`), and
+an output base name (`-o`); `triangle-utils generate -h` describes them.
+
+```shell
+triangle-utils generate -a 0.5 -q 30 -s 1 domain   # writes domain.1.*
 ```
 
 The program exits with 0 on success, 1 on an error, and 2 on a usage error.

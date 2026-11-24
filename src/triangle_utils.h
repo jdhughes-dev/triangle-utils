@@ -161,11 +161,13 @@ int triangle_utils_geometry_add_ring(TriangleUtilsGeometry * geometry, double x,
                                      double area_limit, int marker);
 
 /* Mesh the geometry. Triangles are at most maximum_area in area and have no
-   angle under minimum_angle degrees (at most 34), each unless 0; points
-   closer than merge_distance are merged, or only identical points if it is
-   0; and every triangle is Delaunay if conforming_delaunay is not 0, as a
-   Voronoi grid needs. The mesh has neighbors and segments. *mesh is NULL
-   after a failure. */
+   angle under minimum_angle degrees (at most 34), each with no limit if 0;
+   points closer than merge_distance are merged, or only identical points if
+   it is 0; and every triangle is Delaunay if conforming_delaunay is not 0,
+   as a Voronoi grid needs. The mesh covers the polygons and rings, less
+   everything inside a hole polygon; where segments repeat, the first one's
+   marker is kept. The mesh has neighbors and segments. *mesh is NULL after
+   a failure. */
 int triangle_utils_mesh_generate(const TriangleUtilsGeometry * geometry, double maximum_area,
                                  double minimum_angle, double merge_distance,
                                  int conforming_delaunay, TriangleUtilsMesh ** mesh);

@@ -76,16 +76,20 @@ struct MeshOptions
     bool conforming_delaunay = false;
 };
 
-// Mesh the geometry. The mesh has the neighbors and segments, and one triangle
-// attribute, its region's, when there are regions or rings. Throws Error if the
-// geometry or options are not valid or Triangle cannot mesh them.
+// Mesh the geometry. The mesh covers the polygons and rings (or what the
+// segments enclose, without polygons), less everything inside a hole
+// polygon; a repeated segment keeps the first one's marker. It has the
+// neighbors and segments, and one triangle attribute, its region's, when there
+// are regions or rings. Throws Error if the geometry or options are not valid,
+// Triangle cannot mesh them, or no triangle is left.
 Mesh generate_mesh(const Geometry & geometry, const MeshOptions & options);
 
 // The points of a chain with points added so no step is longer than its
 // spacing.
 std::vector<Point> densify(const Chain & chain, bool closed);
 
-// A point strictly inside a simple polygon; throws Error if none is found.
+// A point strictly inside a simple polygon, without regard to other geometry;
+// throws Error if none is found.
 Point point_inside(const std::vector<Point> & polygon);
 
 } // namespace triangle_utils

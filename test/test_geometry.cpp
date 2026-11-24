@@ -131,6 +131,36 @@ TEST(Geometry, HolePointsAreNotTiedToPolygons)
     check_mesh(generate_mesh(geometry, {}), 96.0);
 }
 
+TEST(Geometry, HolePolygonsRemoveEverythingInside)
+{
+    MeshOptions options;
+    options.maximum_area = 0.5;
+    // a line, an island polygon, and a ring inside hole polygons, and two
+    // hole polygons that overlap: the union of the holes is removed
+    Geometry geometry;
+    geometry.polygons.push_back(square(0.0, 10.0));
+    geometry.hole_polygons.push_back(square(1.0, 4.0));
+    geometry.hole_polygons.push_back(square(3.0, 5.0));
+    geometry.lines.push_back({{{1.5, 2.0}, {3.5, 2.0}}});
+    geometry.polygons.push_back(square(2.0, 3.0));
+    geometry.hole_polygons.push_back(square(6.0, 9.0));
+    geometry.rings.push_back({{7.5, 7.5}, 0.5, 8, 1.0, 0.01, 0});
+    const Mesh mesh = generate_mesh(geometry, options);
+    // 100, less the union of the first two holes (9 + 4 - 1) and the third (9)
+    check_mesh(mesh, 100.0 - 12.0 - 9.0);
+}
+
+TEST(Geometry, LinesOutsideThePolygonsAddNoArea)
+{
+    // a river that leaves the square and returns, enclosing area outside it
+    Geometry geometry;
+    geometry.polygons.push_back(square(0.0, 10.0));
+    geometry.lines.push_back({{{5.0, 5.0}, {5.0, 15.0}, {8.0, 15.0}, {8.0, 8.0}}});
+    const Mesh mesh = generate_mesh(geometry, {});
+    check_mesh(mesh, 100.0);
+    EXPECT_NEAR(length_on(mesh, {5.0, 5.0}, {5.0, 15.0}), 5.0, TOLERANCE);
+}
+
 TEST(Geometry, RegionsCarryAttributesAndLimits)
 {
     Geometry geometry;
@@ -208,6 +238,25 @@ TEST(Geometry, RingsRefineAroundAPoint)
         }
     }
     EXPECT_GT(ring_triangles, 100);
+    // outside the ring, triangles keep no attribute and no limit
+    double largest_outside = 0.0;
+    for (std::size_t triangle = 0; triangle < mesh.triangles.size(); triangle++)
+    {
+        const Point c = centroid(mesh, triangle);
+        if (std::hypot(c.x - 5.0, c.y - 5.0) > 1.0)
+        {
+            EXPECT_EQ(mesh.triangle_attributes[triangle], 0.0);
+            largest_outside = std::max(largest_outside, signed_area(mesh, triangle));
+        }
+    }
+    EXPECT_GT(largest_outside, 1.0);
+
+    // a ring whose points would merge is an error, not a region over all
+    MeshOptions options;
+    options.merge_distance = 0.01;
+    geometry.rings[0].radius = 0.001;
+    EXPECT_EQ(error_message([&] { generate_mesh(geometry, options); }),
+              "ring 0's points are closer than the merge distance 0.01");
 }
 
 TEST(Geometry, RepeatedPointsAreMerged)
@@ -223,11 +272,21 @@ TEST(Geometry, RepeatedPointsAreMerged)
     // nearly the same points are merged within a distance, and only then
     geometry.polygons[1].points[0].x = 5.0 + 1e-9;
     geometry.polygons[1].points[3].x = 5.0 - 1e-9;
+    EXPECT_GT(generate_mesh(geometry, {}).vertices.size(), 6u);
     MeshOptions options;
     options.merge_distance = 1e-6;
     mesh = generate_mesh(geometry, options);
     check_mesh(mesh, 50.0);
     EXPECT_EQ(mesh.vertices.size(), 6u);
+
+    // an edge and a line along it in the other direction, both densified,
+    // share their points and segments
+    Geometry shared;
+    shared.polygons.push_back(square(0.0, 10.0, 0.7));
+    shared.lines.push_back({{{10.0, 0.0}, {0.0, 0.0}}, 0.7});
+    const Mesh with_line = generate_mesh(shared, {});
+    shared.lines.clear();
+    EXPECT_EQ(with_line.vertices.size(), generate_mesh(shared, {}).vertices.size());
 }
 
 TEST(Geometry, DensifyAndPointInside)
@@ -237,6 +296,18 @@ TEST(Geometry, DensifyAndPointInside)
     EXPECT_NEAR(points[1].x, 0.25, TOLERANCE);
     EXPECT_EQ(points.back().x, 1.0);
     EXPECT_EQ(densify(square(0.0, 1.0, 0.5), true).size(), 8u);
+    // a spacing longer than the edge adds nothing, and either direction gives
+    // the same points
+    EXPECT_EQ(densify({{{0.0, 0.0}, {1.0, 0.0}}, 5.0}, false).size(), 2u);
+    std::vector<Point> backward = densify({{{1.0, 0.3}, {0.0, 0.0}}, 0.3}, false);
+    std::reverse(backward.begin(), backward.end());
+    const std::vector<Point> forward = densify({{{0.0, 0.0}, {1.0, 0.3}}, 0.3}, false);
+    ASSERT_EQ(backward.size(), forward.size());
+    for (std::size_t point = 0; point < forward.size(); point++)
+    {
+        EXPECT_EQ(backward[point].x, forward[point].x);
+        EXPECT_EQ(backward[point].y, forward[point].y);
+    }
 
     // a U shape, whose centroid is outside it
     const std::vector<Point> u_shape = {{0.0, 0.0}, {3.0, 0.0}, {3.0, 3.0}, {2.0, 3.0},
@@ -256,6 +327,10 @@ TEST(Geometry, ErrorsGiveTheReason)
               "polygon 0 has 2 points, but at least 3 are needed");
 
     MeshOptions options;
+    options.maximum_area = -1.0;
+    EXPECT_EQ(error_message([&] { generate_mesh({}, options); }),
+              "the maximum area is -1, but it must be finite and at least 0");
+    options.maximum_area = 0.0;
     options.minimum_angle = 40.0;
     EXPECT_EQ(error_message([&] { generate_mesh({}, options); }),
               "the minimum angle is 40, but it must be 0 to 34 degrees");

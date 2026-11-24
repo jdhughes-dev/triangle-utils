@@ -48,19 +48,18 @@ MODFLOW-ORG/triangle and MODFLOW-ORG/gridgen.
   MODFLOW-ORG/triangle commit, or a release's source archive (see
   `PLAN.md`), with its hash; `subprojects/gtest.wrap` — GoogleTest from
   the Meson WrapDB.
-- `src/` — the core: `mesh.hpp` and `mesh.cpp` (the mesh type, its
-  conversion to and from Triangle's `triangulateio`, `TriangleOutput`,
-  which frees Triangle's output, and the property checks),
-  `geometry.hpp` (meshes polygons, holes, regions, points, lines, and
-  rings), `run_triangle.hpp` (calls Triangle and throws its reason for an
-  error),
-  and `error.hpp` (the one error type it throws, and `message()`); the C
-  API: `triangle_utils.h`, its documentation, and `triangle_utils.cpp`.
-  Add a new API function to `src/triangle_utils.def` (Windows),
-  `src/triangle_utils.map` (Linux), and `src/triangle_utils.exports`
-  (macOS). The command line: `main.cpp`, which reads files into the core's
-  types and calls only the C API for the rest, and `triangle_files.hpp` and
-  `.cpp`, which read and write Triangle's files.
+- `src/` — the core: `mesh.hpp` and `mesh.cpp` (the mesh type, its conversion
+  to and from Triangle's `triangulateio`, `TriangleOutput`, which frees
+  Triangle's output, and the property checks), `geometry.hpp` and `.cpp`
+  (meshes polygons, holes, regions, points, lines, and rings),
+  `run_triangle.hpp` (calls Triangle and throws its reason for an error), and
+  `error.hpp` (the one error type it throws, and `message()`); the C API:
+  `triangle_utils.h`, its documentation, and `triangle_utils.cpp`. Add a new
+  API function to `src/triangle_utils.def` (Windows), `src/triangle_utils.map`
+  (Linux), and `src/triangle_utils.exports` (macOS). The command line:
+  `main.cpp`, which reads files into the core's types and calls only the C API
+  for the rest, and `triangle_files.hpp` and `.cpp`, which read and write
+  Triangle's files.
 - `test/` — the GoogleTest tests; `test_c_header.c`, which builds the API
   header as C; and `python/`, the pytest tests of the C API through
   `ctypes` (declared in `triangle_utils_api.py`) and of the program, which
@@ -80,9 +79,10 @@ MODFLOW-ORG/triangle and MODFLOW-ORG/gridgen.
 
 ## Design
 
-- **Utilities:** refine an existing triangular mesh, improve mesh quality by
-  moving vertices and triangulating again, and convert a triangular mesh to a
-  Voronoi mesh clipped to the domain, written as a MODFLOW 6 DISV grid.
+- **Utilities:** generate a mesh from geometry, refine an existing
+  triangular mesh, improve mesh quality by moving vertices and
+  triangulating again, and convert a triangular mesh to a Voronoi mesh
+  clipped to the domain, written as a MODFLOW 6 DISV grid.
 - **Layers:** a C++ core that works only on meshes in memory and does no
   file I/O; a thin C API over the core; and a thin command-line program that
   reads files, calls the C API, and writes files. A feature is added to the

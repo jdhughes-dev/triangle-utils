@@ -4,6 +4,7 @@
 #include "geometry.hpp"
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <cstdint>
 #include <limits>
@@ -42,8 +43,9 @@ void check_chain(const Chain & chain, std::size_t minimum, const char * what, st
     if (chain.points.size() < minimum)
         throw Error(message(what, " ", item, " has ", chain.points.size(), " points, but at least ",
                             minimum, " are needed"));
-    if (!std::isfinite(chain.spacing))
-        throw Error(message(what, " ", item, " has a spacing that is not finite"));
+    if (!(chain.spacing >= 0.0 && std::isfinite(chain.spacing)))
+        throw Error(message(what, " ", item, " has a spacing of ", chain.spacing,
+                            ", but it must be finite and at least 0"));
     for (const Point & point : chain.points) check_finite(point, what, item);
 }
 
@@ -148,6 +150,83 @@ std::string switch_number(double value)
     return text.str();
 }
 
+// Whether a point is inside a polygon, by the even-odd rule.
+bool inside(const Point & point, const std::vector<Point> & polygon)
+{
+    bool result = false;
+    for (std::size_t index = 0, previous = polygon.size() - 1; index < polygon.size();
+         previous = index++)
+    {
+        const Point & start = polygon[previous];
+        const Point & end = polygon[index];
+        if ((start.y > point.y) != (end.y > point.y) &&
+            point.x < start.x + (point.y - start.y) * (end.x - start.x) / (end.y - start.y))
+            result = !result;
+    }
+    return result;
+}
+
+// Keep the marked triangles, with the vertices and segments they use,
+// renumbered; a removed neighbor becomes NO_NEIGHBOR.
+void keep_triangles(Mesh & mesh, const std::vector<bool> & keep)
+{
+    std::vector<int> new_triangle(mesh.triangles.size(), NO_NEIGHBOR);
+    std::vector<int> new_vertex(mesh.vertices.size(), -1);
+    Mesh kept;
+    kept.triangle_attribute_count = mesh.triangle_attribute_count;
+    const std::size_t attribute_count = static_cast<std::size_t>(mesh.triangle_attribute_count);
+    std::set<std::pair<int, int>> edges;
+    for (std::size_t triangle = 0; triangle < mesh.triangles.size(); triangle++)
+    {
+        if (!keep[triangle]) continue;
+        new_triangle[triangle] = static_cast<int>(kept.triangles.size());
+        std::array<int, 3> corners{};
+        for (std::size_t corner = 0; corner < 3; corner++)
+        {
+            const int vertex = mesh.triangles[triangle][corner];
+            if (new_vertex[vertex] < 0)
+            {
+                new_vertex[vertex] = static_cast<int>(kept.vertices.size());
+                kept.vertices.push_back(mesh.vertices[vertex]);
+                if (!mesh.vertex_markers.empty())
+                    kept.vertex_markers.push_back(mesh.vertex_markers[vertex]);
+            }
+            corners[corner] = new_vertex[vertex];
+            edges.insert(std::minmax(vertex, mesh.triangles[triangle][(corner + 1) % 3]));
+        }
+        kept.triangles.push_back(corners);
+        for (std::size_t attribute = 0; attribute < attribute_count; attribute++)
+            kept.triangle_attributes.push_back(
+                mesh.triangle_attributes[triangle * attribute_count + attribute]);
+        if (!mesh.triangle_area_limits.empty())
+            kept.triangle_area_limits.push_back(mesh.triangle_area_limits[triangle]);
+    }
+    if (!mesh.neighbors.empty())
+    {
+        for (std::size_t triangle = 0; triangle < mesh.triangles.size(); triangle++)
+        {
+            if (!keep[triangle]) continue;
+            std::array<int, 3> neighbors{};
+            for (std::size_t corner = 0; corner < 3; corner++)
+            {
+                const int neighbor = mesh.neighbors[triangle][corner];
+                neighbors[corner] = neighbor == NO_NEIGHBOR ? NO_NEIGHBOR : new_triangle[neighbor];
+            }
+            kept.neighbors.push_back(neighbors);
+        }
+    }
+    // a segment is kept if it is an edge of a kept triangle
+    for (std::size_t segment = 0; segment < mesh.segments.size(); segment++)
+    {
+        const auto & ends = mesh.segments[segment];
+        if (!edges.contains(std::minmax(ends[0], ends[1]))) continue;
+        kept.segments.push_back({new_vertex[ends[0]], new_vertex[ends[1]]});
+        if (!mesh.segment_markers.empty())
+            kept.segment_markers.push_back(mesh.segment_markers[segment]);
+    }
+    mesh = std::move(kept);
+}
+
 } // namespace
 
 std::vector<Point> densify(const Chain & chain, bool closed)
@@ -158,8 +237,13 @@ std::vector<Point> densify(const Chain & chain, bool closed)
     double total = static_cast<double>(count);
     for (std::size_t edge = 0; edge < edge_count; edge++)
     {
-        const Point & start = chain.points[edge];
-        const Point & end = chain.points[(edge + 1) % count];
+        const Point & first = chain.points[edge];
+        const Point & second = chain.points[(edge + 1) % count];
+        // computed from the lower end, so an edge given in either direction
+        // gets the same points
+        const bool reversed = std::pair(second.x, second.y) < std::pair(first.x, first.y);
+        const Point & start = reversed ? second : first;
+        const Point & end = reversed ? first : second;
         double pieces = 1.0;
         if (chain.spacing > 0.0)
             pieces = std::max(
@@ -167,10 +251,10 @@ std::vector<Point> densify(const Chain & chain, bool closed)
         total += pieces - 1.0;
         if (total > MAX_INPUT_COUNT)
             throw Error(message("the spacing ", chain.spacing, " adds too many points"));
-        result.push_back(start);
+        result.push_back(first);
         for (double piece = 1.0; piece < pieces; piece++)
         {
-            const double fraction = piece / pieces;
+            const double fraction = (reversed ? pieces - piece : piece) / pieces;
             result.push_back(
                 {start.x + fraction * (end.x - start.x), start.y + fraction * (end.y - start.y)});
         }
@@ -227,7 +311,9 @@ Point point_inside(const std::vector<Point> & polygon)
 
 Mesh generate_mesh(const Geometry & geometry, const MeshOptions & options)
 {
-    if (!std::isfinite(options.maximum_area)) throw Error("the maximum area is not finite");
+    if (!(options.maximum_area >= 0.0 && std::isfinite(options.maximum_area)))
+        throw Error(message("the maximum area is ", options.maximum_area,
+                            ", but it must be finite and at least 0"));
     if (!(options.minimum_angle >= 0.0 && options.minimum_angle <= MAX_MINIMUM_ANGLE))
         throw Error(message("the minimum angle is ", options.minimum_angle,
                             ", but it must be 0 to ", MAX_MINIMUM_ANGLE, " degrees"));
@@ -275,6 +361,12 @@ Mesh generate_mesh(const Geometry & geometry, const MeshOptions & options)
         if (item.point_count < 3)
             throw Error(message("ring ", ring, " has ", item.point_count,
                                 " points, but at least 3 are needed"));
+        // the distance between the circle's points, and from them to the
+        // center, must survive merging
+        const double chord = 2.0 * item.radius * std::sin(std::numbers::pi / item.point_count);
+        if (std::min(chord, item.radius) < options.merge_distance)
+            throw Error(message("ring ", ring, "'s points are closer than the merge distance ",
+                                options.merge_distance));
         std::vector<Point> circle;
         for (int point = 0; point < item.point_count; point++)
         {
@@ -331,6 +423,32 @@ Mesh generate_mesh(const Geometry & geometry, const MeshOptions & options)
     TriangleOutput output;
     run_triangle(switches, input, output);
     Mesh mesh = from_triangulateio(output.get());
+
+    // Triangle's removal of a hole stops at any segment, and a line that
+    // leaves the polygons and returns encloses area outside them, so remove
+    // the triangles inside a hole polygon or outside every polygon and ring
+    std::vector<bool> keep(mesh.triangles.size(), true);
+    bool removes = false;
+    for (std::size_t triangle = 0; triangle < mesh.triangles.size(); triangle++)
+    {
+        Point center;
+        for (const int corner : mesh.triangles[triangle])
+        {
+            center.x += mesh.vertices[corner].x / 3.0;
+            center.y += mesh.vertices[corner].y / 3.0;
+        }
+        bool in_domain = geometry.polygons.empty();
+        for (const Chain & polygon : geometry.polygons)
+            in_domain = in_domain || inside(center, polygon.points);
+        for (const Ring & ring : geometry.rings)
+            in_domain = in_domain || std::hypot(center.x - ring.center.x,
+                                                center.y - ring.center.y) < ring.radius;
+        for (const Chain & hole : geometry.hole_polygons)
+            in_domain = in_domain && !inside(center, hole.points);
+        keep[triangle] = in_domain;
+        removes = removes || !in_domain;
+    }
+    if (removes) keep_triangles(mesh, keep);
     // Triangle removes the triangles outside the segments, so a domain
     // whose boundary is not closed by them has none
     if (mesh.triangles.empty())

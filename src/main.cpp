@@ -61,12 +61,14 @@ holes, and regions. Write the mesh to <output>.node, .ele, .neigh, and .poly.
 
 Options:
   -h, --help                show this help
-  -o, --output <output>     the output base name (default <base>.1)
-  -a, --maximum-area <a>    the largest triangle area
+  -o, --output <output>     the output base name (default <base>.1), which
+                            must not be <base>
+  -a, --maximum-area <a>    the largest triangle area (default 0, none)
   -q, --minimum-angle <q>   the smallest angle in degrees, at most 34
+                            (default 0, none)
   -s, --spacing <s>         add points along the segments so none is
-                            farther than s from the next
-  -m, --merge-distance <d>  merge points closer than d (default: only
+                            farther than s from the next (default 0, none)
+  -m, --merge-distance <d>  merge points closer than d (default 0: only
                             identical points)
   -D, --conforming-delaunay make every triangle Delaunay, as a Voronoi grid
                             needs
@@ -327,20 +329,24 @@ int generate_command(const std::vector<std::string> & arguments)
     if (bases.size() != 1) throw UsageError("generate: give one <base>");
     const std::string & base = bases[0];
     if (output_base.empty()) output_base = base + ".1";
+    if (output_base == base)
+        throw UsageError("generate: the output would replace the input; give another -o");
 
     // the .poly file's vertices, or the .node file's if it has none, as
-    // Triangle reads them
+    // Triangle reads them; a .poly file starts with a vertex section
+    const std::string poly_name = base + ".poly";
     triangle_utils::VertexFile node;
     const triangle_utils::VertexFile * separate_vertices = nullptr;
-    const std::string node_name = base + ".node";
-    std::error_code exists_error;
-    if (std::filesystem::exists(node_name, exists_error))
     {
-        std::ifstream node_file = open_input(node_name);
-        node = triangle_utils::read_node(node_file, node_name);
-        separate_vertices = &node;
+        std::ifstream poly_vertices = open_input(poly_name);
+        if (triangle_utils::read_node(poly_vertices, poly_name).vertices.empty())
+        {
+            const std::string node_name = base + ".node";
+            std::ifstream node_file = open_input(node_name);
+            node = triangle_utils::read_node(node_file, node_name);
+            separate_vertices = &node;
+        }
     }
-    const std::string poly_name = base + ".poly";
     std::ifstream poly_file = open_input(poly_name);
     const triangle_utils::PolyFile poly =
         triangle_utils::read_poly(poly_file, poly_name, separate_vertices);
