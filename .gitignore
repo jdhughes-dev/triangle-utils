@@ -6,3 +6,4 @@ builddir*/
 subprojects/*/
 subprojects/packagecache/
 subprojects/.wraplock
+__pycache__/

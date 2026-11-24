@@ -11,6 +11,7 @@
 #include <string>
 #include <vector>
 
+#include "geometry.hpp"
 #include "mesh.hpp"
 
 namespace triangle_utils
@@ -40,15 +41,6 @@ struct TriangleFile
     int attribute_count = 0;
     // attribute_count values for each triangle in turn
     std::vector<double> attributes;
-};
-
-// A region of a .poly file: a point inside it, its attribute, and its
-// maximum triangle area.
-struct Region
-{
-    Point point;
-    double attribute = 0.0;
-    double area_limit = 0.0;
 };
 
 // The contents of a .poly file.
