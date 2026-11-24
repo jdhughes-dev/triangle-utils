@@ -91,7 +91,7 @@ REPOSITORY = Path(__file__).resolve().parents[2]
 
 def library_path():
     """The library to load."""
-    if "TRIANGLE_UTILS_LIBRARY" in os.environ:
+    if os.environ.get("TRIANGLE_UTILS_LIBRARY"):
         return Path(os.environ["TRIANGLE_UTILS_LIBRARY"])
     # the shared library, or its DLL, which Windows installs in bin
     for pattern in (

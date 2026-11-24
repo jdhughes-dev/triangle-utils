@@ -7,6 +7,8 @@ Cases:
                          attribute and the well's area limit.
   - test_refine        : refining the mesh by area limits and a maximum angle
                          keeps its area and segments, and counts what is left.
+  - test_shapes        : arrays of the wrong shape or length raise ValueError
+                         before the library reads them.
   - test_version       : the versions of triangle-utils, Triangle, and its
                          release are returned.
   - test_error         : the library's reason is raised as Error.
@@ -57,6 +59,25 @@ def test_version():
     assert utils.count(".") == 2
     assert triangle == "1.6"
     assert release.startswith("1.6.")
+
+
+def test_shapes():
+    mesh = tu.generate(square_geometry())
+    short = tu.Mesh(mesh.vertices, mesh.triangles, area_limits=np.ones(3))
+    with pytest.raises(ValueError, match="area_limits has 3 rows"):
+        tu.refine(short)
+    flat = tu.Mesh(mesh.vertices.reshape(-1), mesh.triangles)
+    with pytest.raises(ValueError, match="vertices must have 2 columns"):
+        tu.refine(flat)
+    markers = tu.Mesh(
+        mesh.vertices, mesh.triangles, segments=mesh.segments, segment_markers=[1]
+    )
+    with pytest.raises(ValueError, match="segment_markers has 1 rows"):
+        tu.refine(markers)
+    geometry = tu.Geometry()
+    geometry.add_polygon([0, 0, 1])
+    with pytest.raises(ValueError, match="points must have 2 columns"):
+        tu.generate(geometry)
 
 
 def test_error():

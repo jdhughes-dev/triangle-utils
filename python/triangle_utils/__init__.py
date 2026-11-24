@@ -139,45 +139,74 @@ def _from_handle(handle):
     return Mesh(vertices, triangles, attributes, neighbors, segments, markers)
 
 
+def _rows(values, columns, name, dtype):
+    """An array of rows of the given number of columns; ValueError if it is not."""
+    array = np.asarray(values, dtype=dtype)
+    if array.ndim != 2 or array.shape[1] != columns:
+        raise ValueError(f"{name} must have {columns} columns, not shape {array.shape}")
+    return array
+
+
+def _check_length(values, length, name, what):
+    """ValueError unless an array has one value or row for each item."""
+    if len(values) != length:
+        raise ValueError(
+            f"{name} has {len(values)} rows, but there are {length} {what}"
+        )
+
+
 def _to_handle(mesh):
     """A new mesh handle with the arrays of a Mesh; free it after use."""
     api = _api()
-    vertices, vertex_pointer = _doubles(mesh.vertices)
-    triangles, triangle_pointer = _ints(mesh.triangles)
+    # each array is checked before the library reads from it
+    vertices, vertex_pointer = _doubles(_rows(mesh.vertices, 2, "vertices", np.float64))
+    triangles, triangle_pointer = _ints(_rows(mesh.triangles, 3, "triangles", np.intc))
+    count = len(triangles)
+    attributes = None
+    if mesh.attributes is not None and np.size(mesh.attributes) > 0:
+        attributes = np.asarray(mesh.attributes, dtype=np.float64)
+        if attributes.ndim == 1:
+            attributes = attributes.reshape(-1, 1)
+        _check_length(attributes, count, "attributes", "triangles")
+    segments = markers = None
+    if mesh.segments is not None and len(mesh.segments) > 0:
+        segments = _rows(mesh.segments, 2, "segments", np.intc)
+        if mesh.segment_markers is not None:
+            markers = np.asarray(mesh.segment_markers, dtype=np.intc).reshape(-1)
+            _check_length(markers, len(segments), "segment_markers", "segments")
+    limits = None
+    if mesh.area_limits is not None:
+        limits = np.asarray(mesh.area_limits, dtype=np.float64).reshape(-1)
+        _check_length(limits, count, "area_limits", "triangles")
+
     handle = MESH_POINTER()
     _check(
         api.triangle_utils_mesh_create(
-            len(vertices),
-            vertex_pointer,
-            len(triangles),
-            triangle_pointer,
-            ctypes.byref(handle),
+            len(vertices), vertex_pointer, count, triangle_pointer, ctypes.byref(handle)
         )
     )
     try:
-        if mesh.attributes is not None and mesh.attributes.size > 0:
-            attributes, pointer = _doubles(mesh.attributes)
+        if attributes is not None:
+            attributes, pointer = _doubles(attributes)
             _check(
                 api.triangle_utils_mesh_set_triangle_attributes(
-                    handle, len(triangles), attributes.shape[1], pointer
+                    handle, count, attributes.shape[1], pointer
                 )
             )
-        if mesh.segments is not None and len(mesh.segments) > 0:
-            segments, pointer = _ints(mesh.segments)
-            _markers, marker_pointer = (None, None)
-            if mesh.segment_markers is not None:
-                _markers, marker_pointer = _ints(mesh.segment_markers)
+        if segments is not None:
+            segments, pointer = _ints(segments)
+            marker_pointer = None
+            if markers is not None:
+                markers, marker_pointer = _ints(markers)
             _check(
                 api.triangle_utils_mesh_set_segments(
                     handle, len(segments), pointer, marker_pointer
                 )
             )
-        if mesh.area_limits is not None:
-            _limits, pointer = _doubles(mesh.area_limits)
-            _check(
-                api.triangle_utils_mesh_set_area_limits(handle, len(triangles), pointer)
-            )
-    except Error:
+        if limits is not None:
+            limits, pointer = _doubles(limits)
+            _check(api.triangle_utils_mesh_set_area_limits(handle, count, pointer))
+    except BaseException:
         api.triangle_utils_mesh_free(handle)
         raise
     return handle
@@ -248,11 +277,9 @@ class Geometry:
                 if kind is None:
                     _check(function(handle, *arguments))
                     continue
-                points, pointer = _doubles(
-                    np.asarray(arguments[0], dtype=float).reshape(-1, 2)
-                )
+                points, pointer = _doubles(_rows(arguments[0], 2, "points", np.float64))
                 _check(function(handle, len(points), pointer, *arguments[1:]))
-        except Error:
+        except BaseException:
             api.triangle_utils_geometry_free(handle)
             raise
         return handle

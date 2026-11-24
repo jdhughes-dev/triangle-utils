@@ -25,8 +25,10 @@ on:
   workflow_dispatch:
   # for the release workflow (#10)
   workflow_call:
+# a called workflow takes the caller's workflow name, so the suffix keeps
+# this group apart from the caller's
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  group: ${{ github.workflow }}-${{ github.ref }}-user-guide
   cancel-in-progress: true
 permissions:
   contents: read

@@ -14,6 +14,7 @@ import matplotlib.pyplot as plt
 from matplotlib.collections import PolyCollection
 from matplotlib.colors import to_rgba
 from matplotlib.patches import Patch
+from matplotlib.ticker import FuncFormatter
 
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE.parents[1] / "python"))
@@ -30,11 +31,15 @@ BOUNDARY = [
     (4600, 2200),
     (4200, 6000),
     (2600, 8000),
+    (1800, 7840),
     (600, 7600),
     (0, 4000),
 ]
+# the river starts and ends on the boundary, at points of it, so the two
+# share a vertex (a point on a boundary edge but not one of its points makes
+# Triangle fail, #42)
 RIVER = [
-    (1800, 7800),
+    (1800, 7840),
     (1900, 6500),
     (2300, 5200),
     (2100, 3800),
@@ -65,6 +70,9 @@ MAXIMUM_ANGLE = 100.0
 AQUIFER, LAKE_REGION, WELL_REGION = 1, 2, 3
 REGION_NAMES = {AQUIFER: "Aquifer", LAKE_REGION: "Lake", WELL_REGION: "Well ring"}
 REGION_COLORS = {AQUIFER: "#e8e3d3", LAKE_REGION: "#a6cee3", WELL_REGION: "#fdbf6f"}
+
+# tick labels with thousands separators, as the text writes numbers
+THOUSANDS = FuncFormatter(lambda value, _: f"{value:,.0f}")
 
 # segment markers
 BOUNDARY_MARKER, RIVER_MARKER, LAKE_MARKER, WELL_MARKER = 1, 2, 3, 4
@@ -106,6 +114,10 @@ def draw_mesh(ax, mesh, highlight=None):
     for segment, marker in zip(mesh.segments, mesh.segment_markers, strict=True):
         if marker == RIVER_MARKER:
             ax.plot(*mesh.vertices[segment].T, color="#1f78b4", lw=1.0)
+    for x, y in WELLS:
+        ax.plot(x, y, marker="o", color="black", ms=2.5, ls="none")
+    ax.xaxis.set_major_formatter(THOUSANDS)
+    ax.yaxis.set_major_formatter(THOUSANDS)
     ax.set_aspect("equal")
     ax.set_xlim(-100, 4700)
     # room above the valley for the explanation
@@ -127,7 +139,6 @@ def mesh_figure(mesh):
         # the valley panel's shape, 4,800 by 9,700 m, at a tenth of its size
         axd["B"].set_xlim(x - 240, x + 240)
         axd["B"].set_ylim(y - 485, y + 485)
-        axd["B"].plot(x, y, marker="o", color="black", ms=3)
         styles.heading(ax=axd["B"], letter="B", heading="Around a well")
         styles.xlabel(ax=axd["B"], label="x, in meters")
         handles = [
@@ -135,6 +146,17 @@ def mesh_figure(mesh):
             for region, name in REGION_NAMES.items()
         ]
         handles.append(plt.Line2D([], [], color="#1f78b4", label="River"))
+        handles.append(
+            plt.Line2D(
+                [],
+                [],
+                color="black",
+                marker="o",
+                ms=2.5,
+                ls="none",
+                label="Pumping well",
+            )
+        )
         styles.graph_legend(
             ax=axd["A"],
             handles=handles,
@@ -162,7 +184,16 @@ def refine_figure(mesh, refined):
             styles.xlabel(ax=axd[letter], label="x, in meters")
         styles.ylabel(ax=axd["A"], label="y, in meters")
         handles = [
-            Patch(facecolor="#e31a1c", label=f"Angle over {MAXIMUM_ANGLE:g} degrees")
+            Patch(facecolor="#e31a1c", label=f"Angle over {MAXIMUM_ANGLE:g} degrees"),
+            plt.Line2D(
+                [],
+                [],
+                color="black",
+                marker="o",
+                ms=2.5,
+                ls="none",
+                label="Pumping well",
+            ),
         ]
         styles.graph_legend(
             ax=axd["A"],

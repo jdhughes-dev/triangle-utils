@@ -70,11 +70,11 @@
 \section*{Abstract}
 \addcontentsline{toc}{section}{Abstract}
 
-triangle-utils is a set of utilities for building two-dimensional triangular meshes for groundwater models, such as MODFLOW~6 \citep{modflow6gwf}, from the boundaries, rivers, lakes, and wells of a model area. The utilities call Triangle \citep{shewchuk1996triangle}, a program that builds triangular meshes with guaranteed quality, and work on meshes in memory, so that they can be called from Python, C, C++, and Fortran as well as run as a command-line program. This guide describes generating a mesh from the features of a model area and refining a mesh so that its triangles are smaller where needed and have no angle over a limit, and demonstrates both on an example valley with a river, a lake, and three pumping wells.
+triangle-utils is a set of utilities for building two-dimensional triangular meshes for groundwater models, such as MODFLOW~6 \citep{modflow6gwf}, from the boundaries, rivers, lakes, and wells of a model area. The utilities use Triangle \citep{shewchuk1996triangle}, which builds meshes whose triangles have no angle smaller than a specified limit. This guide describes generating a mesh that follows the boundary, rivers, and lakes of a model area and has smaller triangles around pumping wells, and refining a mesh so that its triangles are smaller where heads change rapidly and have no angle over a limit, which the flow calculation between the cells of a triangular grid needs. Both are demonstrated on an example valley with a river, a lake, and three pumping wells.
 
 \section{Introduction}
 
-This guide describes triangle-utils version \tuversion, which is built with Triangle version \triangleversion\ as distributed in release \trianglerelease\ of the MODFLOW-ORG/triangle repository. The utilities generate a triangular mesh from the features of a model area and refine a mesh by area and by angle. Later versions will convert a triangular mesh to a Voronoi grid and write the discretization input of MODFLOW~6 and MODFLOW-USG, and this guide will describe each as it is added.
+This guide describes triangle-utils version \tuversion, which is built with Triangle version \triangleversion\ from the MODFLOW-ORG/triangle repository, as of its release \trianglerelease\ or later. The utilities generate a triangular mesh from the features of a model area and refine a mesh by area and by angle. Later versions will convert a triangular mesh to a Voronoi grid and write the discretization input of MODFLOW~6 and MODFLOW-USG, and this guide will describe each as it is added.
 
 A groundwater model that uses a triangular or Voronoi grid needs a mesh whose triangles follow the model boundary and the features that control flow, such as rivers and lakes, and are small where heads change rapidly, such as near pumping wells. The shape of the triangles matters as well. The flow between two cells of an unstructured grid is calculated from the head difference between the cell centers, which is accurate when the line between the centers is perpendicular to the face the cells share. For a triangular grid whose cell centers are the circumcenters of the triangles, that holds only when no triangle has an angle over 90 degrees, because the circumcenter of an obtuse triangle lies outside it.
 
@@ -102,7 +102,7 @@ Figure~\ref{fig:generated} shows a mesh of an example valley of \valleyarea\ squ
 \begin{figure}[htbp]
   \centering
   \includegraphics{generated_mesh.pdf}
-  \caption{Mesh generated for the example valley, colored by region. \textit{A}, the valley, with the river, the lake, and the rings around the three wells. \textit{B}, the mesh around the well at x = 3,300~m and y = 4,400~m (black dot)}
+  \caption{Mesh generated for the example valley, colored by region. \textit{A}, the valley, with the river, the lake, and the rings around the three wells. \textit{B}, the mesh around the well at x = 3,300~m and y = 4,400~m}
   \label{fig:generated}
 \end{figure}
 
@@ -121,7 +121,7 @@ Figure~\ref{fig:refined} shows the mesh of Figure~\ref{fig:generated} refined to
   \label{fig:refined}
 \end{figure}
 
-\section{Running triangle-utils}
+\section{Using triangle-utils}
 
 The \texttt{triangle-utils} program reads and writes the files of Triangle. The \texttt{generate} command meshes the segments, vertices, holes, and regions of a .poly file, and the \texttt{refine} command refines the mesh in a .node file and an .ele file, with the segments of a .poly file and the area of each triangle in an .area file if they exist:
 
