@@ -30,6 +30,11 @@ namespace
 // with int, with room for the triangles it adds
 constexpr double MAX_INPUT_COUNT = std::numeric_limits<int>::max() / 3;
 
+// the distance, relative to the largest coordinate, within which a point is
+// taken to lie on a segment; well above double rounding (about 1e-16) and
+// well below any feature a mesh resolves
+constexpr double SPLIT_TOLERANCE = 1e-9;
+
 // the largest minimum angle; Triangle may not finish above it
 constexpr double MAX_MINIMUM_ANGLE = 34.0;
 
@@ -107,6 +112,93 @@ public:
             add_segment(indices[index], indices[index + 1], marker);
         }
         if (closed) add_segment(indices.back(), indices.front(), marker);
+    }
+
+    // Split each segment at the vertices that lie on it, within tolerance and
+    // away from its ends, so features that meet there share the vertex; left
+    // to Triangle, the crossing it computes can fall a rounding error away
+    // and leave a segment too short to refine.
+    void split_segments_at_vertices(double tolerance)
+    {
+        if (m_vertices.empty() || m_segments.empty()) return;
+        // the vertices in square cells about the size of the spacing of a
+        // uniform grid of them, so a segment tests only those near it
+        double low_x = m_vertices[0].x, high_x = low_x;
+        double low_y = m_vertices[0].y, high_y = low_y;
+        for (const Point & vertex : m_vertices)
+        {
+            low_x = std::min(low_x, vertex.x);
+            high_x = std::max(high_x, vertex.x);
+            low_y = std::min(low_y, vertex.y);
+            high_y = std::max(high_y, vertex.y);
+        }
+        const double extent = std::max(high_x - low_x, high_y - low_y);
+        if (extent == 0.0) return;
+        const double size =
+            std::max(extent / std::sqrt(static_cast<double>(m_vertices.size())), tolerance);
+        auto cell_of = [&](double value, double low)
+        { return static_cast<std::int64_t>(std::floor((value - low) / size)); };
+        std::map<std::pair<std::int64_t, std::int64_t>, std::vector<int>> cells;
+        for (std::size_t vertex = 0; vertex < m_vertices.size(); vertex++)
+        {
+            cells[{cell_of(m_vertices[vertex].x, low_x), cell_of(m_vertices[vertex].y, low_y)}]
+                .push_back(static_cast<int>(vertex));
+        }
+
+        std::vector<std::array<int, 2>> segments;
+        std::vector<int> markers;
+        std::set<std::pair<int, int>> keys;
+        auto add = [&](int first, int second, int marker)
+        {
+            if (first == second || !keys.insert(std::minmax(first, second)).second) return;
+            if (segments.size() >= MAX_INPUT_COUNT)
+                throw Error("the geometry has too many segments for Triangle");
+            segments.push_back({first, second});
+            markers.push_back(marker);
+        };
+        for (std::size_t segment = 0; segment < m_segments.size(); segment++)
+        {
+            const int start = m_segments[segment][0];
+            const int end = m_segments[segment][1];
+            const Point & a = m_vertices[start];
+            const Point & b = m_vertices[end];
+            const double dx = b.x - a.x, dy = b.y - a.y;
+            const double length = std::hypot(dx, dy);
+            // the vertices on the segment, by distance along it
+            std::vector<std::pair<double, int>> on;
+            const std::int64_t first_x = cell_of(std::min(a.x, b.x) - tolerance, low_x);
+            const std::int64_t last_x = cell_of(std::max(a.x, b.x) + tolerance, low_x);
+            const std::int64_t first_y = cell_of(std::min(a.y, b.y) - tolerance, low_y);
+            const std::int64_t last_y = cell_of(std::max(a.y, b.y) + tolerance, low_y);
+            for (std::int64_t cx = first_x; cx <= last_x; cx++)
+            {
+                for (std::int64_t cy = first_y; cy <= last_y; cy++)
+                {
+                    const auto found = cells.find({cx, cy});
+                    if (found == cells.end()) continue;
+                    for (const int vertex : found->second)
+                    {
+                        if (vertex == start || vertex == end) continue;
+                        const Point & point = m_vertices[vertex];
+                        const double along = ((point.x - a.x) * dx + (point.y - a.y) * dy) / length;
+                        const double off =
+                            std::abs((point.x - a.x) * dy - (point.y - a.y) * dx) / length;
+                        if (off <= tolerance && along > tolerance && along < length - tolerance)
+                            on.push_back({along, vertex});
+                    }
+                }
+            }
+            std::sort(on.begin(), on.end());
+            int previous = start;
+            for (const auto & [along, vertex] : on)
+            {
+                add(previous, vertex, m_markers[segment]);
+                previous = vertex;
+            }
+            add(previous, end, m_markers[segment]);
+        }
+        m_segments = std::move(segments);
+        m_markers = std::move(markers);
     }
 
     std::vector<Point> & vertices() { return m_vertices; }
@@ -408,6 +500,13 @@ Mesh generate_mesh(const Geometry & geometry, const MeshOptions & options)
         region_list.insert(region_list.end(),
                            {item.point.x, item.point.y, item.attribute, area_limit});
     }
+
+    // a point on another feature's segment splits it; the tolerance is the
+    // merge distance, or a rounding error of the geometry's size
+    double extent = 0.0;
+    for (const Point & vertex : builder.vertices())
+        extent = std::max({extent, std::abs(vertex.x), std::abs(vertex.y)});
+    builder.split_segments_at_vertices(std::max(options.merge_distance, SPLIT_TOLERANCE * extent));
 
     triangulateio input{};
     input.pointlist = builder.vertices().empty() ? nullptr : &builder.vertices()[0].x;

@@ -227,6 +227,62 @@ TEST(Geometry, OnlyUsedVerticesAndBoundaryMarkers)
     }
 }
 
+TEST(Geometry, ALineEndingOnAnEdgeSplitsIt)
+{
+    // a river that starts on a sloped boundary edge between two of its
+    // points, which made Triangle fail or never finish (#42)
+    Geometry geometry;
+    geometry.polygons.push_back({{{0.0, 0.0},
+                                  {4000.0, 0.0},
+                                  {4600.0, 2200.0},
+                                  {4200.0, 6000.0},
+                                  {2600.0, 8000.0},
+                                  {600.0, 7600.0},
+                                  {0.0, 4000.0}},
+                                 200.0,
+                                 1});
+    geometry.lines.push_back({{{1800.0, 7840.0}, {2300.0, 5200.0}, {2400.0, 0.0}}, 50.0, 2});
+    geometry.regions.push_back({{500.0, 1000.0}, 1.0, 0.0});
+    geometry.regions.push_back({{4000.0, 1000.0}, 1.0, 0.0});
+    MeshOptions options;
+    options.minimum_angle = 30.0;
+    options.maximum_area = 40000.0;
+    const Mesh mesh = generate_mesh(geometry, options);
+
+    // the polygon's area, by the shoelace formula
+    const auto & points = geometry.polygons[0].points;
+    double area = 0.0;
+    for (std::size_t point = 0; point < points.size(); point++)
+    {
+        const Point & next = points[(point + 1) % points.size()];
+        area += 0.5 * (points[point].x * next.y - next.x * points[point].y);
+    }
+    check_mesh(mesh, area);
+    // the river starts at a vertex of the mesh, and the boundary is followed
+    // on both sides of it
+    const auto start = std::find_if(mesh.vertices.begin(), mesh.vertices.end(),
+                                    [](const Point & p) { return p.x == 1800.0 && p.y == 7840.0; });
+    EXPECT_NE(start, mesh.vertices.end());
+    EXPECT_NEAR(length_on(mesh, {600.0, 7600.0}, {2600.0, 8000.0}), std::hypot(2000.0, 400.0),
+                1e-6);
+    EXPECT_NEAR(length_on(mesh, {1800.0, 7840.0}, {2300.0, 5200.0}), std::hypot(500.0, 2640.0),
+                1e-6);
+}
+
+TEST(Geometry, APointOnAnEdgeSplitsIt)
+{
+    // a point on a sloped edge, not one of its points, becomes a vertex of
+    // the boundary
+    Geometry geometry;
+    geometry.polygons.push_back({{{0.0, 0.0}, {10.0, 0.0}, {10.0, 10.0}}});
+    geometry.points.push_back({1.0 / 3.0 * 10.0, 1.0 / 3.0 * 10.0});
+    MeshOptions options;
+    options.minimum_angle = 30.0;
+    const Mesh mesh = generate_mesh(geometry, options);
+    check_mesh(mesh, 50.0);
+    EXPECT_NEAR(length_on(mesh, {0.0, 0.0}, {10.0, 10.0}), std::hypot(10.0, 10.0), 1e-9);
+}
+
 TEST(Geometry, RegionsCarryAttributesAndLimits)
 {
     Geometry geometry;
