@@ -227,6 +227,111 @@ TEST(Geometry, OnlyUsedVerticesAndBoundaryMarkers)
     }
 }
 
+TEST(Geometry, ALineEndingOnAnEdgeSplitsIt)
+{
+    // a river that starts on a sloped boundary edge between two of its
+    // points, which made Triangle fail or never finish (#42)
+    Geometry geometry;
+    geometry.polygons.push_back({{{0.0, 0.0},
+                                  {4000.0, 0.0},
+                                  {4600.0, 2200.0},
+                                  {4200.0, 6000.0},
+                                  {2600.0, 8000.0},
+                                  {600.0, 7600.0},
+                                  {0.0, 4000.0}},
+                                 200.0,
+                                 1});
+    geometry.lines.push_back({{{1800.0, 7840.0}, {2300.0, 5200.0}, {2400.0, 0.0}}, 50.0, 2});
+    geometry.regions.push_back({{500.0, 1000.0}, 1.0, 0.0});
+    geometry.regions.push_back({{4000.0, 1000.0}, 1.0, 0.0});
+    MeshOptions options;
+    options.minimum_angle = 30.0;
+    options.maximum_area = 40000.0;
+    const Mesh mesh = generate_mesh(geometry, options);
+
+    // the polygon's area, by the shoelace formula
+    const auto & points = geometry.polygons[0].points;
+    double area = 0.0;
+    for (std::size_t point = 0; point < points.size(); point++)
+    {
+        const Point & next = points[(point + 1) % points.size()];
+        area += 0.5 * (points[point].x * next.y - next.x * points[point].y);
+    }
+    check_mesh(mesh, area);
+    // the river starts at a vertex of the mesh, and the boundary is followed
+    // on both sides of it
+    const auto start = std::find_if(mesh.vertices.begin(), mesh.vertices.end(),
+                                    [](const Point & p) { return p.x == 1800.0 && p.y == 7840.0; });
+    EXPECT_NE(start, mesh.vertices.end());
+    EXPECT_NEAR(length_on(mesh, {600.0, 7600.0}, {2600.0, 8000.0}), std::hypot(2000.0, 400.0),
+                1e-6);
+    EXPECT_NEAR(length_on(mesh, {1800.0, 7840.0}, {2300.0, 5200.0}), std::hypot(500.0, 2640.0),
+                1e-6);
+}
+
+TEST(Geometry, PointsARoundingErrorOffAreMergedOrSplit)
+{
+    // the end of a river a rounding error from a densified point of the
+    // boundary, and a point a rounding error off a sloped edge; each made
+    // Triangle crash or never finish
+    const Chain triangle_polygon{{{0.0, 0.0}, {10.0, 0.0}, {10.0, 7.0}}, 4.2, 1};
+    const Point densified = densify(triangle_polygon, true)[5];
+    MeshOptions options;
+    options.minimum_angle = 30.0;
+    options.maximum_area = 0.5;
+    for (const int steps : {-3, -1, 1, 2})
+    {
+        Point end = densified;
+        for (int step = 0; step < std::abs(steps); step++)
+            end.x = std::nextafter(end.x, steps > 0 ? 20.0 : -20.0);
+        Geometry geometry;
+        geometry.polygons.push_back(triangle_polygon);
+        geometry.lines.push_back({{end, {8.0, 3.0}}, 0.0, 2});
+        const Mesh mesh = generate_mesh(geometry, options);
+        check_mesh(mesh, 35.0);
+        // the boundary keeps its marker where it was split
+        for (std::size_t segment = 0; segment < mesh.segments.size(); segment++)
+        {
+            const Point & first = mesh.vertices[mesh.segments[segment][0]];
+            const Point & second = mesh.vertices[mesh.segments[segment][1]];
+            if (first.y == 0.0 && second.y == 0.0) EXPECT_EQ(mesh.segment_markers[segment], 1);
+        }
+    }
+
+    Geometry geometry;
+    geometry.polygons.push_back({{{0.0, 0.0}, {10.0, 0.0}, {10.0, 10.0}}});
+    geometry.points.push_back({std::nextafter(10.0 / 3.0, 0.0), 10.0 / 3.0});
+    const Mesh mesh = generate_mesh(geometry, options);
+    check_mesh(mesh, 50.0);
+    EXPECT_NEAR(length_on(mesh, {0.0, 0.0}, {10.0, 10.0}), std::hypot(10.0, 10.0), 1e-9);
+}
+
+TEST(Geometry, PointsOnEdgesInLargeCoordinates)
+{
+    // the river of the #42 valley, in coordinates like UTM northings
+    Geometry geometry;
+    const double x0 = 500000.0, y0 = 4500000.0;
+    geometry.polygons.push_back({{{x0, y0},
+                                  {x0 + 4000.0, y0},
+                                  {x0 + 4600.0, y0 + 2200.0},
+                                  {x0 + 2600.0, y0 + 8000.0},
+                                  {x0 + 600.0, y0 + 7600.0}},
+                                 200.0,
+                                 1});
+    geometry.lines.push_back({{{x0 + 1800.0, y0 + 7840.0}, {x0 + 2400.0, y0}}, 50.0, 2});
+    geometry.regions.push_back({{x0 + 500.0, y0 + 1000.0}, 1.0, 0.0});
+    geometry.regions.push_back({{x0 + 3500.0, y0 + 1000.0}, 1.0, 0.0});
+    MeshOptions options;
+    options.minimum_angle = 30.0;
+    options.maximum_area = 40000.0;
+    const Mesh mesh = generate_mesh(geometry, options);
+    check_sizes(mesh);
+    check_triangles(mesh);
+    check_neighbors(mesh);
+    EXPECT_NEAR(length_on(mesh, {x0 + 1800.0, y0 + 7840.0}, {x0 + 2400.0, y0}),
+                std::hypot(600.0, 7840.0), 1e-3);
+}
+
 TEST(Geometry, RegionsCarryAttributesAndLimits)
 {
     Geometry geometry;
@@ -317,12 +422,18 @@ TEST(Geometry, RingsRefineAroundAPoint)
     }
     EXPECT_GT(largest_outside, 1.0);
 
-    // a ring whose points would merge is an error, not a region over all
+    // a ring whose points would merge is an error, not a region over all,
+    // with a merge distance or with the tolerance of large coordinates
     MeshOptions options;
     options.merge_distance = 0.01;
     geometry.rings[0].radius = 0.001;
     EXPECT_EQ(error_message([&] { generate_mesh(geometry, options); }),
-              "ring 0's points are closer than the merge distance 0.01");
+              "ring 0's points are closer than the merge tolerance 0.01");
+    Geometry large;
+    large.polygons.push_back(square(0.0, 1e6));
+    large.rings.push_back({{5e5, 5e5}, 1e-7, 8, 7.0, 0.0, 0});
+    EXPECT_EQ(error_message([&] { generate_mesh(large, {}); }),
+              "ring 0's points are closer than the merge tolerance 1e-06");
 }
 
 TEST(Geometry, RepeatedPointsAreMerged)
@@ -335,7 +446,10 @@ TEST(Geometry, RepeatedPointsAreMerged)
     check_mesh(mesh, 50.0);
     EXPECT_EQ(mesh.vertices.size(), 6u);
 
-    // nearly the same points are merged within a distance, and only then
+    // points a rounding error apart are merged; points farther apart only
+    // within the merge distance
+    geometry.polygons[1].points[0].x = std::nextafter(5.0, 6.0);
+    EXPECT_EQ(generate_mesh(geometry, {}).vertices.size(), 6u);
     geometry.polygons[1].points[0].x = 5.0 + 1e-9;
     geometry.polygons[1].points[3].x = 5.0 - 1e-9;
     EXPECT_GT(generate_mesh(geometry, {}).vertices.size(), 6u);

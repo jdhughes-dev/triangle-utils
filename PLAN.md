@@ -11,7 +11,8 @@ Every open issue, in this order; each depends only on those before it
 (see its `Depends on` lines and comments). Done: #2 (build), #3 (CI), #4
 (core mesh type and property checks), #5 (C API skeleton and ctypes
 tests), #6 (Triangle files and the command-line program), #11 (generate a
-mesh from geometry), #7 (refine), #40 (start the user guide).
+mesh from geometry), #7 (refine), #40 (start the user guide), #42 (a point
+on an edge splits it).
 
 1. #8 improve by moving vertices
 2. #9 Voronoi and DISV
@@ -19,19 +20,22 @@ mesh from geometry), #7 (refine), #40 (start the user guide).
 4. #13 DISU connection data
 5. #19 layers, DISV and DISU output
 6. #23 ghost-node correction
-7. #14 grid quality report
-8. #18 model checks with MODFLOW 6, MODFLOW-USG, and MODFLOW-USG-Transport
-9. #20 different refinement by layer
-10. #15 structured grids, merging cells, and refinement by a field
-11. #21 user guide
-12. #22 Read the Docs
-13. #24 release notes
-14. #10 release and conda-forge package
+7. #43 hybrid grid, Voronoi cells around features and triangles elsewhere
+8. #44 a point feature centered in a triangle cell, evaluated before the
+   release: shipped as an option, or closed with its findings
+9. #14 grid quality report
+10. #18 model checks with MODFLOW 6, MODFLOW-USG, and MODFLOW-USG-Transport
+11. #20 different refinement by layer
+12. #15 structured grids, merging cells, and refinement by a field
+13. #21 user guide
+14. #22 Read the Docs
+15. #24 release notes
+16. #10 release and conda-forge package
 
 ## Triangle
 
 - Triangle is built from MODFLOW-ORG/triangle as a static subproject
-  (`subprojects/triangle.wrap`), now commit fd28514 on Triangle's `main`
+  (`subprojects/triangle.wrap`), now commit 7890e27 on Triangle's `main`
   (after v1.6.2).
 - A Triangle change triangle-utils needs is a pull request to Triangle's
   `main`, with no Triangle release (#10). The wrap then points at that
@@ -51,6 +55,9 @@ mesh from geometry), #7 (refine), #40 (start the user guide).
   - MODFLOW-ORG/triangle#61 (merged in #62, fd28514): the library keeps
     Triangle's messages (`triangle_messages()`) and can stop printing them
     (`triangle_set_print()`).
+  - MODFLOW-ORG/triangle#63 (merged in #64, 7890e27): the exact
+    arithmetic no longer reads past the end of an array, which stopped the
+    sanitizer tests of #42; results and speed are unchanged.
 
 ## Decisions
 

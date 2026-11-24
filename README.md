@@ -26,19 +26,21 @@ is an opaque handle with create and free functions, and getters for its arrays.
 Geometry is a handle that polygons, hole polygons, holes, regions, points,
 lines, and rings are added to, each with its own spacing and marker where it
 has segments; `triangle_utils_mesh_generate()` meshes it with a maximum area, a
-minimum angle, a distance within which points are merged, and conforming
-Delaunay triangles if a Voronoi grid will follow. The mesh covers the polygons,
-less everything inside a hole polygon, including polygons, lines, and rings
-there. A region's attribute and limit spread only up to segments, so a line
-across a polygon, or a ring, needs a region on each side. Where segments
-repeat, the first one's marker is kept, and segments with marker 0 on the
-mesh's boundary get marker 1, as Triangle gives them.
-`triangle_utils_mesh_refine()` refines a mesh by its area limits, a maximum
-area, and a minimum and maximum angle, keeping the segments, triangle
-attributes, and area limits set by `triangle_utils_mesh_set_segments()`,
-`_set_triangle_attributes()`, and `_set_area_limits()`; its triangles must not
-overlap, and each segment must be an edge. Triangle can reach a maximum angle
-of about 95 to 100 degrees, not 90, so a set number of splits stops it, and
+minimum angle, a distance within which points are merged and a point near a
+segment splits it (by default, 1e-12 of the largest coordinate, so only
+coordinates that differ in their last digits match), and conforming Delaunay
+triangles if a Voronoi grid will follow. The mesh covers the polygons, less
+everything inside a hole polygon, including polygons, lines, and rings there. A
+region's attribute and limit spread only up to segments, so a line across a
+polygon, or a ring, needs a region on each side. Where segments repeat, the
+first one's marker is kept, and segments with marker 0 on the mesh's boundary
+get marker 1, as Triangle gives them. `triangle_utils_mesh_refine()` refines a
+mesh by its area limits, a maximum area, and a minimum and maximum angle,
+keeping the segments, triangle attributes, and area limits set by
+`triangle_utils_mesh_set_segments()`, `_set_triangle_attributes()`, and
+`_set_area_limits()`; its triangles must not overlap, and each segment must be
+an edge. Triangle can reach a maximum angle of about 95 to 100 degrees, not 90,
+so a set number of splits stops it, and
 `triangle_utils_mesh_count_angles_over()` tells what is left. Refining gives
 boundary segments with marker 0 the marker 1, as generating does. Refining
 keeps triangle attributes and per-triangle area limits exact only where

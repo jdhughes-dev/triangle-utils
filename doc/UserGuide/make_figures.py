@@ -29,18 +29,14 @@ FIGURES = HERE / "Figures"
 # north to south, a lake, and three pumping wells
 BOUNDARY = [
     (0, 0),
-    (2400, 0),
     (4000, 0),
     (4600, 2200),
     (4200, 6000),
     (2600, 8000),
-    (1800, 7840),
     (600, 7600),
     (0, 4000),
 ]
-# the river starts and ends at points of the boundary, so the two share a
-# vertex (a point on a boundary edge but not one of its points makes Triangle
-# fail, #42)
+# the river starts and ends on boundary edges, between their points
 RIVER = [
     (1800, 7840),
     (1900, 6500),
@@ -363,6 +359,8 @@ def main():
         "refinedover": int((refined.largest_angles() > MAXIMUM_ANGLE).sum()),
         "refinedlargest": f"{refined.largest_angles().max():.1f}",
         "valleyarea": f"{mesh.triangle_areas().sum() / 1e6:.2f}",
+        # the merge tolerance, 1e-12 of the largest coordinate, in micrometers
+        "valleytolerance": f"{1e-12 * np.abs(np.array(BOUNDARY)).max() * 1e6:.3f}",
         "boundaryspacing": f"{BOUNDARY_SPACING:,.0f}",
         "riverspacing": f"{RIVER_SPACING:,.0f}",
         "lakespacing": f"{LAKE_SPACING:,.0f}",
