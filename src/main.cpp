@@ -59,7 +59,8 @@ constexpr const char * GENERATE_USAGE = R"(usage: triangle-utils generate [optio
 
 Mesh the geometry in <base>.poly (with its vertices in <base>.node if the
 .poly file has none): its segments, which the mesh follows, its vertices,
-holes, and regions. Write the mesh to <output>.node, .ele, .neigh, and .poly.
+holes, and regions. Write the mesh to <output>.node, .ele, .neigh, and
+.poly, without vertex attributes or markers.
 
 Options:
   -h, --help                show this help
@@ -79,10 +80,12 @@ Options:
 constexpr const char * REFINE_USAGE = R"(usage: triangle-utils refine [options] <base>
 
 Refine the mesh in <base>.node and <base>.ele, keeping its boundary, the
-segments in <base>.poly if it exists, and its triangle attributes where
-segments bound them; each triangle is split to meet its limit in
-<base>.area if it exists. Write the
-mesh to <output>.node, .ele, .neigh, and .poly.
+segments in <base>.poly if it exists (each an edge of the mesh), and its
+triangle attributes where segments bound them; triangles are split to meet
+their limits in <base>.area if it exists, which, like the attributes, are
+averaged across edges Triangle flips where no segment bounds them. Write the mesh to
+<output>.node, .ele, .neigh, and .poly, without vertex attributes or
+markers, or holes and regions.
 
 Options:
   -h, --help                show this help
@@ -94,8 +97,8 @@ Options:
   -A, --maximum-angle <A>   the largest angle in degrees, over 60 and under
                             180 (default 0, none); Triangle can reach about
                             95 to 100, not 90
-  -n, --angle-splits <n>    the most triangles split for the maximum angle
-                            (default 100000)
+  -n, --angle-splits <n>    the most times triangles are flagged for
+                            splitting for the maximum angle (default 100000)
   -D, --conforming-delaunay make every triangle Delaunay
 )";
 

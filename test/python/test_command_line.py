@@ -282,13 +282,23 @@ def test_generate_options(tmp_path):
     assert largest <= 0.5 + 1e-12
 
 
+def read_triangles(base):
+    """The corners of each triangle in a mesh's .node and .ele files."""
+    node = [line.split() for line in open(f"{base}.node") if line.strip()]
+    ele = [line.split() for line in open(f"{base}.ele") if line.strip()]
+    xy = {int(row[0]): (float(row[1]), float(row[2])) for row in node[1:]}
+    return [tuple(xy[int(v)] for v in row[1:4]) for row in ele[1:]]
+
+
 def test_refine(tmp_path):
     (tmp_path / "box.poly").write_text(BOX_POLY)
     base = str(tmp_path / "box")
     assert run("generate", "-q", "30", base)[0] == 0
-    triangles = int(open(f"{base}.1.ele").readline().split()[0])
-    limits = "".join(f"{t + 1} {0.01 if t == 0 else -1}\n" for t in range(triangles))
-    (tmp_path / "box.1.area").write_text(f"{triangles}\n{limits}")
+    original = read_triangles(f"{base}.1")
+    limits = "".join(
+        f"{t + 1} {0.01 if t == 0 else -1}\n" for t in range(len(original))
+    )
+    (tmp_path / "box.1.area").write_text(f"{len(original)}\n{limits}")
     status, output, _ = run("refine", "-a", "0.2", "-A", "100", f"{base}.1")
     assert status == 0
     assert output.startswith(f"{base}.2: ")
@@ -296,5 +306,14 @@ def test_refine(tmp_path):
     area, largest = read_mesh_area(f"{base}.2", 1)
     assert area == pytest.approx(8.0)
     assert largest <= 0.2 + 1e-12
+    # the .area file's limit refines further than -a alone; Triangle spreads
+    # a limit across the edges it flips, so it is not exact per triangle
+    for suffix in ("node", "ele", "poly"):
+        text = (tmp_path / f"box.1.{suffix}").read_text()
+        (tmp_path / f"plain.{suffix}").write_text(text)
+    assert run("refine", "-a", "0.2", str(tmp_path / "plain"))[0] == 0
+    assert len(read_triangles(f"{base}.2")) > len(
+        read_triangles(str(tmp_path / "plain.1"))
+    )
     status, output, _ = run("check", f"{base}.2")
     assert status == 0

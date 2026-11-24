@@ -173,4 +173,15 @@ TEST(Refine, ErrorsGiveTheReason)
     EXPECT_NE(error_message([&] { refine_mesh(limits, {}); }).find("area limits"),
               std::string::npos);
     EXPECT_EQ(error_message([] { refine_mesh({}, {}); }), "the mesh has no triangles to refine");
+
+    // a segment must be an edge of a triangle, and only once
+    Mesh square;
+    square.vertices = {{0.0, 0.0}, {1.0, 0.0}, {1.0, 1.0}, {0.0, 1.0}};
+    square.triangles = {{0, 1, 2}, {0, 2, 3}};
+    square.segments = {{1, 3}};
+    EXPECT_EQ(error_message([&] { refine_mesh(square, {}); }),
+              "segment 0 (1-3) is not an edge of a triangle");
+    square.segments = {{0, 1}, {1, 0}};
+    EXPECT_EQ(error_message([&] { refine_mesh(square, {}); }),
+              "segment 1 repeats an earlier segment");
 }

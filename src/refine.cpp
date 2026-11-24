@@ -6,6 +6,8 @@
 #include <algorithm>
 #include <cmath>
 #include <numbers>
+#include <set>
+#include <utility>
 #include <string>
 
 #include "error.hpp"
@@ -82,6 +84,22 @@ Mesh refine_mesh(const Mesh & mesh, const RefineOptions & options)
     check_triangles(mesh);
     for (const double limit : mesh.triangle_area_limits)
         if (!std::isfinite(limit)) throw Error("an area limit is not finite");
+    // Triangle keeps a segment only on an edge of the mesh, so each must be
+    // one, and only once
+    std::set<std::pair<int, int>> edges;
+    for (const auto & corners : mesh.triangles)
+        for (std::size_t corner = 0; corner < 3; corner++)
+            edges.insert(std::minmax(corners[corner], corners[(corner + 1) % 3]));
+    std::set<std::pair<int, int>> segments;
+    for (std::size_t segment = 0; segment < mesh.segments.size(); segment++)
+    {
+        const auto ends = std::minmax(mesh.segments[segment][0], mesh.segments[segment][1]);
+        if (!edges.contains(ends))
+            throw Error(message("segment ", segment, " (", mesh.segments[segment][0], "-",
+                                mesh.segments[segment][1], ") is not an edge of a triangle"));
+        if (!segments.insert(ends).second)
+            throw Error(message("segment ", segment, " repeats an earlier segment"));
+    }
 
     // Triangle reads the input without changing it; the copy gives it the
     // non-const arrays it takes, without neighbors, which it does not read

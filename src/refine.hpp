@@ -22,18 +22,20 @@ struct RefineOptions
     // the largest angle in degrees, over 60 and under 180, or no limit if 0;
     // Triangle can reach about 95 to 100 degrees, not 90
     double maximum_angle = 0.0;
-    // the most triangles split for the maximum angle; after them, refining
-    // for it stops, since it may never finish
+    // the most times a triangle is flagged for splitting for the maximum
+    // angle; after them, refining for it stops, since it may never finish
     int maximum_angle_splits = 100000;
     // whether every triangle is Delaunay (Triangle's D switch)
     bool conforming_delaunay = false;
 };
 
-// Refine a mesh with Triangle, keeping its boundary and segments; each
-// triangle with a positive area limit in the mesh is split to meet it.
-// Triangle averages the attributes of two triangles when it flips the edge
-// between them, so attributes stay exact only where segments bound them. The result has neighbors. Throws Error if the mesh or options
-// are not valid or Triangle cannot refine the mesh.
+// Refine a mesh with Triangle, keeping its boundary and segments, each of
+// which must be an edge of a triangle; each triangle with a positive area
+// limit in the mesh is split to meet it. Triangle averages the attributes and
+// area limits of two triangles when it flips the edge between them (or drops
+// the limit if either has none), so they stay exact only where segments bound
+// them. The result has neighbors. Throws Error if
+// the mesh or options are not valid or Triangle cannot refine the mesh.
 Mesh refine_mesh(const Mesh & mesh, const RefineOptions & options);
 
 // The number of triangles with an angle over the limit in degrees.

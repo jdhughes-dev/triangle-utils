@@ -37,10 +37,11 @@ mesh's boundary get marker 1, as Triangle gives them.
 and the whole mesh and by minimum and maximum angle; Triangle can reach a
 maximum angle of about 95 to 100 degrees, not 90, so a set number of splits
 stops it, and `triangle_utils_mesh_count_angles_over()` tells what is left.
-Refining keeps triangle attributes only where segments bound them. The API also
-returns the versions of triangle-utils and Triangle, the license, and
-Triangle's copyright notice. Calls must not run concurrently, since Triangle
-keeps global state.
+Refining keeps triangle attributes and per-triangle area limits exact only
+where segments bound them, since Triangle averages them across the edges it
+flips. The API also returns the versions of triangle-utils and Triangle, the
+license, and Triangle's copyright notice. Calls must not run concurrently,
+since Triangle keeps global state.
 
 ## Command line
 
@@ -62,7 +63,9 @@ an output base name (`-o`); `triangle-utils generate -h` describes them.
 triangle-utils generate -a 0.5 -q 30 -s 1 domain   # writes domain.1.*
 ```
 
-The program exits with 0 on success, 1 on an error, and 2 on a usage error.
+Each command writes `x.1` for input `x`, and `x.2` for `x.1`, as Triangle
+names its output, unless `-o` names it. The program exits with 0 on success,
+1 on an error, and 2 on a usage error.
 
 ## License
 
