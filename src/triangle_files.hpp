@@ -78,6 +78,11 @@ PolyFile read_poly(std::istream & input, const std::string & name,
 std::vector<std::array<int, 3>> read_neigh(std::istream & input, const std::string & name,
                                            int first_number, std::size_t triangle_count);
 
+// Read an .area file of an area limit for each of triangle_count triangles;
+// a missing limit, or one that is not positive, is no limit.
+std::vector<double> read_area(std::istream & input, const std::string & name,
+                              std::size_t triangle_count);
+
 // Write a .node file.
 void write_node(std::ostream & output, const VertexFile & vertices);
 
@@ -87,6 +92,10 @@ void write_ele(std::ostream & output, const TriangleFile & triangles, int first_
 // Write a .poly file; without vertices it uses those of a .node file numbered
 // from first_number.
 void write_poly(std::ostream & output, const PolyFile & poly, int first_number = 1);
+
+// Write an .area file, numbering from first_number; a limit that is not
+// positive is written as -1, no limit.
+void write_area(std::ostream & output, const std::vector<double> & area_limits, int first_number);
 
 // Write a .neigh file, numbering from first_number.
 void write_neigh(std::ostream & output, const std::vector<std::array<int, 3>> & neighbors,

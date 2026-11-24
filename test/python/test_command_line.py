@@ -29,6 +29,9 @@ Cases:
   - test_generate_options : -s, -D, -m, and -o mesh to the same area, -s adds
                          points, and a .poly without vertices, numbered from
                          0, takes them from the .node file.
+  - test_refine        : a generated mesh refines by an .area file and a
+                         maximum area to x.2 within the limits, keeping its
+                         area, and reports angles over a maximum angle.
   - test_generate_errors : a bad option value is a usage error (2), and a
                          boundary not closed and a missing file are errors
                          (1).
@@ -97,6 +100,8 @@ def test_license():
         (("generate", "-a", "big", "box"), 'generate: -a needs a number, not "big"'),
         (("generate", "box", "-o"), "generate: -o needs a value"),
         (("generate",), "generate: give one <base>"),
+        (("refine", "-n", "1.5", "box"), "refine: -n needs a whole number, not 1.5"),
+        (("refine",), "refine: give one <base>"),
         (
             ("generate", "-o", "box", "box"),
             "generate: the output would replace the input; give another -o",
@@ -275,3 +280,21 @@ def test_generate_options(tmp_path):
     area, largest = read_mesh_area(str(tmp_path / "zero.1"), 0)
     assert area == pytest.approx(4.0)
     assert largest <= 0.5 + 1e-12
+
+
+def test_refine(tmp_path):
+    (tmp_path / "box.poly").write_text(BOX_POLY)
+    base = str(tmp_path / "box")
+    assert run("generate", "-q", "30", base)[0] == 0
+    triangles = int(open(f"{base}.1.ele").readline().split()[0])
+    limits = "".join(f"{t + 1} {0.01 if t == 0 else -1}\n" for t in range(triangles))
+    (tmp_path / "box.1.area").write_text(f"{triangles}\n{limits}")
+    status, output, _ = run("refine", "-a", "0.2", "-A", "100", f"{base}.1")
+    assert status == 0
+    assert output.startswith(f"{base}.2: ")
+    assert output.endswith(" with an angle over 100 degrees\n")
+    area, largest = read_mesh_area(f"{base}.2", 1)
+    assert area == pytest.approx(8.0)
+    assert largest <= 0.2 + 1e-12
+    status, output, _ = run("check", f"{base}.2")
+    assert status == 0

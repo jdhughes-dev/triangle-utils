@@ -23,6 +23,7 @@ core_lib = static_library(
   'triangle_utils_core',
   'geometry.cpp',
   'mesh.cpp',
+  'refine.cpp',
   'run_triangle.cpp',
   dependencies: triangle_dep,
 )

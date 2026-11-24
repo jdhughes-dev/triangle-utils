@@ -32,14 +32,21 @@ less everything inside a hole polygon, including polygons, lines, and rings
 there. A region's attribute and limit spread only up to segments, so a line
 across a polygon, or a ring, needs a region on each side. Where segments
 repeat, the first one's marker is kept, and segments with marker 0 on the
-mesh's boundary get marker 1, as Triangle gives them. The API also returns the
-versions of triangle-utils and Triangle, the license, and Triangle's copyright
-notice. Calls must not run concurrently, since Triangle keeps global state.
+mesh's boundary get marker 1, as Triangle gives them.
+`triangle_utils_mesh_refine()` refines a mesh by area limits for each triangle
+and the whole mesh and by minimum and maximum angle; Triangle can reach a
+maximum angle of about 95 to 100 degrees, not 90, so a set number of splits
+stops it, and `triangle_utils_mesh_count_angles_over()` tells what is left.
+Refining keeps triangle attributes only where segments bound them. The API also
+returns the versions of triangle-utils and Triangle, the license, and
+Triangle's copyright notice. Calls must not run concurrently, since Triangle
+keeps global state.
 
 ## Command line
 
 ```shell
 triangle-utils generate [options] <base>  # mesh <base>.poly to <base>.1.*
+triangle-utils refine [options] <base>    # refine <base>.node and .ele
 triangle-utils check <base>   # check <base>.node, .ele, and .neigh
 triangle-utils --version      # the versions of triangle-utils and Triangle,
                               # and the MODFLOW-ORG/triangle release

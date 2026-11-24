@@ -141,24 +141,6 @@ private:
     std::set<std::pair<int, int>> m_segment_keys;
 };
 
-// A positive number for Triangle's switches, in fixed notation with 17
-// significant digits, since Triangle reads only digits and a point there.
-std::string switch_number(double value)
-{
-    // the digits after the point that give 17 significant digits
-    const int decimals = std::max(0, 16 - static_cast<int>(std::floor(std::log10(value))));
-    std::ostringstream text;
-    text.imbue(std::locale::classic());
-    text << std::fixed << std::setprecision(decimals) << value;
-    std::string result = text.str();
-    if (result.find('.') != std::string::npos)
-    {
-        result.erase(result.find_last_not_of('0') + 1);
-        if (result.back() == '.') result.pop_back();
-    }
-    return result;
-}
-
 // Whether a point is inside a polygon, by the even-odd rule.
 bool inside(const Point & point, const std::vector<Point> & polygon)
 {

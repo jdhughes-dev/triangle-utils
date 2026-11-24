@@ -364,6 +364,39 @@ std::vector<std::array<int, 3>> read_neigh(std::istream & input, const std::stri
     return result;
 }
 
+std::vector<double> read_area(std::istream & input, const std::string & name,
+                              std::size_t triangle_count)
+{
+    LineReader reader(input, name);
+    reader.require(1, "the area header");
+    const std::size_t count = reader.count(0, "the triangle count");
+    if (count != triangle_count)
+        reader.fail(
+            message("the file has ", count, " triangles, but the mesh has ", triangle_count));
+    std::vector<double> result;
+    for (std::size_t triangle = 0; triangle < count; triangle++)
+    {
+        reader.require(1, "a triangle");
+        // as Triangle does, a missing limit is no limit
+        result.push_back(reader.size() > 1 ? reader.real(1, "the area limit") : -1.0);
+    }
+    return result;
+}
+
+void write_area(std::ostream & output, const std::vector<double> & area_limits, int first_number)
+{
+    check_first_number(first_number);
+    for (const double limit : area_limits) check_finite(limit, "an area limit");
+    prepare(output);
+    output << area_limits.size() << "\n";
+    for (std::size_t triangle = 0; triangle < area_limits.size(); triangle++)
+    {
+        output << first_number + static_cast<std::int64_t>(triangle) << " "
+               << (area_limits[triangle] > 0.0 ? area_limits[triangle] : -1.0) << "\n";
+    }
+    check_written(output);
+}
+
 void write_node(std::ostream & output, const VertexFile & vertices)
 {
     prepare(output);
