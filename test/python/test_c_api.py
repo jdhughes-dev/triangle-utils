@@ -13,13 +13,15 @@ Cases:
   - test_mesh          : a mesh of the unit square reports its counts and
                          clears the last error of an earlier failure.
   - test_empty_mesh    : a mesh with no vertices or triangles is valid.
-  - test_mesh_error    : a clockwise triangle and a corner out of range are
-                         errors with their reason, and the mesh is null.
+  - test_mesh_error    : a clockwise triangle, a corner out of range, and a
+                         vertex not finite are errors with their reason, and
+                         the mesh is null.
   - test_invalid       : null pointers and negative counts are invalid
                          arguments, and the mesh is null.
 """
 
 import ctypes
+import math
 import os
 
 import pytest
@@ -154,6 +156,12 @@ def test_mesh_error(library):
     assert status == ERROR
     assert not mesh
     assert b"refers to vertex 3" in library.triangle_utils_last_error()
+    status, mesh = create_mesh(library, [0.0, 0.0, math.nan, 0.0], [])
+    assert status == ERROR
+    assert not mesh
+    assert library.triangle_utils_last_error() == (
+        b"vertex 1 has a coordinate that is not finite"
+    )
 
 
 def test_invalid(library):

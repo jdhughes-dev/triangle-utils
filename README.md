@@ -19,9 +19,9 @@ and calls the same API.
 
 `triangle_utils.h` declares the API and documents each function. A function
 that can fail returns a status code, and `triangle_utils_last_error()` gives
-the reason; from a function that calls Triangle, that includes Triangle's own
-reason when it cannot mesh the input. A mesh is
-an opaque handle with create and free functions. The API also returns the
+the reason. Functions that call Triangle, which later versions add, will
+include Triangle's own reason when it cannot mesh the input. A mesh is an
+opaque handle with create and free functions. The API also returns the
 versions of triangle-utils and Triangle, the license, and Triangle's
 copyright notice. Calls must not run concurrently, since Triangle keeps
 global state.

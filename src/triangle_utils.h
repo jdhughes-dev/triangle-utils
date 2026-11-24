@@ -46,7 +46,8 @@ void triangle_utils_version_numbers(int * major, int * minor, int * patch);
 /* Triangle's version, "1.6". */
 const char * triangle_utils_triangle_version(void);
 
-/* The MODFLOW-ORG/triangle release the library was built with. */
+/* The version of MODFLOW-ORG/triangle the library was built with; a build
+   from a commit after a release reports that release. */
 const char * triangle_utils_triangle_release(void);
 
 /* The license of triangle-utils (CC0 1.0). */
@@ -58,8 +59,8 @@ const char * triangle_utils_triangle_copyright(void);
 
 /* Create a mesh from vertex_count vertices (x and y of each in turn) and
    triangle_count triangles (three corners of each in turn,
-   counterclockwise); each triangle must have a positive area. The arrays
-   are copied. */
+   counterclockwise); each coordinate must be finite and each triangle must
+   have a positive area. The arrays are copied. */
 int triangle_utils_mesh_create(int vertex_count, const double * vertex_xy, int triangle_count,
                                const int * triangle_corners, TriangleUtilsMesh ** mesh);
 

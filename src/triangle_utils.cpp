@@ -2,6 +2,7 @@
 
 #include "triangle_utils.h"
 
+#include <cmath>
 #include <cstddef>
 #include <cstring>
 #include <exception>
@@ -158,6 +159,11 @@ int triangle_utils_mesh_create(int vertex_count, const double * vertex_xy, int t
             for (std::size_t vertex = 0; vertex < vertices.size(); vertex++)
             {
                 vertices[vertex] = {vertex_xy[2 * vertex], vertex_xy[2 * vertex + 1]};
+                if (!std::isfinite(vertices[vertex].x) || !std::isfinite(vertices[vertex].y))
+                {
+                    throw triangle_utils::Error(triangle_utils::message(
+                        "vertex ", vertex, " has a coordinate that is not finite"));
+                }
             }
             auto & triangles = created->mesh.triangles;
             triangles.resize(static_cast<std::size_t>(triangle_count));
