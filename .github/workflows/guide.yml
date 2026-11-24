@@ -1,0 +1,116 @@
+name: triangle-utils user guide
+on:
+  push:
+    paths:
+      - 'doc/**'
+      - 'python/**'
+      - 'src/**'
+      - 'subprojects/*.wrap'
+      - 'meson.build'
+      - 'pixi.toml'
+      - 'pixi.lock'
+      - '.github/workflows/guide.yml'
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'doc/**'
+      - 'python/**'
+      - 'src/**'
+      - 'subprojects/*.wrap'
+      - 'meson.build'
+      - 'pixi.toml'
+      - 'pixi.lock'
+      - '.github/workflows/guide.yml'
+  workflow_dispatch:
+  # for the release workflow (#10)
+  workflow_call:
+# a called workflow takes the caller's workflow name, so the suffix keeps
+# this group apart from the caller's
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}-user-guide
+  cancel-in-progress: true
+permissions:
+  contents: read
+env:
+  PIXI_BETA_WARNING_OFF: true
+jobs:
+  build:
+    name: Build the user guide
+    runs-on: ubuntu-22.04
+    timeout-minutes: 30
+    steps:
+      - name: Checkout triangle-utils
+        uses: actions/checkout@v7
+        with:
+          path: triangle-utils
+
+      # pinned, since its install script runs here; move the pin on purpose
+      - name: Checkout usgslatex
+        uses: actions/checkout@v7
+        with:
+          repository: MODFLOW-ORG/usgslatex
+          ref: b40a0f362f734dabf59ccc742bc066ae10525b6c
+          path: usgslatex
+
+      # the packages the guide reads and the programs that build it, as for
+      # gridgen's release notes; the installation in ~/texlive is cached
+      - name: Install TeX Live
+        uses: zauguin/install-texlive@v4
+        with:
+          packages: >
+            latex-bin bibtex latexmk
+            amsfonts amsmath atbegshi atveryend bigintcalc bitset caption cm
+            cm-super cmap dvips ec eepic enumitem epstopdf-pkg eso-pic
+            etoolbox fancybox fancyhdr fancyvrb fontname geometry
+            gettitlestring graphics graphics-cfg graphics-def hycolor hyperref
+            iftex infwarerr intcalc kvdefinekeys kvoptions kvsetkeys latex
+            latexconfig ltxcmds mmap mptopdf natbib nextpage pdfescape
+            pdftexcmds ragged2e refcount rerunfilecheck setspace stringenc
+            titlesec tools ttfutils uniquecounter url wallpaper xcolor
+
+      # TeX Live is in ~/texlive, which the runner owns and sudo would drop
+      # from PATH
+      - name: Install USGS LaTeX style files and Univers font
+        working-directory: usgslatex/usgsLaTeX
+        run: ./install.sh --all-users
+
+      - name: Setup pixi
+        uses: prefix-dev/setup-pixi@v0.11.3
+        with:
+          pixi-version: v0.82.1
+          manifest-path: triangle-utils/pixi.toml
+          environments: gcc doc
+
+      - name: Cache subproject downloads
+        uses: actions/cache@v6
+        with:
+          path: triangle-utils/subprojects/packagecache
+          key: subprojects-${{ runner.os }}-${{ hashFiles('triangle-utils/subprojects/*.wrap') }}
+
+      - name: Download subprojects
+        working-directory: triangle-utils
+        run: |
+          for attempt in 1 2 3; do
+            pixi run -e gcc -- meson subprojects download && exit 0
+            [ $attempt -lt 3 ] && sleep 60
+          done
+          exit 1
+
+      # the library the figure script calls, installed in lib/
+      - name: Build triangle-utils
+        working-directory: triangle-utils
+        run: |
+          pixi run -e gcc setup
+          pixi run -e gcc build
+
+      - name: Build the user guide
+        working-directory: triangle-utils
+        run: pixi run -e doc build-guide
+
+      - name: Upload the user guide
+        uses: actions/upload-artifact@v7
+        with:
+          name: triangle-utils-user-guide
+          path: triangle-utils/doc/UserGuide/triangle-utils.pdf
+          if-no-files-found: error

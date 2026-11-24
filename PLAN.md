@@ -11,7 +11,7 @@ Every open issue, in this order; each depends only on those before it
 (see its `Depends on` lines and comments). Done: #2 (build), #3 (CI), #4
 (core mesh type and property checks), #5 (C API skeleton and ctypes
 tests), #6 (Triangle files and the command-line program), #11 (generate a
-mesh from geometry), #7 (refine).
+mesh from geometry), #7 (refine), #40 (start the user guide).
 
 1. #8 improve by moving vertices
 2. #9 Voronoi and DISV
@@ -81,7 +81,16 @@ mesh from geometry), #7 (refine).
   it with `winmode=0`. Before #10, decide how the release provides them:
   link them statically or ship them beside the DLL.
 
+## User guide
+
+- The guide (`doc/UserGuide/`) grows with the features: each feature's
+  pull request adds its section and figures (#40, `AGENTS.md`), so the
+  meshes are looked at as each is built. #21 keeps what needs every
+  feature: DISU, the model checks, and the release notes.
+
 ## Open questions
 
-- **Python wrapper:** no issue covers one; #5 has only ctypes tests. Decide
-  before #19, which returns arrays for FloPy.
+- **Python wrapper:** `python/triangle_utils/` (#40) is a minimal module,
+  meshes in and out as NumPy arrays, for the guide and the tests. Decide
+  before #19 how it is packaged and installed and what it returns for
+  FloPy.

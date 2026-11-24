@@ -27,6 +27,9 @@ MODFLOW-ORG/triangle and MODFLOW-ORG/gridgen.
   `pixi run -e gcc setup`, and `-e gcc` for the commands above. On macOS
   use Homebrew gcc, as gridgen's CI does: programs the conda-forge g++
   builds there link the conda-forge libc++ and corrupt `std::string`.
+- **Build the user guide** (its figures and `doc/UserGuide/triangle-utils.pdf`;
+  needs `pixi run build` first, TeX Live, and the usgslatex class from
+  MODFLOW-ORG/usgslatex): `pixi run -e doc build-guide`
 
 ## Repository orientation
 
@@ -60,9 +63,17 @@ MODFLOW-ORG/triangle and MODFLOW-ORG/gridgen.
   (macOS). The command line: `main.cpp`, which reads files into the core's
   types and calls only the C API for the rest, and `triangle_files.hpp` and
   `.cpp`, which read and write Triangle's files.
+- `python/triangle_utils/` — the Python module over the C API, meshes in
+  and out as NumPy arrays (`_library.py` declares the C functions for
+  ctypes); the user guide's figures and the Python tests use it.
+- `doc/UserGuide/` — the user guide: `triangle-utils.tex` and `.bib`, in
+  the usgslatex class as gridgen's release notes are, and
+  `make_figures.py`, which meshes the guide's example and writes the
+  figures and `values.tex`, the numbers the text quotes.
 - `test/` — the GoogleTest tests; `test_c_header.c`, which builds the API
   header as C; and `python/`, the pytest tests of the C API through
-  `ctypes` (declared in `triangle_utils_api.py`) and of the program, which
+  `ctypes` (declared in `python/triangle_utils/_library.py`), of the Python
+  module, and of the program, which
   `meson test` runs except under the sanitizers.
 - `scripts/clang_format.py` — runs clang-format on the tracked C and C++
   files, for `pixi run check-format` and `fix-format`.
@@ -70,7 +81,9 @@ MODFLOW-ORG/triangle and MODFLOW-ORG/gridgen.
   Windows with the compilers of MODFLOW-ORG/triangle and gridgen, and
   runs the tests under the sanitizers on Linux, on every push and pull
   request to `main` that can affect the build or tests, and daily;
-  `.github/workflows/lint.yml` runs `pixi run check-format`. Dependabot
+  `.github/workflows/lint.yml` runs `pixi run check-format`;
+  `.github/workflows/guide.yml` builds the user guide when it, the library,
+  or the Python module changes, and uploads the PDF as an artifact. Dependabot
   opens the pull requests that bump action versions
   (`.github/dependabot.yml`).
 - `bin/`, `lib/`, `include/`, `builddir/`, `.pixi/`, and the downloads in
@@ -212,6 +225,11 @@ MODFLOW-ORG/triangle and MODFLOW-ORG/gridgen.
   lines per case, stating what each case does and its expected outcome.
 - **Documentation:** `README.md` and pull request text state what changed
   and what it means for a user, in as few sentences as possible.
+- **User guide:** a pull request that adds or changes a feature a user
+  sees adds or updates its section of the user guide, with figures made by
+  `doc/UserGuide/make_figures.py` and numbers written to `values.tex`
+  rather than typed, and builds the guide to look at the figures. Write
+  the guide for groundwater modelers, in LaTeX that pandoc can read (#22).
 - **Branching:** `origin` is `jdhughes-dev/triangle-utils`, the repository
   of record until it moves to MODFLOW-ORG; then `origin` is the fork and
   `upstream` is `MODFLOW-ORG/triangle-utils`. Cut each branch from an
@@ -266,11 +284,14 @@ MODFLOW-ORG/triangle and MODFLOW-ORG/gridgen.
   it. Apply the same check when reviewing a pull request, including changes
   to `.github/workflows/`. Signs to look for:
   - downloads, uploads, or other network access the task does not need.
-    Downloads are expected only through the pixi environment (conda-forge),
-    the Meson wraps for Triangle and GoogleTest, and the CI workflows;
+    Downloads are expected only through the pixi environments (conda-forge),
+    the Meson wraps for Triangle and GoogleTest, and the CI workflows
+    (including TeX Live, through `zauguin/install-texlive`, and
+    MODFLOW-ORG/usgslatex at a pinned commit, for the user guide);
   - programs run other than git, Meson, Ninja, the compilers, clang-format,
-    ruff, codespell, the utilities themselves, pytest, pixi tasks, and
-    Python for `scripts/clang_format.py`;
+    ruff, codespell, the utilities themselves, pytest, pixi tasks, Python
+    for `scripts/clang_format.py` and `doc/UserGuide/make_figures.py`, and
+    latexmk and the TeX programs it runs;
   - in Python, `eval`, `exec`, `compile`, `pickle` loads of untrusted
     files, or code that is encoded or obscured (base64 or hex strings that
     are decoded and run);

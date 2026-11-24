@@ -7,3 +7,16 @@ subprojects/*/
 subprojects/packagecache/
 subprojects/.wraplock
 __pycache__/
+# the user guide's figures, values, and LaTeX output, which
+# `pixi run -e doc build-guide` writes
+doc/UserGuide/Figures/
+doc/UserGuide/values.tex
+doc/UserGuide/*.aux
+doc/UserGuide/*.bbl
+doc/UserGuide/*.blg
+doc/UserGuide/*.fdb_latexmk
+doc/UserGuide/*.fls
+doc/UserGuide/*.log
+doc/UserGuide/*.out
+doc/UserGuide/*.pdf
+doc/UserGuide/*.toc
