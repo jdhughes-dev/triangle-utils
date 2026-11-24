@@ -194,19 +194,12 @@ int triangle_utils_mesh_generate(const TriangleUtilsGeometry * geometry, double 
                                  double minimum_angle, double merge_distance,
                                  int conforming_delaunay, TriangleUtilsMesh ** mesh);
 
-/* Refine a mesh, keeping its boundary and segments, each of which must be an
-   edge of a triangle, and its triangles, which must not overlap, and its
-   triangle attributes and area limits where segments bound them (Triangle
-   averages them across an edge it flips that is not a segment, and drops a
-   limit if either triangle has none). Triangles are split to meet their
-   area limits and maximum_area, and to have no angle under minimum_angle
-   degrees (at most 34) or over maximum_angle (over 60 and under 180;
-   Triangle can reach about 95 to 100 degrees, not 90), each with no limit
-   if 0. Triangles are flagged for the maximum angle at most
-   maximum_angle_splits times, since it may never finish;
-   triangle_utils_mesh_count_angles_over() tells what is left. Every
-   triangle is Delaunay if conforming_delaunay is not 0. The new mesh has
-   neighbors; *refined is NULL after a failure. */
+/* Refine a mesh by its area limits, maximum_area, minimum_angle (at most
+   34), and maximum_angle (over 60 and under 180), each none if 0, keeping
+   its boundary and segments; see README.md for what Triangle can reach and
+   how it treats attributes and limits. At most maximum_angle_splits
+   triangles are flagged for the maximum angle. *refined is NULL after a
+   failure. */
 int triangle_utils_mesh_refine(const TriangleUtilsMesh * mesh, double maximum_area,
                                double minimum_angle, double maximum_angle, int maximum_angle_splits,
                                int conforming_delaunay, TriangleUtilsMesh ** refined);

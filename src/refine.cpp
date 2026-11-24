@@ -84,8 +84,6 @@ Mesh refine_mesh(const Mesh & mesh, const RefineOptions & options)
     check_triangles(mesh);
     for (const double limit : mesh.triangle_area_limits)
         if (!std::isfinite(limit)) throw Error("an area limit is not finite");
-    // Triangle keeps a segment only on an edge of the mesh, so each must be
-    // one, and only once
     // Triangle assumes each directed edge belongs to one triangle; one used
     // twice means triangles overlap or repeat, which can make it loop forever
     std::set<std::pair<int, int>> directed_edges;
@@ -103,15 +101,18 @@ Mesh refine_mesh(const Mesh & mesh, const RefineOptions & options)
             edges.insert(std::minmax(start, end));
         }
     }
+    // Triangle keeps a segment only on an edge of the mesh, so each must be
+    // one, and only once
     std::set<std::pair<int, int>> segments;
     for (std::size_t segment = 0; segment < mesh.segments.size(); segment++)
     {
         const auto ends = std::minmax(mesh.segments[segment][0], mesh.segments[segment][1]);
         if (!edges.contains(ends))
-            throw Error(message("segment ", segment, " (", mesh.segments[segment][0], "-",
-                                mesh.segments[segment][1], ") is not an edge of a triangle"));
+            throw Error(message("segment ", segment, " (vertices ", mesh.segments[segment][0], "-",
+                                mesh.segments[segment][1],
+                                ", numbered from 0) is not an edge of a triangle"));
         if (!segments.insert(ends).second)
-            throw Error(message("segment ", segment, " repeats an earlier segment"));
+            throw Error(message("segment ", segment, " (numbered from 0) repeats an earlier one"));
     }
 
     // Triangle reads the input without changing it; the copy gives it the

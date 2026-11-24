@@ -29,13 +29,9 @@ struct RefineOptions
     bool conforming_delaunay = false;
 };
 
-// Refine a mesh with Triangle, keeping its boundary and segments, each of
-// which must be an edge of a triangle; triangles must not overlap or repeat; each triangle with a positive area
-// limit in the mesh is split to meet it. Triangle averages the attributes and
-// area limits of two triangles when it flips the edge between them (or drops
-// the limit if either has none), so they stay exact only where segments bound
-// them. The result has neighbors. Throws Error if
-// the mesh or options are not valid or Triangle cannot refine the mesh.
+// Refine a mesh with Triangle, keeping its boundary and segments. Throws
+// Error if the options are not valid, the triangles overlap, a segment is not
+// an edge, or Triangle cannot refine the mesh.
 Mesh refine_mesh(const Mesh & mesh, const RefineOptions & options);
 
 // The number of triangles with an angle over the limit in degrees.

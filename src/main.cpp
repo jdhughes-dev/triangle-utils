@@ -228,6 +228,15 @@ public:
         return m_option == short_name || m_option == long_name;
     }
 
+    // Whether the argument is this flag, which takes no value.
+    bool is_flag(const char * short_name, const char * long_name) const
+    {
+        if (!is(short_name, long_name)) return false;
+        if (m_has_value)
+            throw UsageError(triangle_utils::message(m_command, ": ", m_option, " takes no value"));
+        return true;
+    }
+
     bool is_option() const { return m_option.size() > 1 && m_option[0] == '-'; }
 
     const std::string & argument() const { return m_option; }
@@ -463,7 +472,7 @@ int refine_command(const std::vector<std::string> & arguments)
     Options options("refine", arguments);
     while (options.next())
     {
-        if (options.is("-h", "--help"))
+        if (options.is_flag("-h", "--help"))
         {
             std::cout << REFINE_USAGE;
             return EXIT_OK;
@@ -478,7 +487,7 @@ int refine_command(const std::vector<std::string> & arguments)
             maximum_angle = options.number();
         else if (options.is("-n", "--angle-splits"))
             angle_splits = options.integer();
-        else if (options.is("-D", "--conforming-delaunay"))
+        else if (options.is_flag("-D", "--conforming-delaunay"))
             conforming_delaunay = true;
         else if (options.is_option())
             options.unknown();
@@ -520,7 +529,7 @@ int generate_command(const std::vector<std::string> & arguments)
     Options options("generate", arguments);
     while (options.next())
     {
-        if (options.is("-h", "--help"))
+        if (options.is_flag("-h", "--help"))
         {
             std::cout << GENERATE_USAGE;
             return EXIT_OK;
@@ -535,7 +544,7 @@ int generate_command(const std::vector<std::string> & arguments)
             spacing = options.number();
         else if (options.is("-m", "--merge-distance"))
             merge_distance = options.number();
-        else if (options.is("-D", "--conforming-delaunay"))
+        else if (options.is_flag("-D", "--conforming-delaunay"))
             conforming_delaunay = true;
         else if (options.is_option())
             options.unknown();

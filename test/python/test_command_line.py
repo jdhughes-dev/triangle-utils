@@ -104,6 +104,10 @@ def test_license():
         (("refine", "-n", "1.5", "box"), "refine: -n needs a whole number, not 1.5"),
         (("refine",), "refine: give one <base>"),
         (
+            ("refine", "--conforming-delaunay=yes", "box"),
+            "refine: --conforming-delaunay takes no value",
+        ),
+        (
             ("generate", "-o", "box", "box"),
             "generate: the output would replace the input; give another -o",
         ),

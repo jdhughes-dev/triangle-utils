@@ -225,8 +225,8 @@ TEST(Refine, ErrorsGiveTheReason)
     square.triangles = {{0, 1, 2}, {0, 2, 3}};
     square.segments = {{1, 3}};
     EXPECT_EQ(error_message([&] { refine_mesh(square, {}); }),
-              "segment 0 (1-3) is not an edge of a triangle");
+              "segment 0 (vertices 1-3, numbered from 0) is not an edge of a triangle");
     square.segments = {{0, 1}, {1, 0}};
     EXPECT_EQ(error_message([&] { refine_mesh(square, {}); }),
-              "segment 1 repeats an earlier segment");
+              "segment 1 (numbered from 0) repeats an earlier one");
 }
