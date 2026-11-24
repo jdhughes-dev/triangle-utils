@@ -226,6 +226,11 @@ TEST(TriangleFiles, ErrorsNameTheFileAndLine)
               "test.node line 2: the y coordinate \"nan\" is not finite");
     EXPECT_EQ(error_message([] { read_node_text("1 2 0 0\n1.0 0 0\n"); }),
               "test.node line 2: the vertex number \"1.0\" is not an integer");
+    // the largest count is read, and one more is an error
+    EXPECT_EQ(error_message([] { read_node_text("715827882 2 0 0\n"); }),
+              "test.node ends before a vertex");
+    EXPECT_EQ(error_message([] { read_node_text("715827883 2 0 0\n"); }),
+              "test.node line 1: the vertex count is 715827883, but it must be 0 to 715827882");
     EXPECT_EQ(error_message([] { read_node_text("-1 2 0 0\n"); }),
               "test.node line 1: the vertex count is -1, but it must be 0 to 715827882");
 
