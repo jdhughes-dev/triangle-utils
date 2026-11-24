@@ -11,7 +11,8 @@ namespace triangle_utils
 {
 
 // Run Triangle quietly (Q is added to the switches). Throws Error with
-// Triangle's reason if it fails; output and voronoi are then not valid.
+// Triangle's reason if it fails, or std::bad_alloc if it runs out of memory;
+// output and voronoi are then not valid.
 void run_triangle(const std::string & switches, triangulateio & input, TriangleOutput & output,
                   TriangleOutput * voronoi = nullptr);
 

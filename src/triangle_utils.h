@@ -4,7 +4,8 @@
    than TRIANGLE_UTILS_OK, triangle_utils_last_error() gives the reason.
    The version is the API version: before 1.0.0 a minor version may change
    the API incompatibly, and from 1.0.0 on only a major version does.
-   Calls must not run concurrently, since Triangle keeps global state.
+   Calls must not run concurrently, since Triangle keeps global state, and
+   the library turns off Triangle's printing for the whole process.
    Indices are zero based. */
 
 #ifndef TRIANGLE_UTILS_H
@@ -60,14 +61,16 @@ const char * triangle_utils_triangle_copyright(void);
 /* Create a mesh from vertex_count vertices (x and y of each in turn) and
    triangle_count triangles (three corners of each in turn,
    counterclockwise); each coordinate must be finite and each triangle must
-   have a positive area. The arrays are copied. */
+   have a positive area. The arrays are copied. *mesh is NULL after a
+   failure. */
 int triangle_utils_mesh_create(int vertex_count, const double * vertex_xy, int triangle_count,
                                const int * triangle_corners, TriangleUtilsMesh ** mesh);
 
 /* Free a mesh; NULL is ignored. */
 void triangle_utils_mesh_free(TriangleUtilsMesh * mesh);
 
-/* The number of vertices and triangles of a mesh. */
+/* The number of vertices and triangles of a mesh; unchanged after a
+   failure. */
 int triangle_utils_mesh_counts(const TriangleUtilsMesh * mesh, int * vertex_count,
                                int * triangle_count);
 

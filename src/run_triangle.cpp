@@ -3,6 +3,7 @@
 #include "run_triangle.hpp"
 
 #include <cctype>
+#include <new>
 #include <string_view>
 
 #include "error.hpp"
@@ -51,6 +52,8 @@ void run_triangle(const std::string & switches, triangulateio & input, TriangleO
     if (voronoi != nullptr) voronoi->get() = triangulateio{};
     if (status == 2) throw Error("the refinement test stopped Triangle");
     const std::string reason = triangle_reason(triangle_messages());
+    // Triangle's own allocation failure, reported as the core's would be
+    if (reason == "Out of memory.") throw std::bad_alloc();
     if (reason.empty()) throw Error("Triangle could not mesh the input and gave no reason");
     throw Error(message("Triangle could not mesh the input: ", reason));
 }

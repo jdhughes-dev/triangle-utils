@@ -8,8 +8,8 @@ Cases:
   - test_version       : the version string matches the version numbers,
                          and null arguments are ignored.
   - test_triangle      : Triangle's version is 1.6 and its release is set.
-  - test_license       : the license names CC0 and Triangle's copyright
-                         names its author.
+  - test_license       : the license names CC0, and Triangle's copyright
+                         names its author and its terms.
   - test_mesh          : a mesh of the unit square reports its counts and
                          clears the last error of an earlier failure.
   - test_empty_mesh    : a mesh with no vertices or triangles is valid.
@@ -110,6 +110,7 @@ def test_license(library):
     assert b"CC0 1.0" in library.triangle_utils_license()
     notice = library.triangle_utils_triangle_copyright()
     assert b"Jonathan Richard Shewchuk" in notice
+    assert b"commercial system" in notice
 
 
 def test_mesh(library):
@@ -151,7 +152,7 @@ def test_mesh_error(library):
     status, mesh = create_mesh(library, [0.0, 0.0, 1.0, 0.0, 1.0, 1.0], [0, 2, 1])
     assert status == ERROR
     assert not mesh
-    assert b"triangle 0" in library.triangle_utils_last_error()
+    assert b"triangle 0 is not counterclockwise" in library.triangle_utils_last_error()
     status, mesh = create_mesh(library, [0.0, 0.0, 1.0, 0.0, 1.0, 1.0], [0, 1, 3])
     assert status == ERROR
     assert not mesh
@@ -185,11 +186,15 @@ def test_invalid(library):
         None, ctypes.byref(count), ctypes.byref(count)
     )
     assert status == INVALID_ARGUMENT
+    assert library.triangle_utils_last_error() == b"the mesh pointer is null"
     status, mesh = create_mesh(library, [], [])
     try:
         status = library.triangle_utils_mesh_counts(mesh, None, ctypes.byref(count))
         assert status == INVALID_ARGUMENT
         assert b"vertex count pointer is null" in library.triangle_utils_last_error()
+        status = library.triangle_utils_mesh_counts(mesh, ctypes.byref(count), None)
+        assert status == INVALID_ARGUMENT
+        assert b"triangle count pointer is null" in library.triangle_utils_last_error()
     finally:
         library.triangle_utils_mesh_free(mesh)
     library.triangle_utils_mesh_free(None)

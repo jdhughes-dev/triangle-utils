@@ -127,8 +127,9 @@ MODFLOW-ORG/triangle and MODFLOW-ORG/gridgen.
   release; a compatible addition is a minor release; a fix is a patch
   release. The shared library's `soversion` is the major version.
 - **Reporting:** the C API returns the triangle-utils version, Triangle's
-  version (`triangle_version()`), and the MODFLOW-ORG/triangle release it
-  was built with (`triangle_release_version()`). The public header also
+  version, and the MODFLOW-ORG/triangle release it was built with, passed
+  through from Triangle's `triangle_version()` and
+  `triangle_release_version()`. The public header also
   defines the version as macros, so a caller can check it at compile time.
 
 ## Command line
@@ -138,7 +139,8 @@ MODFLOW-ORG/triangle and MODFLOW-ORG/gridgen.
 - **Information:** `-h` and `--help`, for the program and for each command;
   `--version`, which prints the triangle-utils version, Triangle's version,
   and the MODFLOW-ORG/triangle release; and `--license`, which prints the
-  CC0 notice and Triangle's copyright and terms (`triangle_copyright()`).
+  CC0 notice and Triangle's copyright and terms
+  (`triangle_utils_triangle_copyright()`).
 - **Exit status:** 0 on success, 1 on an error, and 2 on a usage error.
   Write errors to standard error and results to the named files or
   standard output.

@@ -15,7 +15,14 @@ int main(void)
     int vertex_count = 0;
     int triangle_count = 0;
 
-    if (strcmp(triangle_utils_version(), TRIANGLE_UTILS_VERSION) != 0)
+    int major = -1;
+    int minor = -1;
+    int patch = -1;
+
+    triangle_utils_version_numbers(&major, &minor, &patch);
+    if (strcmp(triangle_utils_version(), TRIANGLE_UTILS_VERSION) != 0 ||
+        major != TRIANGLE_UTILS_VERSION_MAJOR || minor != TRIANGLE_UTILS_VERSION_MINOR ||
+        patch != TRIANGLE_UTILS_VERSION_PATCH)
     {
         printf("the library version is not the header version\n");
         return 1;
