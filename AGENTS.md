@@ -13,7 +13,8 @@ MODFLOW-ORG/triangle and MODFLOW-ORG/gridgen.
 
 - **Configure the build directory:** `pixi run setup`; Meson downloads
   Triangle and GoogleTest into `subprojects/` on the first run
-- **Build** (installs the version header to `include/`): `pixi run build`
+- **Build** (installs the C API library to `lib/`, or `bin/` for the
+  Windows DLL, and its headers to `include/`): `pixi run build`
 - **Run the tests:** `pixi run test`; it does not rebuild, so run
   `pixi run build` first
 - **Remove the build directory:** `pixi run clean`
@@ -95,9 +96,11 @@ MODFLOW-ORG/triangle and MODFLOW-ORG/gridgen.
   package: it is the unmodified netlib source, without the 64-bit Windows
   pointer fix (MODFLOW-ORG/triangle#2), the ARM fix (#25), or the
   floating-point flags in its `meson.build`.
-- **Calls:** call Triangle through `triangulate_status()`, never
-  `triangulate()`, which ends the program on an error. Memory Triangle
-  allocated before an error is not freed.
+- **Calls:** call Triangle through `run_triangle()` (`src/run_triangle.hpp`),
+  which calls `triangulate_status()`, never `triangulate()`, which ends the
+  program on an error. It turns off Triangle's printing for the process and
+  throws Triangle's reason. Memory Triangle allocated before an error is not
+  freed.
 - **Changes:** never copy or modify Triangle's source here; a change to
   Triangle is a pull request to MODFLOW-ORG/triangle, under the rules in its
   `AGENTS.md`.

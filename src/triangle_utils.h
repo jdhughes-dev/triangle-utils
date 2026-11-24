@@ -2,6 +2,8 @@
 
    Each function that can fail returns a status code; after a status other
    than TRIANGLE_UTILS_OK, triangle_utils_last_error() gives the reason.
+   The version is the API version: before 1.0.0 a minor version may change
+   the API incompatibly, and from 1.0.0 on only a major version does.
    Calls must not run concurrently, since Triangle keeps global state.
    Indices are zero based. */
 
@@ -30,7 +32,8 @@ extern "C"
 typedef struct TriangleUtilsMesh TriangleUtilsMesh;
 
 /* The reason for the last status other than TRIANGLE_UTILS_OK, or an empty
-   string after a call that succeeded; valid until the next call. */
+   string after a function that returns a status succeeded; valid until the
+   next such call. */
 const char * triangle_utils_last_error(void);
 
 /* The library's version, such as "0.1.0". */
@@ -55,7 +58,8 @@ const char * triangle_utils_triangle_copyright(void);
 
 /* Create a mesh from vertex_count vertices (x and y of each in turn) and
    triangle_count triangles (three corners of each in turn,
-   counterclockwise); each triangle must have a positive area. */
+   counterclockwise); each triangle must have a positive area. The arrays
+   are copied. */
 int triangle_utils_mesh_create(int vertex_count, const double * vertex_xy, int triangle_count,
                                const int * triangle_corners, TriangleUtilsMesh ** mesh);
 

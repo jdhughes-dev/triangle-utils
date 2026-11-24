@@ -5,16 +5,18 @@ The library is named by the TRIANGLE_UTILS_LIBRARY environment variable,
 which meson test sets.
 
 Cases:
-  - test_version       : the version string matches the version numbers.
+  - test_version       : the version string matches the version numbers,
+                         and null arguments are ignored.
   - test_triangle      : Triangle's version is 1.6 and its release is set.
   - test_license       : the license names CC0 and Triangle's copyright
                          names its author.
   - test_mesh          : a mesh of the unit square reports its counts and
-                         clears the last error.
-  - test_mesh_error    : a clockwise triangle is an error with its reason,
-                         and no mesh is returned.
+                         clears the last error of an earlier failure.
+  - test_empty_mesh    : a mesh with no vertices or triangles is valid.
+  - test_mesh_error    : a clockwise triangle and a corner out of range are
+                         errors with their reason, and the mesh is null.
   - test_invalid       : null pointers and negative counts are invalid
-                         arguments.
+                         arguments, and the mesh is null.
 """
 
 import ctypes
@@ -69,11 +71,16 @@ def library():
     return library
 
 
+def not_null():
+    """A mesh pointer that is not null, to check that a failure resets it."""
+    return ctypes.cast(ctypes.c_void_p(1), MESH_POINTER)
+
+
 def create_mesh(library, vertex_xy, triangle_corners):
     """Create a mesh and return its status and pointer."""
     vertices = (ctypes.c_double * len(vertex_xy))(*vertex_xy)
     corners = (ctypes.c_int * len(triangle_corners))(*triangle_corners)
-    mesh = MESH_POINTER()
+    mesh = not_null()
     status = library.triangle_utils_mesh_create(
         len(vertex_xy) // 2,
         vertices,
@@ -89,6 +96,7 @@ def test_version(library):
     library.triangle_utils_version_numbers(*[ctypes.byref(n) for n in numbers])
     version = library.triangle_utils_version().decode()
     assert version == ".".join(str(n.value) for n in numbers)
+    library.triangle_utils_version_numbers(None, None, None)
 
 
 def test_triangle(library):
@@ -103,6 +111,8 @@ def test_license(library):
 
 
 def test_mesh(library):
+    status, _ = create_mesh(library, [0.0, 0.0, 1.0, 0.0, 1.0, 1.0], [0, 2, 1])
+    assert status == ERROR
     status, mesh = create_mesh(
         library, [0.0, 0.0, 1.0, 0.0, 1.0, 1.0, 0.0, 1.0], [0, 1, 2, 0, 2, 3]
     )
@@ -120,27 +130,58 @@ def test_mesh(library):
         library.triangle_utils_mesh_free(mesh)
 
 
+def test_empty_mesh(library):
+    status, mesh = create_mesh(library, [], [])
+    try:
+        assert status == OK
+        vertex_count = ctypes.c_int(-1)
+        triangle_count = ctypes.c_int(-1)
+        status = library.triangle_utils_mesh_counts(
+            mesh, ctypes.byref(vertex_count), ctypes.byref(triangle_count)
+        )
+        assert status == OK
+        assert (vertex_count.value, triangle_count.value) == (0, 0)
+    finally:
+        library.triangle_utils_mesh_free(mesh)
+
+
 def test_mesh_error(library):
     status, mesh = create_mesh(library, [0.0, 0.0, 1.0, 0.0, 1.0, 1.0], [0, 2, 1])
     assert status == ERROR
     assert not mesh
     assert b"triangle 0" in library.triangle_utils_last_error()
+    status, mesh = create_mesh(library, [0.0, 0.0, 1.0, 0.0, 1.0, 1.0], [0, 1, 3])
+    assert status == ERROR
+    assert not mesh
+    assert b"refers to vertex 3" in library.triangle_utils_last_error()
 
 
 def test_invalid(library):
     status = library.triangle_utils_mesh_create(0, None, 0, None, None)
     assert status == INVALID_ARGUMENT
     assert library.triangle_utils_last_error() == b"the mesh pointer is null"
-    mesh = MESH_POINTER()
-    status = library.triangle_utils_mesh_create(-1, None, 0, None, ctypes.byref(mesh))
-    assert status == INVALID_ARGUMENT
-    assert b"negative (-1)" in library.triangle_utils_last_error()
-    status = library.triangle_utils_mesh_create(3, None, 0, None, ctypes.byref(mesh))
-    assert status == INVALID_ARGUMENT
-    assert b"vertex coordinate pointer is null" in library.triangle_utils_last_error()
+    vertices = (ctypes.c_double * 6)(0.0, 0.0, 1.0, 0.0, 0.0, 1.0)
+    for arguments, reason in (
+        ((-1, None, 0, None), b"vertex count is negative (-1)"),
+        ((0, None, -2, None), b"triangle count is negative (-2)"),
+        ((3, None, 0, None), b"vertex coordinate pointer is null"),
+        ((3, vertices, 1, None), b"triangle corner pointer is null"),
+    ):
+        mesh = not_null()
+        status = library.triangle_utils_mesh_create(*arguments, ctypes.byref(mesh))
+        assert status == INVALID_ARGUMENT
+        assert not mesh
+        assert reason in library.triangle_utils_last_error()
     count = ctypes.c_int()
     status = library.triangle_utils_mesh_counts(
         None, ctypes.byref(count), ctypes.byref(count)
     )
     assert status == INVALID_ARGUMENT
+    status, mesh = create_mesh(library, [], [])
+    try:
+        status = library.triangle_utils_mesh_counts(mesh, None, ctypes.byref(count))
+        assert status == INVALID_ARGUMENT
+        assert b"vertex count pointer is null" in library.triangle_utils_last_error()
+    finally:
+        library.triangle_utils_mesh_free(mesh)
     library.triangle_utils_mesh_free(None)
