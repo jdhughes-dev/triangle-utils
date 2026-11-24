@@ -11,23 +11,22 @@ Every open issue, in this order; each depends only on those before it
 (see its `Depends on` lines and comments). Done: #2 (build), #3 (CI), #4
 (core mesh type and property checks), #5 (C API skeleton and ctypes
 tests), #6 (Triangle files and the command-line program), #11 (generate a
-mesh from geometry).
+mesh from geometry), #7 (refine).
 
-1. #7 refine
-2. #8 improve by moving vertices
-3. #9 Voronoi and DISV
-4. #12 map lines and boundaries to cells
-5. #13 DISU connection data
-6. #19 layers, DISV and DISU output
-7. #23 ghost-node correction
-8. #14 grid quality report
-9. #18 model checks with MODFLOW 6, MODFLOW-USG, and MODFLOW-USG-Transport
-10. #20 different refinement by layer
-11. #15 structured grids, merging cells, and refinement by a field
-12. #21 user guide
-13. #22 Read the Docs
-14. #24 release notes
-15. #10 release and conda-forge package
+1. #8 improve by moving vertices
+2. #9 Voronoi and DISV
+3. #12 map lines and boundaries to cells
+4. #13 DISU connection data
+5. #19 layers, DISV and DISU output
+6. #23 ghost-node correction
+7. #14 grid quality report
+8. #18 model checks with MODFLOW 6, MODFLOW-USG, and MODFLOW-USG-Transport
+9. #20 different refinement by layer
+10. #15 structured grids, merging cells, and refinement by a field
+11. #21 user guide
+12. #22 Read the Docs
+13. #24 release notes
+14. #10 release and conda-forge package
 
 ## Triangle
 
@@ -47,6 +46,8 @@ mesh from geometry).
 - Changes on Triangle's `main` for triangle-utils:
   - MODFLOW-ORG/triangle#59 (merged in #60, 5cee628): build with icx on
     Windows, with `/fp:strict`; the meshes match the MSVC build.
+  - MODFLOW-ORG/triangle#43 (in 1.6.2): the `u` switch's test,
+    `triangle_set_unsuitable()`, which refining by maximum angle uses (#7).
   - MODFLOW-ORG/triangle#61 (merged in #62, fd28514): the library keeps
     Triangle's messages (`triangle_messages()`) and can stop printing them
     (`triangle_set_print()`).

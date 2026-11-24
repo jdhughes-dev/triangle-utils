@@ -116,6 +116,23 @@ TEST(TriangleFiles, EleAndNeighRoundTrip)
     }
 }
 
+TEST(TriangleFiles, AreaRoundTrip)
+{
+    const std::vector<double> limits = {0.5, -1.0, 1e-7};
+    for (int first_number : {0, 1})
+    {
+        std::stringstream file;
+        write_area(file, limits, first_number);
+        EXPECT_EQ(read_area(file, "test.area", 3), limits);
+    }
+    // a missing limit is no limit, as in Triangle
+    std::istringstream missing("2\n1 0.25\n2\n");
+    EXPECT_EQ(read_area(missing, "test.area", 2), (std::vector<double>{0.25, -1.0}));
+    std::istringstream wrong("2\n");
+    EXPECT_EQ(error_message([&] { read_area(wrong, "test.area", 3); }),
+              "test.area line 1: the file has 2 triangles, but the mesh has 3");
+}
+
 TEST(TriangleFiles, PolyRoundTrip)
 {
     std::istringstream input(BOX_POLY);

@@ -29,11 +29,15 @@ Cases:
   - test_generate_options : -s, -D, -m, and -o mesh to the same area, -s adds
                          points, and a .poly without vertices, numbered from
                          0, takes them from the .node file.
+  - test_refine        : a generated mesh refines by an .area file and a
+                         maximum area to x.2 within the limits, keeping its
+                         area, and reports angles over a maximum angle.
   - test_generate_errors : a bad option value is a usage error (2), and a
                          boundary not closed and a missing file are errors
                          (1).
 """
 
+import math
 import os
 import subprocess
 
@@ -97,6 +101,12 @@ def test_license():
         (("generate", "-a", "big", "box"), 'generate: -a needs a number, not "big"'),
         (("generate", "box", "-o"), "generate: -o needs a value"),
         (("generate",), "generate: give one <base>"),
+        (("refine", "-n", "1.5", "box"), "refine: -n needs a whole number, not 1.5"),
+        (("refine",), "refine: give one <base>"),
+        (
+            ("refine", "--conforming-delaunay=yes", "box"),
+            "refine: --conforming-delaunay takes no value",
+        ),
         (
             ("generate", "-o", "box", "box"),
             "generate: the output would replace the input; give another -o",
@@ -275,3 +285,55 @@ def test_generate_options(tmp_path):
     area, largest = read_mesh_area(str(tmp_path / "zero.1"), 0)
     assert area == pytest.approx(4.0)
     assert largest <= 0.5 + 1e-12
+
+
+def read_triangles(base):
+    """The corners of each triangle in a mesh's .node and .ele files."""
+    node = [line.split() for line in open(f"{base}.node") if line.strip()]
+    ele = [line.split() for line in open(f"{base}.ele") if line.strip()]
+    xy = {int(row[0]): (float(row[1]), float(row[2])) for row in node[1:]}
+    return [tuple(xy[int(v)] for v in row[1:4]) for row in ele[1:]]
+
+
+def largest_angle(corners):
+    """The largest angle of a triangle in degrees."""
+    largest = 0.0
+    for index in range(3):
+        (ax, ay), (bx, by), (cx, cy) = (corners[(index + k) % 3] for k in range(3))
+        ux, uy, vx, vy = bx - ax, by - ay, cx - ax, cy - ay
+        angle = math.degrees(math.atan2(abs(ux * vy - uy * vx), ux * vx + uy * vy))
+        largest = max(largest, angle)
+    return largest
+
+
+def test_refine(tmp_path):
+    (tmp_path / "box.poly").write_text(BOX_POLY)
+    base = str(tmp_path / "box")
+    assert run("generate", "-q", "30", base)[0] == 0
+    original = read_triangles(f"{base}.1")
+    limits = "".join(
+        f"{t + 1} {0.01 if t == 0 else -1}\n" for t in range(len(original))
+    )
+    (tmp_path / "box.1.area").write_text(f"{len(original)}\n{limits}")
+    status, output, _ = run("refine", "-a", "0.2", "-A", "100", f"{base}.1")
+    assert status == 0
+    assert output.startswith(f"{base}.2: ")
+    # the reported count is that of the written mesh
+    reported = int(output.rsplit("; ", 1)[1].split()[0])
+    assert reported == sum(
+        largest_angle(corners) > 100.0 for corners in read_triangles(f"{base}.2")
+    )
+    area, largest = read_mesh_area(f"{base}.2", 1)
+    assert area == pytest.approx(8.0)
+    assert largest <= 0.2 + 1e-12
+    # the .area file's limit refines further than -a alone; Triangle spreads
+    # a limit across the edges it flips, so it is not exact per triangle
+    for suffix in ("node", "ele", "poly"):
+        text = (tmp_path / f"box.1.{suffix}").read_text()
+        (tmp_path / f"plain.{suffix}").write_text(text)
+    assert run("refine", "-a", "0.2", str(tmp_path / "plain"))[0] == 0
+    assert len(read_triangles(f"{base}.2")) > len(
+        read_triangles(str(tmp_path / "plain.1"))
+    )
+    status, output, _ = run("check", f"{base}.2")
+    assert status == 0

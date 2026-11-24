@@ -28,6 +28,11 @@
     triangle_utils_geometry_add_points;
     triangle_utils_geometry_add_ring;
     triangle_utils_mesh_generate;
+    triangle_utils_mesh_set_segments;
+    triangle_utils_mesh_set_triangle_attributes;
+    triangle_utils_mesh_set_area_limits;
+    triangle_utils_mesh_refine;
+    triangle_utils_mesh_count_angles_over;
   local:
     *;
 };

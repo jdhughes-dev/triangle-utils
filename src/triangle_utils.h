@@ -78,6 +78,24 @@ int triangle_utils_mesh_create(int vertex_count, const double * vertex_xy, int t
 int triangle_utils_mesh_set_neighbors(TriangleUtilsMesh * mesh, int triangle_count,
                                       const int * neighbors);
 
+/* Set the segments of a mesh: segment_count pairs of vertices, and a marker
+   for each if markers is not NULL. The arrays are copied, and the mesh is
+   unchanged after a failure. */
+int triangle_utils_mesh_set_segments(TriangleUtilsMesh * mesh, int segment_count, const int * ends,
+                                     const int * markers);
+
+/* Set the attributes of a mesh's triangle_count triangles, attribute_count of
+   each in turn, such as a region's. The array is copied, and the mesh is
+   unchanged after a failure. */
+int triangle_utils_mesh_set_triangle_attributes(TriangleUtilsMesh * mesh, int triangle_count,
+                                                int attribute_count, const double * attributes);
+
+/* Set an area limit for each of a mesh's triangle_count triangles, for
+   triangle_utils_mesh_refine(); a limit that is not positive is no limit.
+   The array is copied, and the mesh is unchanged after a failure. */
+int triangle_utils_mesh_set_area_limits(TriangleUtilsMesh * mesh, int triangle_count,
+                                        const double * area_limits);
+
 /* Free a mesh; NULL is ignored. */
 void triangle_utils_mesh_free(TriangleUtilsMesh * mesh);
 
@@ -175,6 +193,20 @@ int triangle_utils_geometry_add_ring(TriangleUtilsGeometry * geometry, double x,
 int triangle_utils_mesh_generate(const TriangleUtilsGeometry * geometry, double maximum_area,
                                  double minimum_angle, double merge_distance,
                                  int conforming_delaunay, TriangleUtilsMesh ** mesh);
+
+/* Refine a mesh by its area limits, maximum_area, minimum_angle (at most
+   34), and maximum_angle (over 60 and under 180), each none if 0, keeping
+   its boundary and segments; see README.md for what Triangle can reach and
+   how it treats attributes and limits. At most maximum_angle_splits
+   triangles are flagged for the maximum angle. *refined is NULL after a
+   failure. */
+int triangle_utils_mesh_refine(const TriangleUtilsMesh * mesh, double maximum_area,
+                               double minimum_angle, double maximum_angle, int maximum_angle_splits,
+                               int conforming_delaunay, TriangleUtilsMesh ** refined);
+
+/* The number of a mesh's triangles with an angle over limit degrees. */
+int triangle_utils_mesh_count_angles_over(const TriangleUtilsMesh * mesh, double limit,
+                                          int * count);
 
 #ifdef __cplusplus
 }

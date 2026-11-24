@@ -17,6 +17,7 @@
 #include "error.hpp"
 #include "geometry.hpp"
 #include "mesh.hpp"
+#include "refine.hpp"
 
 struct TriangleUtilsMesh
 {
@@ -504,5 +505,109 @@ int triangle_utils_mesh_generate(const TriangleUtilsGeometry * geometry, double 
             auto generated = std::make_unique<TriangleUtilsMesh>();
             generated->mesh = triangle_utils::generate_mesh(geometry->geometry, options);
             *mesh = generated.release();
+        });
+}
+
+int triangle_utils_mesh_set_segments(TriangleUtilsMesh * mesh, int segment_count, const int * ends,
+                                     const int * markers)
+{
+    return call(
+        [&]
+        {
+            check_pointer(mesh, "mesh");
+            check_count(segment_count, "segment");
+            if (segment_count > 0) check_pointer(ends, "segment end");
+            triangle_utils::Mesh checked = mesh->mesh;
+            checked.segments.resize(static_cast<std::size_t>(segment_count));
+            checked.segment_markers.clear();
+            for (std::size_t segment = 0; segment < checked.segments.size(); segment++)
+            {
+                for (std::size_t end = 0; end < 2; end++)
+                {
+                    const int vertex = ends[2 * segment + end];
+                    if (vertex < 0 || static_cast<std::size_t>(vertex) >= checked.vertices.size())
+                        throw triangle_utils::Error(triangle_utils::message(
+                            "segment ", segment, " refers to vertex ", vertex,
+                            ", but the mesh has ", checked.vertices.size(), " vertices"));
+                    checked.segments[segment][end] = vertex;
+                }
+                if (markers != nullptr) checked.segment_markers.push_back(markers[segment]);
+            }
+            triangle_utils::check_sizes(checked);
+            mesh->mesh = std::move(checked);
+        });
+}
+
+int triangle_utils_mesh_set_triangle_attributes(TriangleUtilsMesh * mesh, int triangle_count,
+                                                int attribute_count, const double * attributes)
+{
+    return call(
+        [&]
+        {
+            check_pointer(mesh, "mesh");
+            check_matches(triangle_count, mesh->mesh.triangles.size(), "triangle");
+            check_count(attribute_count, "attribute");
+            const std::size_t value_count = static_cast<std::size_t>(triangle_count) *
+                                            static_cast<std::size_t>(attribute_count);
+            if (value_count > 0) check_pointer(attributes, "attribute");
+            triangle_utils::Mesh checked = mesh->mesh;
+            checked.triangle_attribute_count = attribute_count;
+            checked.triangle_attributes.assign(attributes, attributes + value_count);
+            for (const double value : checked.triangle_attributes)
+                if (!std::isfinite(value))
+                    throw triangle_utils::Error("a triangle attribute is not finite");
+            triangle_utils::check_sizes(checked);
+            mesh->mesh = std::move(checked);
+        });
+}
+
+int triangle_utils_mesh_set_area_limits(TriangleUtilsMesh * mesh, int triangle_count,
+                                        const double * area_limits)
+{
+    return call(
+        [&]
+        {
+            check_pointer(mesh, "mesh");
+            check_matches(triangle_count, mesh->mesh.triangles.size(), "triangle");
+            if (triangle_count > 0) check_pointer(area_limits, "area limit");
+            std::vector<double> limits(area_limits, area_limits + triangle_count);
+            for (const double limit : limits)
+                if (!std::isfinite(limit))
+                    throw triangle_utils::Error("an area limit is not finite");
+            mesh->mesh.triangle_area_limits = std::move(limits);
+        });
+}
+
+int triangle_utils_mesh_refine(const TriangleUtilsMesh * mesh, double maximum_area,
+                               double minimum_angle, double maximum_angle, int maximum_angle_splits,
+                               int conforming_delaunay, TriangleUtilsMesh ** refined)
+{
+    return call(
+        [&]
+        {
+            check_pointer(refined, "refined mesh");
+            *refined = nullptr;
+            check_pointer(mesh, "mesh");
+            triangle_utils::RefineOptions options;
+            options.maximum_area = maximum_area;
+            options.minimum_angle = minimum_angle;
+            options.maximum_angle = maximum_angle;
+            options.maximum_angle_splits = maximum_angle_splits;
+            options.conforming_delaunay = conforming_delaunay != 0;
+            auto result = std::make_unique<TriangleUtilsMesh>();
+            result->mesh = triangle_utils::refine_mesh(mesh->mesh, options);
+            *refined = result.release();
+        });
+}
+
+int triangle_utils_mesh_count_angles_over(const TriangleUtilsMesh * mesh, double limit, int * count)
+{
+    return call(
+        [&]
+        {
+            check_pointer(mesh, "mesh");
+            check_pointer(count, "count");
+            // check_sizes limits the triangle count to what an int holds
+            *count = static_cast<int>(triangle_utils::count_angles_over(mesh->mesh, limit));
         });
 }

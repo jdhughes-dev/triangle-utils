@@ -16,6 +16,10 @@ namespace triangle_utils
 void run_triangle(const std::string & switches, triangulateio & input, TriangleOutput & output,
                   TriangleOutput * voronoi = nullptr);
 
+// A positive number for Triangle's switches, in fixed notation with 17
+// significant digits, since Triangle reads only digits and a point there.
+std::string switch_number(double value);
+
 } // namespace triangle_utils
 
 #endif

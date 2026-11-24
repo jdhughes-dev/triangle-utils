@@ -2,7 +2,12 @@
 
 #include "run_triangle.hpp"
 
+#include <algorithm>
 #include <cctype>
+#include <cmath>
+#include <iomanip>
+#include <locale>
+#include <sstream>
 #include <new>
 #include <string_view>
 
@@ -37,6 +42,22 @@ std::string triangle_reason(std::string_view messages)
 }
 
 } // namespace
+
+std::string switch_number(double value)
+{
+    // the digits after the point that give 17 significant digits
+    const int decimals = std::max(0, 16 - static_cast<int>(std::floor(std::log10(value))));
+    std::ostringstream text;
+    text.imbue(std::locale::classic());
+    text << std::fixed << std::setprecision(decimals) << value;
+    std::string result = text.str();
+    if (result.find('.') != std::string::npos)
+    {
+        result.erase(result.find_last_not_of('0') + 1);
+        if (result.back() == '.') result.pop_back();
+    }
+    return result;
+}
 
 void run_triangle(const std::string & switches, triangulateio & input, TriangleOutput & output,
                   TriangleOutput * voronoi)

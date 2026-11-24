@@ -51,15 +51,15 @@ MODFLOW-ORG/triangle and MODFLOW-ORG/gridgen.
 - `src/` — the core: `mesh.hpp` and `mesh.cpp` (the mesh type, its conversion
   to and from Triangle's `triangulateio`, `TriangleOutput`, which frees
   Triangle's output, and the property checks), `geometry.hpp` and `.cpp`
-  (meshes polygons, holes, regions, points, lines, and rings),
-  `run_triangle.hpp` (calls Triangle and throws its reason for an error), and
-  `error.hpp` (the one error type it throws, and `message()`); the C API:
-  `triangle_utils.h`, its documentation, and `triangle_utils.cpp`. Add a new
-  API function to `src/triangle_utils.def` (Windows), `src/triangle_utils.map`
-  (Linux), and `src/triangle_utils.exports` (macOS). The command line:
-  `main.cpp`, which reads files into the core's types and calls only the C API
-  for the rest, and `triangle_files.hpp` and `.cpp`, which read and write
-  Triangle's files.
+  (meshes polygons, holes, regions, points, lines, and rings), `refine.hpp` and
+  `.cpp` (refines by area and angle), `run_triangle.hpp` (calls Triangle and
+  throws its reason for an error), and `error.hpp` (the one error type it
+  throws, and `message()`); the C API: `triangle_utils.h`, its documentation,
+  and `triangle_utils.cpp`. Add a new API function to `src/triangle_utils.def`
+  (Windows), `src/triangle_utils.map` (Linux), and `src/triangle_utils.exports`
+  (macOS). The command line: `main.cpp`, which reads files into the core's
+  types and calls only the C API for the rest, and `triangle_files.hpp` and
+  `.cpp`, which read and write Triangle's files.
 - `test/` — the GoogleTest tests; `test_c_header.c`, which builds the API
   header as C; and `python/`, the pytest tests of the C API through
   `ctypes` (declared in `triangle_utils_api.py`) and of the program, which
