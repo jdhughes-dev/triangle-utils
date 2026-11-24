@@ -8,6 +8,9 @@ work with two-dimensional triangular meshes:
 - **Convert** a triangular mesh to a Voronoi mesh clipped to the domain, for
   MODFLOW 6 DISV grids
 
+- **Generate** a mesh from geometry in memory: polygons, holes, regions,
+  points, lines the mesh follows, and rings of finer triangles around wells
+
 ## Design
 
 The utilities are a C++20 library with a C API, so they can be called in
@@ -19,9 +22,13 @@ command-line program reads Triangle's file formats (`.node`, `.poly`, `.ele`,
 
 `triangle_utils.h` declares the API and documents each function. A function
 that can fail returns a status code, and `triangle_utils_last_error()` gives
-the reason. Functions that call Triangle, which later versions add, will
-include Triangle's own reason when it cannot mesh the input. A mesh is an
-opaque handle with create and free functions. The API also returns the
+the reason, which includes Triangle's own when it cannot mesh the input. A
+mesh is an opaque handle with create and free functions, and getters for its
+arrays. Geometry is a handle that polygons, hole polygons, holes, regions,
+points, lines, and rings are added to, each with its own spacing and marker
+where it has segments; `triangle_utils_mesh_generate()` meshes it with a
+maximum area, a minimum angle, a distance within which points are merged,
+and conforming Delaunay triangles if a Voronoi grid will follow. The API also returns the
 versions of triangle-utils and Triangle, the license, and Triangle's
 copyright notice. Calls must not run concurrently, since Triangle keeps
 global state.
@@ -29,6 +36,7 @@ global state.
 ## Command line
 
 ```shell
+triangle-utils generate [options] <base>  # mesh <base>.poly into <base>.1.*
 triangle-utils check <base>    # check the mesh in <base>.node, .ele, and .neigh
 triangle-utils --version       # the versions of triangle-utils, Triangle, and its release
 triangle-utils --license       # the license and Triangle's copyright and terms

@@ -11,6 +11,23 @@
     triangle_utils_mesh_set_neighbors;
     triangle_utils_mesh_free;
     triangle_utils_mesh_counts;
+    triangle_utils_mesh_vertices;
+    triangle_utils_mesh_triangles;
+    triangle_utils_mesh_triangle_attribute_count;
+    triangle_utils_mesh_triangle_attributes;
+    triangle_utils_mesh_neighbors;
+    triangle_utils_mesh_segment_count;
+    triangle_utils_mesh_segments;
+    triangle_utils_geometry_create;
+    triangle_utils_geometry_free;
+    triangle_utils_geometry_add_polygon;
+    triangle_utils_geometry_add_hole_polygon;
+    triangle_utils_geometry_add_line;
+    triangle_utils_geometry_add_hole;
+    triangle_utils_geometry_add_region;
+    triangle_utils_geometry_add_points;
+    triangle_utils_geometry_add_ring;
+    triangle_utils_mesh_generate;
   local:
     *;
 };

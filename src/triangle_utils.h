@@ -32,6 +32,11 @@ extern "C"
    triangle_utils_mesh_free(). */
 typedef struct TriangleUtilsMesh TriangleUtilsMesh;
 
+/* Geometry to mesh; create it with triangle_utils_geometry_create(), add to
+   it, mesh it with triangle_utils_mesh_generate(), and free it with
+   triangle_utils_geometry_free(). Points are x and y of each in turn. */
+typedef struct TriangleUtilsGeometry TriangleUtilsGeometry;
+
 /* The reason for the last status other than TRIANGLE_UTILS_OK, or an empty
    string after a function that returns a status succeeded; valid until the
    next such call. */
@@ -80,6 +85,90 @@ void triangle_utils_mesh_free(TriangleUtilsMesh * mesh);
    failure. */
 int triangle_utils_mesh_counts(const TriangleUtilsMesh * mesh, int * vertex_count,
                                int * triangle_count);
+
+/* The mesh's vertices, x and y of each in turn; vertex_count must be the
+   mesh's. */
+int triangle_utils_mesh_vertices(const TriangleUtilsMesh * mesh, int vertex_count,
+                                 double * vertex_xy);
+
+/* The mesh's triangles, three corners of each in turn, counterclockwise. */
+int triangle_utils_mesh_triangles(const TriangleUtilsMesh * mesh, int triangle_count,
+                                  int * triangle_corners);
+
+/* The number of attributes of each triangle: 1 for a generated mesh with
+   regions, the region's attribute, or 0. */
+int triangle_utils_mesh_triangle_attribute_count(const TriangleUtilsMesh * mesh,
+                                                 int * attribute_count);
+
+/* The triangles' attributes, attribute_count of each in turn; value_count is
+   the attribute count times the triangle count. */
+int triangle_utils_mesh_triangle_attributes(const TriangleUtilsMesh * mesh, int value_count,
+                                            double * attributes);
+
+/* The mesh's neighbors (the triangle opposite each corner in turn, or -1);
+   an error if the mesh has none. */
+int triangle_utils_mesh_neighbors(const TriangleUtilsMesh * mesh, int triangle_count,
+                                  int * neighbors);
+
+/* The number of the mesh's segments. */
+int triangle_utils_mesh_segment_count(const TriangleUtilsMesh * mesh, int * segment_count);
+
+/* The mesh's segments, two ends of each in turn, and the marker of each, if
+   markers is not NULL. */
+int triangle_utils_mesh_segments(const TriangleUtilsMesh * mesh, int segment_count, int * ends,
+                                 int * markers);
+
+/* Create empty geometry; *geometry is NULL after a failure. */
+int triangle_utils_geometry_create(TriangleUtilsGeometry ** geometry);
+
+/* Free geometry; NULL is ignored. */
+void triangle_utils_geometry_free(TriangleUtilsGeometry * geometry);
+
+/* Add a polygon of point_count points, a boundary or an internal boundary
+   the mesh follows. Points are added along it so none is farther than
+   spacing from the next, unless spacing is not positive; its segments get
+   the marker. */
+int triangle_utils_geometry_add_polygon(TriangleUtilsGeometry * geometry, int point_count,
+                                        const double * point_xy, double spacing, int marker);
+
+/* Add a polygon whose inside is not meshed, as for
+   triangle_utils_geometry_add_polygon(). */
+int triangle_utils_geometry_add_hole_polygon(TriangleUtilsGeometry * geometry, int point_count,
+                                             const double * point_xy, double spacing, int marker);
+
+/* Add an open line the mesh follows, such as a river, as for
+   triangle_utils_geometry_add_polygon(). */
+int triangle_utils_geometry_add_line(TriangleUtilsGeometry * geometry, int point_count,
+                                     const double * point_xy, double spacing, int marker);
+
+/* Add a point inside a hole bounded by the polygons. */
+int triangle_utils_geometry_add_hole(TriangleUtilsGeometry * geometry, double x, double y);
+
+/* Add a region by a point inside it: its triangles get the attribute and
+   are at most area_limit in area, or have no limit if it is not positive. */
+int triangle_utils_geometry_add_region(TriangleUtilsGeometry * geometry, double x, double y,
+                                       double attribute, double area_limit);
+
+/* Add point_count points the mesh includes as vertices. */
+int triangle_utils_geometry_add_points(TriangleUtilsGeometry * geometry, int point_count,
+                                       const double * point_xy);
+
+/* Add a ring of finer triangles around a point, such as a well: a vertex at
+   (x, y), a polygon of point_count points at the radius with the marker,
+   and a region inside with the attribute and area limit. */
+int triangle_utils_geometry_add_ring(TriangleUtilsGeometry * geometry, double x, double y,
+                                     double radius, int point_count, double attribute,
+                                     double area_limit, int marker);
+
+/* Mesh the geometry. Triangles are at most maximum_area in area and have no
+   angle under minimum_angle degrees (at most 34), each unless 0; points
+   closer than merge_distance are merged, or only identical points if it is
+   0; and every triangle is Delaunay if conforming_delaunay is not 0, as a
+   Voronoi grid needs. The mesh has neighbors and segments. *mesh is NULL
+   after a failure. */
+int triangle_utils_mesh_generate(const TriangleUtilsGeometry * geometry, double maximum_area,
+                                 double minimum_angle, double merge_distance,
+                                 int conforming_delaunay, TriangleUtilsMesh ** mesh);
 
 #ifdef __cplusplus
 }

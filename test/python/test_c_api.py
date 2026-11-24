@@ -24,61 +24,8 @@ Cases:
 
 import ctypes
 import math
-import os
 
-import pytest
-
-OK = 0
-ERROR = 1
-INVALID_ARGUMENT = 2
-
-
-class Mesh(ctypes.Structure):
-    """The opaque mesh."""
-
-
-MESH_POINTER = ctypes.POINTER(Mesh)
-
-
-@pytest.fixture(scope="module")
-def library():
-    library = ctypes.CDLL(os.environ["TRIANGLE_UTILS_LIBRARY"])
-    for name in (
-        "last_error",
-        "version",
-        "triangle_version",
-        "triangle_release",
-        "license",
-        "triangle_copyright",
-    ):
-        function = getattr(library, f"triangle_utils_{name}")
-        function.restype = ctypes.c_char_p
-        function.argtypes = []
-    library.triangle_utils_version_numbers.restype = None
-    library.triangle_utils_version_numbers.argtypes = [ctypes.POINTER(ctypes.c_int)] * 3
-    library.triangle_utils_mesh_create.restype = ctypes.c_int
-    library.triangle_utils_mesh_create.argtypes = [
-        ctypes.c_int,
-        ctypes.POINTER(ctypes.c_double),
-        ctypes.c_int,
-        ctypes.POINTER(ctypes.c_int),
-        ctypes.POINTER(MESH_POINTER),
-    ]
-    library.triangle_utils_mesh_set_neighbors.restype = ctypes.c_int
-    library.triangle_utils_mesh_set_neighbors.argtypes = [
-        MESH_POINTER,
-        ctypes.c_int,
-        ctypes.POINTER(ctypes.c_int),
-    ]
-    library.triangle_utils_mesh_free.restype = None
-    library.triangle_utils_mesh_free.argtypes = [MESH_POINTER]
-    library.triangle_utils_mesh_counts.restype = ctypes.c_int
-    library.triangle_utils_mesh_counts.argtypes = [
-        MESH_POINTER,
-        ctypes.POINTER(ctypes.c_int),
-        ctypes.POINTER(ctypes.c_int),
-    ]
-    return library
+from triangle_utils_api import ERROR, INVALID_ARGUMENT, MESH_POINTER, OK
 
 
 def not_null():

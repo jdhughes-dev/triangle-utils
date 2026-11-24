@@ -2,6 +2,7 @@
 
 #include "triangle_utils.h"
 
+#include <algorithm>
 #include <cmath>
 #include <cstddef>
 #include <cstring>
@@ -11,13 +12,20 @@
 #include <stdexcept>
 #include <string>
 #include <utility>
+#include <vector>
 
 #include "error.hpp"
+#include "geometry.hpp"
 #include "mesh.hpp"
 
 struct TriangleUtilsMesh
 {
     triangle_utils::Mesh mesh;
+};
+
+struct TriangleUtilsGeometry
+{
+    triangle_utils::Geometry geometry;
 };
 
 namespace
@@ -227,5 +235,274 @@ int triangle_utils_mesh_counts(const TriangleUtilsMesh * mesh, int * vertex_coun
             // check_sizes limits the counts to what an int holds
             *vertex_count = static_cast<int>(mesh->mesh.vertices.size());
             *triangle_count = static_cast<int>(mesh->mesh.triangles.size());
+        });
+}
+
+namespace
+{
+
+// Throw ArgumentError if a count the caller gives is not the mesh's.
+void check_matches(int given, std::size_t actual, const char * name)
+{
+    check_count(given, name);
+    if (static_cast<std::size_t>(given) != actual)
+    {
+        throw ArgumentError(triangle_utils::message("the ", name, " count is ", given,
+                                                    ", but the mesh has ", actual));
+    }
+}
+
+// Copy point_count points from x and y in turn.
+std::vector<triangle_utils::Point> copy_points(int point_count, const double * point_xy)
+{
+    check_count(point_count, "point");
+    if (point_count > 0) check_pointer(point_xy, "point coordinate");
+    std::vector<triangle_utils::Point> points(static_cast<std::size_t>(point_count));
+    for (std::size_t point = 0; point < points.size(); point++)
+    {
+        points[point] = {point_xy[2 * point], point_xy[2 * point + 1]};
+    }
+    return points;
+}
+
+} // namespace
+
+int triangle_utils_mesh_vertices(const TriangleUtilsMesh * mesh, int vertex_count,
+                                 double * vertex_xy)
+{
+    return call(
+        [&]
+        {
+            check_pointer(mesh, "mesh");
+            check_matches(vertex_count, mesh->mesh.vertices.size(), "vertex");
+            if (vertex_count > 0) check_pointer(vertex_xy, "vertex coordinate");
+            for (std::size_t vertex = 0; vertex < mesh->mesh.vertices.size(); vertex++)
+            {
+                vertex_xy[2 * vertex] = mesh->mesh.vertices[vertex].x;
+                vertex_xy[2 * vertex + 1] = mesh->mesh.vertices[vertex].y;
+            }
+        });
+}
+
+int triangle_utils_mesh_triangles(const TriangleUtilsMesh * mesh, int triangle_count,
+                                  int * triangle_corners)
+{
+    return call(
+        [&]
+        {
+            check_pointer(mesh, "mesh");
+            check_matches(triangle_count, mesh->mesh.triangles.size(), "triangle");
+            if (triangle_count > 0) check_pointer(triangle_corners, "triangle corner");
+            for (std::size_t triangle = 0; triangle < mesh->mesh.triangles.size(); triangle++)
+            {
+                for (std::size_t corner = 0; corner < 3; corner++)
+                {
+                    triangle_corners[3 * triangle + corner] =
+                        mesh->mesh.triangles[triangle][corner];
+                }
+            }
+        });
+}
+
+int triangle_utils_mesh_triangle_attribute_count(const TriangleUtilsMesh * mesh,
+                                                 int * attribute_count)
+{
+    return call(
+        [&]
+        {
+            check_pointer(mesh, "mesh");
+            check_pointer(attribute_count, "attribute count");
+            *attribute_count = mesh->mesh.triangle_attribute_count;
+        });
+}
+
+int triangle_utils_mesh_triangle_attributes(const TriangleUtilsMesh * mesh, int value_count,
+                                            double * attributes)
+{
+    return call(
+        [&]
+        {
+            check_pointer(mesh, "mesh");
+            check_matches(value_count, mesh->mesh.triangle_attributes.size(), "attribute value");
+            if (value_count > 0) check_pointer(attributes, "attribute");
+            std::copy(mesh->mesh.triangle_attributes.begin(), mesh->mesh.triangle_attributes.end(),
+                      attributes);
+        });
+}
+
+int triangle_utils_mesh_neighbors(const TriangleUtilsMesh * mesh, int triangle_count,
+                                  int * neighbors)
+{
+    return call(
+        [&]
+        {
+            check_pointer(mesh, "mesh");
+            check_matches(triangle_count, mesh->mesh.triangles.size(), "triangle");
+            if (mesh->mesh.neighbors.size() != mesh->mesh.triangles.size())
+                throw triangle_utils::Error("the mesh has no neighbors");
+            if (triangle_count > 0) check_pointer(neighbors, "neighbor");
+            for (std::size_t triangle = 0; triangle < mesh->mesh.neighbors.size(); triangle++)
+            {
+                for (std::size_t corner = 0; corner < 3; corner++)
+                {
+                    neighbors[3 * triangle + corner] = mesh->mesh.neighbors[triangle][corner];
+                }
+            }
+        });
+}
+
+int triangle_utils_mesh_segment_count(const TriangleUtilsMesh * mesh, int * segment_count)
+{
+    return call(
+        [&]
+        {
+            check_pointer(mesh, "mesh");
+            check_pointer(segment_count, "segment count");
+            *segment_count = static_cast<int>(mesh->mesh.segments.size());
+        });
+}
+
+int triangle_utils_mesh_segments(const TriangleUtilsMesh * mesh, int segment_count, int * ends,
+                                 int * markers)
+{
+    return call(
+        [&]
+        {
+            check_pointer(mesh, "mesh");
+            check_matches(segment_count, mesh->mesh.segments.size(), "segment");
+            if (segment_count > 0) check_pointer(ends, "segment end");
+            const auto & segments = mesh->mesh.segments;
+            const auto & segment_markers = mesh->mesh.segment_markers;
+            for (std::size_t segment = 0; segment < segments.size(); segment++)
+            {
+                ends[2 * segment] = segments[segment][0];
+                ends[2 * segment + 1] = segments[segment][1];
+                if (markers != nullptr)
+                    markers[segment] = segment_markers.empty() ? 0 : segment_markers[segment];
+            }
+        });
+}
+
+int triangle_utils_geometry_create(TriangleUtilsGeometry ** geometry)
+{
+    return call(
+        [&]
+        {
+            check_pointer(geometry, "geometry");
+            *geometry = nullptr;
+            *geometry = new TriangleUtilsGeometry();
+        });
+}
+
+void triangle_utils_geometry_free(TriangleUtilsGeometry * geometry)
+{
+    delete geometry;
+}
+
+namespace
+{
+
+// Add a chain to one of the geometry's lists.
+int add_chain(TriangleUtilsGeometry * geometry,
+              std::vector<triangle_utils::Chain> triangle_utils::Geometry::* list, int point_count,
+              const double * point_xy, double spacing, int marker)
+{
+    return call(
+        [&]
+        {
+            check_pointer(geometry, "geometry");
+            (geometry->geometry.*list)
+                .push_back({copy_points(point_count, point_xy), spacing, marker});
+        });
+}
+
+} // namespace
+
+int triangle_utils_geometry_add_polygon(TriangleUtilsGeometry * geometry, int point_count,
+                                        const double * point_xy, double spacing, int marker)
+{
+    return add_chain(geometry, &triangle_utils::Geometry::polygons, point_count, point_xy, spacing,
+                     marker);
+}
+
+int triangle_utils_geometry_add_hole_polygon(TriangleUtilsGeometry * geometry, int point_count,
+                                             const double * point_xy, double spacing, int marker)
+{
+    return add_chain(geometry, &triangle_utils::Geometry::hole_polygons, point_count, point_xy,
+                     spacing, marker);
+}
+
+int triangle_utils_geometry_add_line(TriangleUtilsGeometry * geometry, int point_count,
+                                     const double * point_xy, double spacing, int marker)
+{
+    return add_chain(geometry, &triangle_utils::Geometry::lines, point_count, point_xy, spacing,
+                     marker);
+}
+
+int triangle_utils_geometry_add_hole(TriangleUtilsGeometry * geometry, double x, double y)
+{
+    return call(
+        [&]
+        {
+            check_pointer(geometry, "geometry");
+            geometry->geometry.holes.push_back({x, y});
+        });
+}
+
+int triangle_utils_geometry_add_region(TriangleUtilsGeometry * geometry, double x, double y,
+                                       double attribute, double area_limit)
+{
+    return call(
+        [&]
+        {
+            check_pointer(geometry, "geometry");
+            geometry->geometry.regions.push_back({{x, y}, attribute, area_limit});
+        });
+}
+
+int triangle_utils_geometry_add_points(TriangleUtilsGeometry * geometry, int point_count,
+                                       const double * point_xy)
+{
+    return call(
+        [&]
+        {
+            check_pointer(geometry, "geometry");
+            const auto points = copy_points(point_count, point_xy);
+            geometry->geometry.points.insert(geometry->geometry.points.end(), points.begin(),
+                                             points.end());
+        });
+}
+
+int triangle_utils_geometry_add_ring(TriangleUtilsGeometry * geometry, double x, double y,
+                                     double radius, int point_count, double attribute,
+                                     double area_limit, int marker)
+{
+    return call(
+        [&]
+        {
+            check_pointer(geometry, "geometry");
+            geometry->geometry.rings.push_back(
+                {{x, y}, radius, point_count, attribute, area_limit, marker});
+        });
+}
+
+int triangle_utils_mesh_generate(const TriangleUtilsGeometry * geometry, double maximum_area,
+                                 double minimum_angle, double merge_distance,
+                                 int conforming_delaunay, TriangleUtilsMesh ** mesh)
+{
+    return call(
+        [&]
+        {
+            check_pointer(mesh, "mesh");
+            *mesh = nullptr;
+            check_pointer(geometry, "geometry");
+            triangle_utils::MeshOptions options;
+            options.maximum_area = maximum_area;
+            options.minimum_angle = minimum_angle;
+            options.merge_distance = merge_distance;
+            options.conforming_delaunay = conforming_delaunay != 0;
+            auto generated = std::make_unique<TriangleUtilsMesh>();
+            generated->mesh = triangle_utils::generate_mesh(geometry->geometry, options);
+            *mesh = generated.release();
         });
 }

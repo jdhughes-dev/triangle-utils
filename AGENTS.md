@@ -51,7 +51,9 @@ MODFLOW-ORG/triangle and MODFLOW-ORG/gridgen.
 - `src/` — the core: `mesh.hpp` and `mesh.cpp` (the mesh type, its
   conversion to and from Triangle's `triangulateio`, `TriangleOutput`,
   which frees Triangle's output, and the property checks),
-  `run_triangle.hpp` (calls Triangle and throws its reason for an error),
+  `geometry.hpp` (meshes polygons, holes, regions, points, lines, and
+  rings), `run_triangle.hpp` (calls Triangle and throws its reason for an
+  error),
   and `error.hpp` (the one error type it throws, and `message()`); the C
   API: `triangle_utils.h`, its documentation, and `triangle_utils.cpp`.
   Add a new API function to `src/triangle_utils.def` (Windows),
@@ -61,8 +63,8 @@ MODFLOW-ORG/triangle and MODFLOW-ORG/gridgen.
   `.cpp`, which read and write Triangle's files.
 - `test/` — the GoogleTest tests; `test_c_header.c`, which builds the API
   header as C; and `python/`, the pytest tests of the C API through
-  `ctypes` and of the program, which `meson test` runs except under the
-  sanitizers.
+  `ctypes` (declared in `triangle_utils_api.py`) and of the program, which
+  `meson test` runs except under the sanitizers.
 - `scripts/clang_format.py` — runs clang-format on the tracked C and C++
   files, for `pixi run check-format` and `fix-format`.
 - `.github/workflows/ci.yml` — builds and tests on Linux, macOS, and
@@ -147,8 +149,8 @@ MODFLOW-ORG/triangle and MODFLOW-ORG/gridgen.
 ## Command line
 
 - **Form:** `triangle-utils <command> [options]`, with one command per
-  utility (`refine`, `improve`, `voronoi`), and `check`, which checks a mesh
-  in Triangle's files.
+  utility (`generate`, `refine`, `improve`, `voronoi`), and `check`, which
+  checks a mesh in Triangle's files.
 - **Information:** `-h` and `--help`, for the program and for each command;
   `--version`, which prints the triangle-utils version, Triangle's version,
   and the MODFLOW-ORG/triangle release; and `--license`, which prints the
