@@ -9,6 +9,7 @@
 #include <limits>
 #include <locale>
 #include <sstream>
+#include <string_view>
 
 #include "error.hpp"
 
@@ -34,6 +35,10 @@ public:
         while (std::getline(m_input, line))
         {
             m_line_number++;
+            // the byte order mark some editors write at the start of UTF-8
+            constexpr std::string_view BYTE_ORDER_MARK = "\xEF\xBB\xBF";
+            if (m_line_number == 1 && line.starts_with(BYTE_ORDER_MARK))
+                line.erase(0, BYTE_ORDER_MARK.size());
             const std::size_t comment = line.find('#');
             if (comment != std::string::npos) line.erase(comment);
             m_fields.clear();
@@ -219,17 +224,22 @@ TriangleFile read_ele(std::istream & input, const std::string & name, const Vert
     LineReader reader(input, name);
     TriangleFile result;
     // as Triangle does, a header without a corner count or attribute count
-    // has 3 and 0
+    // has 3 and 0, and only the first 3 corners of a triangle are read
     reader.require(1, "the triangle header");
     const std::size_t count = reader.count(0, "the triangle count");
-    if (reader.size() > 1 && reader.integer(1, "the corner count") != 3)
-        reader.fail("the corner count must be 3; triangles with 6 corners (o2) are not supported");
+    std::size_t corner_count = 3;
+    if (reader.size() > 1)
+    {
+        const int corners = reader.integer(1, "the corner count");
+        if (corners < 3 || corners > 6) reader.fail("the corner count must be 3 to 6");
+        corner_count = static_cast<std::size_t>(corners);
+    }
     if (reader.size() > 2)
         result.attribute_count = static_cast<int>(reader.count(2, "the triangle attribute count"));
 
     for (std::size_t triangle = 0; triangle < count; triangle++)
     {
-        reader.require(4, "a triangle");
+        reader.require(1 + corner_count, "a triangle");
         std::array<int, 3> corners{};
         for (std::size_t corner = 0; corner < 3; corner++)
         {
@@ -240,7 +250,7 @@ TriangleFile read_ele(std::istream & input, const std::string & name, const Vert
         for (int attribute = 0; attribute < result.attribute_count; attribute++)
         {
             result.attributes.push_back(
-                reader.optional_real(4 + attribute, "a triangle attribute"));
+                reader.optional_real(1 + corner_count + attribute, "a triangle attribute"));
         }
     }
     return result;

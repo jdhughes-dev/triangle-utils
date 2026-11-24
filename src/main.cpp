@@ -110,6 +110,8 @@ int check_command(const std::vector<std::string> & arguments)
     // the file readers limit the counts to what an int holds
     const int vertex_count = static_cast<int>(vertices.vertices.size());
     const int triangle_count = static_cast<int>(triangles.triangles.size());
+    if (triangle_count == 0)
+        throw triangle_utils::Error(triangle_utils::message(ele_name, " has no triangles"));
     TriangleUtilsMesh * created = nullptr;
     check_status(triangle_utils_mesh_create(vertex_count, vertex_xy.data(), triangle_count,
                                             corners.data(), &created));
@@ -124,7 +126,7 @@ int check_command(const std::vector<std::string> & arguments)
     if (has_neighbors)
     {
         std::ifstream neigh_file(neigh_name);
-        if (!neigh_file)
+        if (!std::filesystem::is_regular_file(neigh_name, exists_error) || !neigh_file)
             throw triangle_utils::Error(triangle_utils::message("cannot open ", neigh_name));
         std::vector<int> neighbors;
         for (const auto & triangle : triangle_utils::read_neigh(

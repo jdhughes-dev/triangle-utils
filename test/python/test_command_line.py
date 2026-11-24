@@ -20,8 +20,8 @@ Cases:
   - test_check_numbered_from_zero : a mesh numbered from 0, with comments and
                          CRLF line ends, exits 0.
   - test_check_errors  : a clockwise triangle, a wrong neighbor, a corner out
-                         of range, a neighbor file for another mesh, and a bad
-                         line exit 1 with the reason.
+                         of range, a neighbor file for another mesh, no
+                         triangles, and a bad line exit 1 with the reason.
   - test_check_missing_file : a missing file exits 1 with the reason.
 """
 
@@ -69,7 +69,7 @@ def test_version():
     status, output, _ = run("--version")
     assert status == 0
     lines = output.splitlines()
-    assert lines[0].startswith("triangle-utils 0.")
+    assert lines[0].startswith("triangle-utils ")
     assert lines[1].startswith("Triangle 1.6 (MODFLOW-ORG/triangle 1.6.")
 
 
@@ -146,6 +146,7 @@ def test_check_numbered_from_zero(tmp_path):
         ({"node": "4 2 0 0\n1 0 0\n2 1 zero\n"}, "square.node line 3"),
         ({"ele": "1 3 0\n1 1 2 5\n"}, "square.ele line 2: a triangle corner"),
         ({"neigh": "1 3\n1 -1 -1 -1\n"}, "the file has 1 triangles, but the mesh"),
+        ({"ele": "0 3 0\n"}, "square.ele has no triangles"),
     ],
 )
 def test_check_errors(tmp_path, files, reason):

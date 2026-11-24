@@ -27,8 +27,8 @@ struct VertexFile
     // a boundary marker for each vertex, or empty
     std::vector<int> markers;
     // the number of the first vertex, 0 or 1, as Triangle reads it: 1 unless
-    // the first vertex is numbered 0; the other files number vertices and
-    // triangles from it too
+    // the first vertex is numbered 0; the other files refer to vertices, and
+    // .neigh files to triangles, from it too
     int first_number = 1;
 };
 
@@ -64,8 +64,8 @@ struct PolyFile
     std::vector<Region> regions;
 };
 
-// The readers read a file as Triangle does and take its name for error
-// messages; they throw Error if the file is not valid. The writers throw Error
+// The readers read a file as Triangle does, in the C locale, and take its
+// name for error messages; they throw Error if the file is not valid. The writers throw Error
 // if an array does not match its counts or the file cannot be written.
 
 // Read a .node file.

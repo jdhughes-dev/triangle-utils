@@ -190,6 +190,17 @@ TEST(TriangleFiles, ShortHeadersAndTriangleValues)
     EXPECT_TRUE(vertices.markers.empty());
     EXPECT_EQ(read_node_text("1 2 0 2\n1 0 0 4\n").markers, (std::vector<int>{4}));
 
+    // a byte order mark is skipped, and a triangle with 6 corners (o2) keeps
+    // its first 3
+    EXPECT_EQ(read_node_text("\xEF\xBB\xBF"
+                             "1\n1 0 0\n")
+                  .vertices.size(),
+              1u);
+    std::istringstream six_corners("1 6 1\n1 1 2 3 1 2 3 7.5\n");
+    const TriangleFile quadratic = read_ele(six_corners, "test.ele", vertices);
+    EXPECT_EQ(quadratic.triangles, (std::vector<std::array<int, 3>>{{0, 1, 2}}));
+    EXPECT_EQ(quadratic.attributes, (std::vector<double>{7.5}));
+
     std::istringstream ele("1\n+1 1 2 3\n");
     EXPECT_EQ(read_ele(ele, "test.ele", vertices).triangles,
               (std::vector<std::array<int, 3>>{{0, 1, 2}}));
@@ -238,9 +249,12 @@ TEST(TriangleFiles, ErrorsNameTheFileAndLine)
     std::istringstream ele("1 3 0\n1 1 2 4\n");
     EXPECT_EQ(error_message([&] { read_ele(ele, "test.ele", vertices); }),
               "test.ele line 2: a triangle corner refers to vertex 4, but the vertices are 1 to 3");
-    std::istringstream six_corners("1 6 0\n");
-    EXPECT_NE(error_message([&] { read_ele(six_corners, "test.ele", vertices); }).find("o2"),
-              std::string::npos);
+    std::istringstream two_corners("1 2 0\n");
+    EXPECT_EQ(error_message([&] { read_ele(two_corners, "test.ele", vertices); }),
+              "test.ele line 1: the corner count must be 3 to 6");
+    std::istringstream overflow("2147483648 3 0\n");
+    EXPECT_EQ(error_message([&] { read_ele(overflow, "test.ele", vertices); }),
+              "test.ele line 1: the triangle count \"2147483648\" is too large");
     std::istringstream neigh("1 3\n1 -1 2 -1\n");
     EXPECT_EQ(error_message([&] { read_neigh(neigh, "test.neigh", 1, 1); }),
               "test.neigh line 2: neighbor 2 is not a triangle of the file");
