@@ -97,12 +97,12 @@ A mesh is generated from the features of the model area, each given by the coord
 
 Points are added along each polygon and line so that no two successive points are farther apart than a spacing given for that feature, which sets the size of the triangles along it. Points that appear in more than one feature, such as the end of a river on the model boundary, are merged into one vertex; points closer than a given distance can be merged as well, for features digitized separately whose shared points do not match exactly. The mesh covers the polygons, without the area inside a hole polygon or anything in it, and its triangles have no angle smaller than a given minimum angle, up to 34 degrees, and no area larger than a given largest area. Triangle spreads the attribute and area of a region only up to the polygons and lines around it, so a river that crosses the model area needs a region on each side.
 
-Figure~\ref{fig:generated} shows a mesh of an example valley of \valleyarea\ square kilometers (km$^2$), with points every \boundaryspacing\ meters (m) along its boundary, every \riverspacing~m along the river, and every \lakespacing~m around the lake. Triangles are no larger than \maximumarea\ square meters (m$^2$) in the aquifer and \lakearea~m$^2$ in the lake, and have no angle smaller than \minimumangle\ degrees. Each of the three wells is at the center of a ring with a radius of \wellradius~m and \wellpoints\ points, in which triangles are no larger than \wellarea~m$^2$. The river starts and ends at points of the boundary, so the two share a vertex. The mesh has \generatedvertices\ vertices and \generatedtriangles\ triangles.
+Figure~\ref{fig:generated} shows a mesh of an example valley of \valleyarea\ square kilometers (km$^2$), with points every \boundaryspacing\ meters (m) along its boundary, every \riverspacing~m along the river, and every \lakespacing~m around the lake. Triangles are no larger than \maximumarea\ square meters (m$^2$) in the aquifer and \lakearea~m$^2$ in the lake, and have no angle smaller than \minimumangle\ degrees. Each of the three wells is at the center of a ring with a radius of \wellradius~m and \wellpoints\ points, in which triangles are no larger than \wellarea~m$^2$. The river starts and ends at points of the boundary, so the two share a vertex. Figures~\ref{fig:generated}\textit{B} and \ref{fig:generated}\textit{C} show the mesh in square windows \wellwindow~m and \riverwindow~m on a side around a well and along the river, where the generated mesh has the most triangles with an angle over \maximumangle\ degrees (fig.~\ref{fig:refined}). The mesh has \generatedvertices\ vertices and \generatedtriangles\ triangles.
 
 \begin{figure}[htbp]
   \centering
   \includegraphics{generated_mesh.pdf}
-  \caption{Mesh generated for the example valley, colored by region. \textit{A}, the valley, with the river, the lake, and the rings around the three wells. \textit{B}, the mesh around the well at x = \wellx~m and y = \welly~m. The ring around each well gives it triangles of no more than \wellarea~m$^2$ while the triangles around the ring grow to the size of those in the aquifer}
+  \caption{Mesh generated for the example valley, colored by region. \textit{A}, the valley, with the river, the lake, the rings around the three wells, and the windows of panels \textit{B} and \textit{C} (boxes). \textit{B}, the mesh around the well at x = \wellx~m and y = \welly~m. The ring around each well gives it triangles of no more than \wellarea~m$^2$ while the triangles around the ring grow to the size of those in the aquifer. \textit{C}, the mesh along the river, whose triangles are smallest at the river and grow away from it}
   \label{fig:generated}
 \end{figure}
 
@@ -117,8 +117,17 @@ Figure~\ref{fig:refined} shows the mesh of Figure~\ref{fig:generated} refined to
 \begin{figure}[htbp]
   \centering
   \includegraphics{refined_mesh.pdf}
-  \caption{Triangles with an angle over \maximumangle\ degrees (red) in the mesh of the example valley. \textit{A}, the mesh generated with a minimum angle of \minimumangle\ degrees (fig.~\ref{fig:generated}). \textit{B}, the same mesh refined to a maximum angle of \maximumangle\ degrees, which leaves \refinedover\ triangles over it}
+  \caption{Triangles with an angle over \maximumangle\ degrees (red) in the mesh of the example valley, with the windows of figures~\ref{fig:generated}\textit{B}, \ref{fig:generated}\textit{C}, and~\ref{fig:closeups} (boxes). \textit{A}, the mesh generated with a minimum angle of \minimumangle\ degrees (fig.~\ref{fig:generated}). \textit{B}, the same mesh refined to a maximum angle of \maximumangle\ degrees, which leaves \refinedover\ triangles over it}
   \label{fig:refined}
+\end{figure}
+
+Figure~\ref{fig:closeups} shows the windows of Figure~\ref{fig:generated} before and after refining. In the generated mesh, \wellwindowover\ triangles around the well and \riverwindowover\ along the river have an angle over \maximumangle\ degrees; in the refined mesh, \wellwindowrefinedover\ and \riverwindowrefinedover.
+
+\begin{figure}[htbp]
+  \centering
+  \includegraphics{close_ups.pdf}
+  \caption{Triangles with an angle over \maximumangle\ degrees (red) in the windows of figures~\ref{fig:generated}\textit{B} and~\ref{fig:generated}\textit{C}. \textit{A}, around the well, generated. \textit{B}, around the well, refined. \textit{C}, along the river, generated. \textit{D}, along the river, refined}
+  \label{fig:closeups}
 \end{figure}
 
 \section{Using triangle-utils}
