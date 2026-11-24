@@ -10,7 +10,26 @@ project(
   ],
 )
 
-subdir('src')
+cpp = meson.get_compiler('cpp')
+cpp_id = cpp.get_id()
+
+# keep floating-point results the same across compilers, as gridgen does: no
+# value-unsafe optimizations and no fused multiply-adds
+compile_args = []
+if cpp_id == 'intel-llvm'
+  compile_args += ['-fp-model=precise']
+elif cpp_id in ['intel-llvm-cl', 'msvc']
+  # MSVC does not contract with /fp:precise unless /fp:contract is given
+  compile_args += ['/fp:precise']
+endif
+if cpp_id in ['gcc', 'clang', 'intel-llvm']
+  compile_args += ['-ffp-contract=off']
+elif cpp_id in ['clang-cl', 'intel-llvm-cl']
+  compile_args += ['/clang:-ffp-contract=off']
+endif
+
+# global so GoogleTest is built with the same options; Triangle sets its own
+add_global_arguments(cpp.get_supported_arguments(compile_args), language: 'cpp')
 
 # Triangle from MODFLOW-ORG/triangle (subprojects/triangle.wrap), linked
 # statically
@@ -18,6 +37,8 @@ triangle_dep = dependency(
   'triangle',
   default_options: ['default_library=static'],
 )
+
+subdir('src')
 
 # GoogleTest is built as a static library, as in gridgen
 gtest_dep = dependency(

@@ -8,27 +8,27 @@ and update it in the pull request that changes the plan.
 ## First release (0.1.0)
 
 Every open issue, in this order; each depends only on those before it
-(see its `Depends on` lines and comments). Done: #2 (build), #3 (CI).
+(see its `Depends on` lines and comments). Done: #2 (build), #3 (CI), #4
+(core mesh type and property checks).
 
-1. #4 core mesh type and property checks
-2. #5 C API skeleton and ctypes tests
-3. #6 Triangle files and the command-line program
-4. #11 generate a mesh from geometry
-5. #7 refine
-6. #8 improve by moving vertices
-7. #9 Voronoi and DISV
-8. #12 map lines and boundaries to cells
-9. #13 DISU connection data
-10. #19 layers, DISV and DISU output
-11. #23 ghost-node correction
-12. #14 grid quality report
-13. #18 model checks with MODFLOW 6, MODFLOW-USG, and MODFLOW-USG-Transport
-14. #20 different refinement by layer
-15. #15 structured grids, merging cells, and refinement by a field
-16. #21 user guide
-17. #22 Read the Docs
-18. #24 release notes
-19. #10 release and conda-forge package
+1. #5 C API skeleton and ctypes tests
+2. #6 Triangle files and the command-line program
+3. #11 generate a mesh from geometry
+4. #7 refine
+5. #8 improve by moving vertices
+6. #9 Voronoi and DISV
+7. #12 map lines and boundaries to cells
+8. #13 DISU connection data
+9. #19 layers, DISV and DISU output
+10. #23 ghost-node correction
+11. #14 grid quality report
+12. #18 model checks with MODFLOW 6, MODFLOW-USG, and MODFLOW-USG-Transport
+13. #20 different refinement by layer
+14. #15 structured grids, merging cells, and refinement by a field
+15. #21 user guide
+16. #22 Read the Docs
+17. #24 release notes
+18. #10 release and conda-forge package
 
 ## Triangle
 
@@ -54,7 +54,10 @@ Every open issue, in this order; each depends only on those before it
 - **Compilers:** gcc 15 from conda-forge on Linux and Windows (the `gcc`
   pixi environment); Homebrew gcc on macOS, since programs the conda-forge
   g++ builds there link the conda-forge libc++ and corrupt `std::string`.
-- **Floating point:** the C++ gets gridgen's options (#4).
+- **Floating point:** the C++ has gridgen's options (`meson.build`):
+  `-ffp-contract=off`, and `-fp-model=precise` or `/fp:precise` for icx and
+  MSVC. Triangle's C keeps its own, which are stricter (`/fp:strict` for
+  icx on Windows), since its exact predicates need them.
 - **Obtuse triangles:** refinement by maximum angle stops at about 95 to
   100 degrees (#7); moving vertices removes the rest (#8).
 - **Corrections for triangle grids**, in order (#14, #21): a Voronoi grid

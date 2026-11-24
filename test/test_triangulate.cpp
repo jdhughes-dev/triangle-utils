@@ -4,37 +4,13 @@
 
 #include <gtest/gtest.h>
 
+#include "mesh.hpp"
 #include "triangle_status.h"
+
+using triangle_utils::TriangleOutput;
 
 namespace
 {
-
-// A triangulateio output whose arrays are freed when it goes out of scope.
-struct TriangleOutput
-{
-    triangulateio mesh{};
-
-    TriangleOutput() = default;
-    TriangleOutput(const TriangleOutput &) = delete;
-    TriangleOutput & operator=(const TriangleOutput &) = delete;
-
-    // Arrays Triangle did not allocate are null; the hole and region lists
-    // point to the input's arrays and are not freed.
-    ~TriangleOutput()
-    {
-        for (void * array :
-             {static_cast<void *>(mesh.pointlist), static_cast<void *>(mesh.pointattributelist),
-              static_cast<void *>(mesh.pointmarkerlist), static_cast<void *>(mesh.trianglelist),
-              static_cast<void *>(mesh.triangleattributelist),
-              static_cast<void *>(mesh.trianglearealist), static_cast<void *>(mesh.neighborlist),
-              static_cast<void *>(mesh.segmentlist), static_cast<void *>(mesh.segmentmarkerlist),
-              static_cast<void *>(mesh.edgelist), static_cast<void *>(mesh.edgemarkerlist),
-              static_cast<void *>(mesh.normlist)})
-        {
-            triangle_free(array);
-        }
-    }
-};
 
 // Signed area of a triangle; positive when its corners are counterclockwise.
 double signed_area(const double * first, const double * second, const double * third)
@@ -60,13 +36,13 @@ TEST(Triangulate, UnitSquareWithAreaLimit)
     input.numberofsegments = 4;
     TriangleOutput output;
 
-    ASSERT_EQ(triangulate_status(switches, &input, &output.mesh, nullptr), 0);
+    ASSERT_EQ(triangulate_status(switches, &input, &output.get(), nullptr), 0);
 
     // a unit square needs at least 1 / AREA_LIMIT triangles
-    const int triangle_count = output.mesh.numberoftriangles;
+    const int triangle_count = output.get().numberoftriangles;
     ASSERT_GE(triangle_count, 100);
-    std::span<const double> points(output.mesh.pointlist, 2 * output.mesh.numberofpoints);
-    std::span<const int> corners(output.mesh.trianglelist, 3 * triangle_count);
+    std::span<const double> points(output.get().pointlist, 2 * output.get().numberofpoints);
+    std::span<const int> corners(output.get().trianglelist, 3 * triangle_count);
     double total_area = 0.0;
     for (int triangle = 0; triangle < triangle_count; triangle++)
     {
