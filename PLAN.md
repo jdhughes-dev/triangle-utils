@@ -10,25 +10,24 @@ and update it in the pull request that changes the plan.
 Every open issue, in this order; each depends only on those before it
 (see its `Depends on` lines and comments). Done: #2 (build), #3 (CI), #4
 (core mesh type and property checks), #5 (C API skeleton and ctypes
-tests).
+tests), #6 (Triangle files and the command-line program).
 
-1. #6 Triangle files and the command-line program
-2. #11 generate a mesh from geometry
-3. #7 refine
-4. #8 improve by moving vertices
-5. #9 Voronoi and DISV
-6. #12 map lines and boundaries to cells
-7. #13 DISU connection data
-8. #19 layers, DISV and DISU output
-9. #23 ghost-node correction
-10. #14 grid quality report
-11. #18 model checks with MODFLOW 6, MODFLOW-USG, and MODFLOW-USG-Transport
-12. #20 different refinement by layer
-13. #15 structured grids, merging cells, and refinement by a field
-14. #21 user guide
-15. #22 Read the Docs
-16. #24 release notes
-17. #10 release and conda-forge package
+1. #11 generate a mesh from geometry
+2. #7 refine
+3. #8 improve by moving vertices
+4. #9 Voronoi and DISV
+5. #12 map lines and boundaries to cells
+6. #13 DISU connection data
+7. #19 layers, DISV and DISU output
+8. #23 ghost-node correction
+9. #14 grid quality report
+10. #18 model checks with MODFLOW 6, MODFLOW-USG, and MODFLOW-USG-Transport
+11. #20 different refinement by layer
+12. #15 structured grids, merging cells, and refinement by a field
+13. #21 user guide
+14. #22 Read the Docs
+15. #24 release notes
+16. #10 release and conda-forge package
 
 ## Triangle
 

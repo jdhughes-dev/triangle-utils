@@ -12,8 +12,8 @@ work with two-dimensional triangular meshes:
 
 The utilities are a C++20 library with a C API, so they can be called in
 memory from C, C++, Python (`ctypes`), and Fortran (`iso_c_binding`). A
-command-line program reads Triangle's file formats (`.node`, `.poly`, `.ele`)
-and calls the same API.
+command-line program reads Triangle's file formats (`.node`, `.poly`, `.ele`,
+`.neigh`) and calls the same API.
 
 ## C API
 
@@ -25,6 +25,16 @@ opaque handle with create and free functions. The API also returns the
 versions of triangle-utils and Triangle, the license, and Triangle's
 copyright notice. Calls must not run concurrently, since Triangle keeps
 global state.
+
+## Command line
+
+```shell
+triangle-utils check <base>    # check the mesh in <base>.node, .ele, and .neigh
+triangle-utils --version       # the versions of triangle-utils and Triangle
+triangle-utils --license       # the license and Triangle's copyright and terms
+```
+
+The program exits with 0 on success, 1 on an error, and 2 on a usage error.
 
 ## License
 

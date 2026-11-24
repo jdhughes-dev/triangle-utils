@@ -54,10 +54,12 @@ MODFLOW-ORG/triangle and MODFLOW-ORG/gridgen.
   API: `triangle_utils.h`, its documentation, and `triangle_utils.cpp`.
   Add a new API function to `src/triangle_utils.def` (Windows),
   `src/triangle_utils.map` (Linux), and `src/triangle_utils.exports`
-  (macOS).
+  (macOS). The command line: `main.cpp`, which calls only the C API, and
+  `triangle_files.hpp` and `.cpp`, which read and write Triangle's files.
 - `test/` — the GoogleTest tests; `test_c_header.c`, which builds the API
   header as C; and `python/`, the pytest tests of the C API through
-  `ctypes`, which `meson test` runs except under the sanitizers.
+  `ctypes` and of the program, which `meson test` runs except under the
+  sanitizers.
 - `scripts/clang_format.py` — runs clang-format on the tracked C and C++
   files, for `pixi run check-format` and `fix-format`.
 - `.github/workflows/ci.yml` — builds and tests on Linux, macOS, and
@@ -86,8 +88,10 @@ MODFLOW-ORG/triangle and MODFLOW-ORG/gridgen.
   caller can read. Every allocation it returns has a matching free function,
   and the API carries a version number. Calls must not run concurrently,
   since Triangle keeps global state; say so in the API documentation.
-- **File formats:** read Triangle's formats (`.node`, `.poly`, `.ele`,
-  `.neigh`) so the utilities work with `triangle` output.
+- **File formats:** read and write Triangle's formats (`.node`, `.poly`,
+  `.ele`, `.neigh`) as Triangle does, so the utilities work with `triangle`
+  input and output: numbering from 0 or 1 as the first vertex sets it, and
+  missing attributes and markers read as 0.
 
 ## Triangle
 
@@ -135,7 +139,8 @@ MODFLOW-ORG/triangle and MODFLOW-ORG/gridgen.
 ## Command line
 
 - **Form:** `triangle-utils <command> [options]`, with one command per
-  utility (`refine`, `improve`, `voronoi`).
+  utility (`refine`, `improve`, `voronoi`), and `check`, which checks a mesh
+  in Triangle's files.
 - **Information:** `-h` and `--help`, for the program and for each command;
   `--version`, which prints the triangle-utils version, Triangle's version,
   and the MODFLOW-ORG/triangle release; and `--license`, which prints the

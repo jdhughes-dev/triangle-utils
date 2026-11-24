@@ -6,5 +6,6 @@ _triangle_utils_triangle_release
 _triangle_utils_license
 _triangle_utils_triangle_copyright
 _triangle_utils_mesh_create
+_triangle_utils_mesh_set_neighbors
 _triangle_utils_mesh_free
 _triangle_utils_mesh_counts

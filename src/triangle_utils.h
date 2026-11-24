@@ -66,6 +66,13 @@ const char * triangle_utils_triangle_copyright(void);
 int triangle_utils_mesh_create(int vertex_count, const double * vertex_xy, int triangle_count,
                                const int * triangle_corners, TriangleUtilsMesh ** mesh);
 
+/* Set the neighbors of a mesh's triangle_count triangles (the triangle
+   opposite each corner in turn, or -1 for none); each must be the triangle
+   across that edge. The array is copied, and the mesh is unchanged after a
+   failure. */
+int triangle_utils_mesh_set_neighbors(TriangleUtilsMesh * mesh, int triangle_count,
+                                      const int * neighbors);
+
 /* Free a mesh; NULL is ignored. */
 void triangle_utils_mesh_free(TriangleUtilsMesh * mesh);
 

@@ -60,3 +60,24 @@ api_dep = declare_dependency(
   link_with: api_lib,
   dependencies: version_dep,
 )
+
+# Triangle's files and the command line, built on the C API
+triangle_headers_dep = triangle_dep.partial_dependency(includes: true)
+files_lib = static_library(
+  'triangle_utils_files',
+  'triangle_files.cpp',
+  dependencies: triangle_headers_dep,
+)
+files_dep = declare_dependency(
+  include_directories: include_directories('.'),
+  link_with: files_lib,
+  dependencies: triangle_headers_dep,
+)
+program_rpath = host_machine.system() == 'darwin' ? '@loader_path/../lib' : '$ORIGIN/../lib'
+program = executable(
+  'triangle-utils',
+  'main.cpp',
+  dependencies: [api_dep, files_dep],
+  install: true,
+  install_rpath: program_rpath,
+)

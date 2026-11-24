@@ -10,6 +10,7 @@
 #include <new>
 #include <stdexcept>
 #include <string>
+#include <utility>
 
 #include "error.hpp"
 #include "mesh.hpp"
@@ -177,6 +178,35 @@ int triangle_utils_mesh_create(int vertex_count, const double * vertex_xy, int t
             triangle_utils::check_sizes(created->mesh);
             triangle_utils::check_triangles(created->mesh);
             *mesh = created.release();
+        });
+}
+
+int triangle_utils_mesh_set_neighbors(TriangleUtilsMesh * mesh, int triangle_count,
+                                      const int * neighbors)
+{
+    return call(
+        [&]
+        {
+            check_pointer(mesh, "mesh");
+            check_count(triangle_count, "triangle");
+            if (static_cast<std::size_t>(triangle_count) != mesh->mesh.triangles.size())
+            {
+                throw ArgumentError(triangle_utils::message(
+                    "the triangle count is ", triangle_count, ", but the mesh has ",
+                    mesh->mesh.triangles.size(), " triangles"));
+            }
+            if (triangle_count > 0) check_pointer(neighbors, "neighbor");
+            triangle_utils::Mesh checked = mesh->mesh;
+            checked.neighbors.resize(static_cast<std::size_t>(triangle_count));
+            for (std::size_t triangle = 0; triangle < checked.neighbors.size(); triangle++)
+            {
+                for (std::size_t corner = 0; corner < 3; corner++)
+                {
+                    checked.neighbors[triangle][corner] = neighbors[3 * triangle + corner];
+                }
+            }
+            triangle_utils::check_neighbors(checked);
+            mesh->mesh.neighbors = std::move(checked.neighbors);
         });
 }
 
