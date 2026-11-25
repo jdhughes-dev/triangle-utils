@@ -73,6 +73,8 @@ Y_LIMITS = (_y.min() - MARGIN, _y.max() + MARGIN)
 # the sides of the square close-ups around a well and along the river, in
 # meters
 WELL_WINDOW = 600.0
+# a window on the lake's shore at its east corner, for the Voronoi grid
+LAKE_WINDOW = (1500.0, 5400.0, 600.0)
 RIVER_WINDOW = 800.0
 
 # region attributes
@@ -441,27 +443,38 @@ def draw_grid(ax, grid, mesh, centers=False):
     ax.set_ylim(*Y_LIMITS)
 
 
+# the height and width ratio at which figure 6's valley and its three
+# close-ups end together, in inches
+GRID_FIGURE_HEIGHT = 7.5
+GRID_FIGURE_RATIO = 1.6
+
+
 def voronoi_figure(grid, mesh, windows):
     """The Voronoi grid of the valley, with close-ups of a well and the river."""
     with styles.USGSMap():
         fig, axd = plt.subplot_mosaic(
-            [["A", "B"], ["A", "C"]],
-            # the height at which A and the two close-ups end together
-            figsize=(6.7, 6.2),
-            width_ratios=[1.2, 1.0],
+            [["A", "B"], ["A", "C"], ["A", "D"]],
+            # the height at which A and the three close-ups end together
+            figsize=(6.7, GRID_FIGURE_HEIGHT),
+            width_ratios=[GRID_FIGURE_RATIO, 1.0],
             layout="constrained",
         )
+        windows = {**windows, "D": LAKE_WINDOW}
         draw_grid(axd["A"], grid, mesh)
         for letter, window in windows.items():
             show_window(axd["A"], window, letter)
         styles.heading(ax=axd["A"], letter="A", heading="Valley")
         styles.ylabel(ax=axd["A"], label="y, in meters")
         styles.xlabel(ax=axd["A"], label="x, in meters")
-        for letter, heading in (("B", "Around a well"), ("C", "Along the river")):
+        for letter, heading in (
+            ("B", "Around a well"),
+            ("C", "Along the river"),
+            ("D", "On the lake's shore"),
+        ):
             draw_grid(axd[letter], grid, mesh, centers=True)
             zoom(axd[letter], windows[letter])
             styles.heading(ax=axd[letter], letter=letter, heading=heading)
-        styles.xlabel(ax=axd["C"], label="x, in meters")
+        styles.xlabel(ax=axd["D"], label="x, in meters")
         handles = [
             Patch(facecolor=REGION_COLORS[region], edgecolor="0.35", label=name)
             for region, name in REGION_NAMES.items()
