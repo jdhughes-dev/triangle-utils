@@ -215,6 +215,12 @@ def explanation(fig, handles):
     legend.get_title().set_fontweight("bold")
 
 
+def save(fig, name):
+    """Save a figure with the axis labels of its panels aligned."""
+    fig.align_labels()
+    fig.savefig(FIGURES / name)
+
+
 def well_handle():
     return plt.Line2D(
         [], [], color="black", marker="o", ms=2.5, ls="none", label="Pumping well"
@@ -225,7 +231,11 @@ def mesh_figure(mesh, windows):
     """The generated mesh of the valley, with close-ups of a well and the river."""
     with styles.USGSMap():
         fig, axd = plt.subplot_mosaic(
-            [["A", "B"], ["A", "C"]], figsize=(6.7, 6.6), layout="constrained"
+            [["A", "B"], ["A", "C"]],
+            # the height at which A and the two close-ups end together
+            figsize=(6.7, 6.2),
+            width_ratios=[1.2, 1.0],
+            layout="constrained",
         )
         draw_mesh(axd["A"], mesh)
         for letter, window in windows.items():
@@ -244,7 +254,7 @@ def mesh_figure(mesh, windows):
         ]
         handles += [plt.Line2D([], [], color="#1f78b4", label="River"), well_handle()]
         explanation(fig, handles)
-        fig.savefig(FIGURES / "generated_mesh.pdf")
+        save(fig, "generated_mesh.pdf")
         plt.close(fig)
 
 
@@ -282,7 +292,7 @@ def refine_figure(mesh, refined, windows):
             styles.xlabel(ax=axd[letter], label="x, in meters")
         styles.ylabel(ax=axd["A"], label="y, in meters")
         explanation(fig, over_handles(MAXIMUM_ANGLE, LAKE_REGION))
-        fig.savefig(FIGURES / "refined_mesh.pdf")
+        save(fig, "refined_mesh.pdf")
         plt.close(fig)
 
 
@@ -370,7 +380,7 @@ def improve_figure(refined, improved, traded, windows):
             styles.xlabel(ax=axd[letter], label="x, in meters")
         styles.ylabel(ax=axd["A"], label="y, in meters")
         explanation(fig, over_handles(IMPROVE_ANGLE, LAKE_REGION))
-        fig.savefig(FIGURES / "improved_mesh.pdf")
+        save(fig, "improved_mesh.pdf")
         plt.close(fig)
 
 
@@ -396,7 +406,7 @@ def close_up_figure(before, after, windows, limit, steps, name):
         for letter in ("C", "D"):
             styles.xlabel(ax=axd[letter], label="x, in meters")
         explanation(fig, over_handles(limit, WELL_REGION))
-        fig.savefig(FIGURES / name)
+        save(fig, name)
         plt.close(fig)
 
 
