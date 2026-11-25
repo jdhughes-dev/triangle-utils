@@ -8,7 +8,6 @@ values to values.tex, so the guide rebuilds from the repository alone.
 """
 
 import sys
-from itertools import pairwise
 from pathlib import Path
 
 import flopy.plot.styles as styles
@@ -36,7 +35,6 @@ from valley import (  # noqa: E402
     MAXIMUM_ANGLE,
     MAXIMUM_AREA,
     MINIMUM_ANGLE,
-    RIVER,
     RIVER_MARKER,
     RIVER_SPACING,
     TRIBUTARY,
@@ -70,6 +68,8 @@ WELL_WINDOW = 600.0
 # a window on the lake's shore at its east corner, (x, y, side) in meters
 LAKE_WINDOW = (1500.0, 5400.0, 600.0)
 RIVER_WINDOW = 800.0
+# the window on the confluence, where the tributary joins the river
+CONFLUENCE_WINDOW = (*TRIBUTARY[-1], RIVER_WINDOW)
 
 REGION_NAMES = {AQUIFER: "Aquifer", LAKE_REGION: "Lake", WELL_REGION: "Well ring"}
 REGION_COLORS = {AQUIFER: "#e8e3d3", LAKE_REGION: "#a6cee3", WELL_REGION: "#fdbf6f"}
@@ -119,32 +119,12 @@ def in_window(points, window):
 
 
 def choose_windows(mesh):
-    """The close-up windows: the well, and the place along the river, whose
-    window holds the most triangles over the maximum angle, and the lake's
-    shore."""
+    """The close-up windows: the well whose window holds the most triangles
+    over the maximum angle, the confluence, and the lake's shore."""
     over = centroids(mesh)[mesh.largest_angles() > MAXIMUM_ANGLE]
     wells = [(x, y, WELL_WINDOW) for x, y in WELLS]
     well = max(wells, key=lambda window: in_window(over, window).sum())
-    # candidate centers every river spacing along the river
-    along = []
-    for start, end in pairwise(RIVER):
-        pieces = max(
-            1,
-            int(
-                np.ceil(np.hypot(end[0] - start[0], end[1] - start[1]) / RIVER_SPACING)
-            ),
-        )
-        for piece in range(pieces):
-            fraction = piece / pieces
-            along.append(
-                (
-                    start[0] + fraction * (end[0] - start[0]),
-                    start[1] + fraction * (end[1] - start[1]),
-                    RIVER_WINDOW,
-                )
-            )
-    river = max(along, key=lambda window: in_window(over, window).sum())
-    return {"B": well, "C": river, "D": LAKE_WINDOW}
+    return {"B": well, "C": CONFLUENCE_WINDOW, "D": LAKE_WINDOW}
 
 
 # the sections of valley.py the guide prints in turn, by the start of the
@@ -249,7 +229,7 @@ VALLEY_FIGURE_RATIO = 1.6
 # the headings of the close-up windows
 WINDOW_HEADINGS = {
     "B": "Around a well",
-    "C": "Along the river",
+    "C": "At the confluence",
     "D": "On the lake's shore",
 }
 
@@ -509,8 +489,6 @@ def voronoi_figure(grid, mesh, windows):
 
 # a window on the boundary at the valley's west corner, (x, y, side) in meters
 BOUNDARY_WINDOW = (300.0, 4000.0, 800.0)
-# a window on the confluence, where the tributary joins the river
-CONFLUENCE_WINDOW = (*TRIBUTARY[-1], 800.0)
 # the colors of each stream's cells, in turn, of the cell where the
 # tributary joins the river, and of the boundary's cells
 STREAM_CELL_COLORS = (("#6baed6", "#2171b5"), ("#74c476", "#238b45"))
@@ -562,7 +540,7 @@ def features_figure(grid, mesh, windows):
         fig, axd = valley_and_windows()
         well_x, well_y, _ = windows["B"]
         close_ups = {
-            "B": CONFLUENCE_WINDOW,
+            "B": windows["C"],
             "C": BOUNDARY_WINDOW,
             "D": (well_x, well_y, WELL_CELL_WINDOW),
         }
@@ -581,20 +559,24 @@ def features_figure(grid, mesh, windows):
             zoom(axd[letter], close_ups[letter])
             styles.heading(ax=axd[letter], letter=letter, heading=heading)
         styles.xlabel(ax=axd["D"], label="x, in meters")
+        # the explanation fills by column: the river and the confluence, the
+        # tributary and the boundary, then the wells and the lines
+        (river_shades, tributary_shades) = STREAM_CELL_COLORS
         handles = [
-            Patch(facecolor=shade, edgecolor="0.35", label=label)
-            for (shades, name) in zip(
-                STREAM_CELL_COLORS, ("River", "Tributary"), strict=True
-            )
-            for shade, label in zip(
-                shades, (f"{name} cell", f"Next {name.lower()} cell"), strict=True
-            )
-        ]
-        handles += [
+            Patch(facecolor=river_shades[0], edgecolor="0.35", label="River cell"),
+            Patch(facecolor=river_shades[1], edgecolor="0.35", label="Next river cell"),
             Patch(
                 facecolor=CONFLUENCE_CELL_COLOR,
                 edgecolor="0.35",
                 label="Confluence cell",
+            ),
+            Patch(
+                facecolor=tributary_shades[0], edgecolor="0.35", label="Tributary cell"
+            ),
+            Patch(
+                facecolor=tributary_shades[1],
+                edgecolor="0.35",
+                label="Next tributary cell",
             ),
             Patch(
                 facecolor=BOUNDARY_CELL_COLOR, edgecolor="0.35", label="Boundary cell"
