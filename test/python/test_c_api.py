@@ -30,6 +30,10 @@ Cases:
   - test_grid_create   : a grid from arrays maps a line to its cells; bad
                          offsets and null pointers are invalid arguments, and
                          the result is null.
+  - test_connections   : two cells side by side connect through their shared
+                         face; a center past the face is an error, wrong
+                         counts and null pointers are invalid arguments, and
+                         the result is null.
   - test_improve       : an interior vertex moves to the middle of a square
                          unless it is fixed; a bad smoothing and a null result
                          pointer are invalid arguments, and the result is null.
@@ -41,6 +45,7 @@ import math
 import pytest
 from triangle_utils._library import (
     CELL_LENGTHS_POINTER,
+    CONNECTIONS_POINTER,
     ERROR,
     GRID_POINTER,
     INVALID_ARGUMENT,
@@ -444,3 +449,73 @@ def test_grid_create(library):
     assert (
         b"must run from 0 to the corner count, 8" in library.triangle_utils_last_error()
     )
+
+
+def connect(library, centers):
+    """The status and connections of the unit square as two cells, split at
+    x = 0.5, with the centers given."""
+    xy = (ctypes.c_double * 12)(0, 0, 0.5, 0, 1, 0, 1, 1, 0.5, 1, 0, 1)
+    offsets = (ctypes.c_int * 3)(0, 4, 8)
+    corners = (ctypes.c_int * 8)(0, 5, 4, 1, 1, 4, 3, 2)
+    center_xy = (ctypes.c_double * 4)(*centers)
+    grid = GRID_POINTER()
+    status = library.triangle_utils_grid_create(
+        6, xy, 2, offsets, 8, corners, center_xy, ctypes.byref(grid)
+    )
+    assert status == OK
+    try:
+        result = ctypes.cast(ctypes.c_void_p(1), CONNECTIONS_POINTER)
+        status = library.triangle_utils_grid_connections(grid, ctypes.byref(result))
+        return status, result
+    finally:
+        library.triangle_utils_grid_free(grid)
+
+
+def test_connections(library):
+    status, result = connect(library, (0.25, 0.5, 0.75, 0.5))
+    assert status == OK
+    try:
+        counts = [ctypes.c_int(-1) for _ in range(2)]
+        status = library.triangle_utils_connections_count(
+            result, *[ctypes.byref(count) for count in counts]
+        )
+        assert status == OK
+        assert [count.value for count in counts] == [2, 2]
+        offsets = (ctypes.c_int * 3)()
+        cells = (ctypes.c_int * 2)()
+        distances, widths, angles = ((ctypes.c_double * 2)() for _ in range(3))
+        arrays = (offsets, 2, cells, distances, widths, angles)
+        assert library.triangle_utils_connections(result, 2, *arrays) == OK
+        assert list(offsets) == [0, 1, 2]
+        assert list(cells) == [1, 0]
+        assert list(distances) == pytest.approx([0.25, 0.25])
+        assert list(widths) == pytest.approx([1.0, 1.0])
+        assert list(angles) == [0.0, 180.0]
+        status = library.triangle_utils_connections(result, 3, *arrays)
+        assert status == INVALID_ARGUMENT
+        assert library.triangle_utils_last_error() == (
+            b"the cell count is 3, but the result has 2"
+        )
+        status = library.triangle_utils_connections(
+            result, 2, offsets, 2, cells, distances, None, angles
+        )
+        assert status == INVALID_ARGUMENT
+        status = library.triangle_utils_connections_count(
+            result, ctypes.byref(counts[0]), None
+        )
+        assert status == INVALID_ARGUMENT
+    finally:
+        library.triangle_utils_connections_free(result)
+    library.triangle_utils_connections_free(None)
+    # the first center is past the face, in the second cell
+    status, result = connect(library, (0.6, 0.5, 0.75, 0.5))
+    assert status == ERROR
+    assert not result
+    assert b"the center of cell 0 is not on its side" in (
+        library.triangle_utils_last_error()
+    )
+    result = ctypes.cast(ctypes.c_void_p(1), CONNECTIONS_POINTER)
+    status = library.triangle_utils_grid_connections(None, ctypes.byref(result))
+    assert status == INVALID_ARGUMENT
+    assert not result
+    assert library.triangle_utils_grid_connections(None, None) == INVALID_ARGUMENT

@@ -45,6 +45,7 @@ from valley import (  # noqa: E402
     WELL_REGION,
     WELLS,
     boundary_cells,
+    connections,
     delaunay_refined,
     grid,
     improved,
@@ -153,6 +154,7 @@ VALLEY_SECTIONS = {
     "geometry": "geometry = tu.Geometry()",
     "meshing": "mesh = tu.generate(",
     "grid": "# the Voronoi grid needs",
+    "connections": "# the connections between",
     "features": "# the river's cells",
 }
 
@@ -590,6 +592,99 @@ def features_figure(grid, mesh, windows):
         plt.close(fig)
 
 
+# the point whose cell the connections figure shows, in meters
+CONNECTION_POINT = (3000.0, 3000.0)
+FACE_COLOR = "#e6550d"
+DISTANCE_COLOR = "#2171b5"
+CONNECTED_CELL_COLOR = "#c6dbef"
+
+
+def draw_connections(ax, grid, connections, cell):
+    """Draw the grid around a cell, with each face the cell shares, the
+    distance from its center to the face, the face's normal, and the line to
+    the other cell's center."""
+    colors = ["#f0ece0"] * len(grid.cells)
+    colors[cell] = CONNECTED_CELL_COLOR
+    ax.add_collection(
+        PolyCollection(
+            [grid.vertices[corners] for corners in grid.cells],
+            facecolors=colors,
+            edgecolors="0.35",
+            linewidths=0.3,
+        )
+    )
+    corners = grid.cells[cell].tolist()
+    center = grid.centers[cell]
+    start, end = connections.offsets[cell : cell + 2]
+    # the window is twice the cell's largest extent
+    extent = np.ptp(grid.vertices[corners], axis=0).max()
+    for k in range(start, end):
+        other = connections.cells[k]
+        shared = set(grid.cells[other].tolist())
+        for a, b in zip(corners, corners[1:] + corners[:1], strict=True):
+            if a in shared and b in shared:
+                ax.plot(*grid.vertices[[a, b]].T, color=FACE_COLOR, lw=1.6)
+        angle = np.radians(connections.angles[k])
+        normal = np.array([np.cos(angle), np.sin(angle)])
+        foot = center + connections.distances[k] * normal
+        ax.plot(*np.array([center, foot]).T, color=DISTANCE_COLOR, lw=1.0)
+        ax.annotate(
+            "",
+            xy=foot + 0.25 * extent * normal,
+            xytext=foot,
+            arrowprops={"arrowstyle": "-|>", "color": "black", "lw": 0.6},
+        )
+        ax.plot(*np.array([center, grid.centers[other]]).T, color="0.3", lw=0.5, ls=":")
+        ax.plot(*grid.centers[other], marker=".", color="0.2", ms=3, ls="none")
+    ax.plot(*center, marker=".", color="0.2", ms=3, ls="none")
+    ax.xaxis.set_major_formatter(THOUSANDS)
+    ax.yaxis.set_major_formatter(THOUSANDS)
+    ax.set_aspect("equal")
+    zoom(ax, (*center, 2.0 * extent))
+
+
+def connections_figure(grid, triangles):
+    """A cell of the Voronoi grid and of the triangle grid, with its
+    connections to the cells beside it."""
+    with styles.USGSMap():
+        fig, axd = plt.subplot_mosaic(
+            [["A", "B"]], figsize=(6.7, 3.9), layout="constrained"
+        )
+        for letter, g, heading in (
+            ("A", grid, "Voronoi grid"),
+            ("B", triangles, "Triangle grid, centered on centroids"),
+        ):
+            g_connections = connections if g is grid else tu.connect_cells(g)
+            cell = int(np.argmin(np.hypot(*(g.centers - CONNECTION_POINT).T)))
+            draw_connections(axd[letter], g, g_connections, cell)
+            styles.heading(ax=axd[letter], letter=letter, heading=heading)
+            styles.xlabel(ax=axd[letter], label="x, in meters")
+        styles.ylabel(ax=axd["A"], label="y, in meters")
+        handles = [
+            Patch(facecolor=CONNECTED_CELL_COLOR, edgecolor="0.35", label="Cell"),
+            plt.Line2D([], [], color=FACE_COLOR, lw=1.6, label="Shared face"),
+            plt.Line2D([], [], color=DISTANCE_COLOR, lw=1.0, label="Distance to face"),
+            plt.Line2D(
+                [],
+                [],
+                color="black",
+                lw=0.6,
+                marker=">",
+                ms=4,
+                label="Face normal",
+            ),
+            plt.Line2D(
+                [], [], color="0.3", lw=0.5, ls=":", label="Line between centers"
+            ),
+            plt.Line2D(
+                [], [], color="0.2", marker=".", ms=3, ls="none", label="Cell center"
+            ),
+        ]
+        explanation(fig, handles, columns=3)
+        save(fig, "connections.pdf")
+        plt.close(fig)
+
+
 def cover_figure(mesh):
     """The cover image: the refined mesh of the valley in dark colors, under
     the white title, without axes."""
@@ -653,6 +748,8 @@ def main():
     if not np.array_equal(along_segments.cells, river_cells.cells):
         raise ValueError("the river's segments are not in the order it was digitized")
     features_figure(grid, delaunay, windows)
+    triangles = tu.triangle_grid(improved)
+    connections_figure(grid, triangles)
     cover_figure(refined)
     # the class puts this page in place of the agency logo on the cover
     blank = plt.figure(figsize=(1, 1))
@@ -663,6 +760,8 @@ def main():
     values = {
         "voronoicells": f"{len(grid.cells):,}",
         "voronoivertices": f"{len(grid.vertices):,}",
+        # each face is listed from both of its cells
+        "voronoifaces": f"{len(connections.cells) // 2:,}",
         "delaunaytriangles": f"{len(delaunay.triangles):,}",
         "shorecells": len(shore),
         "shorelakecells": int((grid.attributes[shore, 0] == LAKE_REGION).sum()),

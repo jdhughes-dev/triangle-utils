@@ -66,7 +66,11 @@ segments with a marker, such as a boundary, each once, with the length of
 segment in each, for boundary conductances, in the order the segments were
 digitized; a segment between two cells, as inside a triangle grid, is in only
 one of them. `triangle_utils_grid_point_cells()` gives the cell containing each
-point, such as a well. `triangle_utils_grid_create()` makes a grid from a
+point, such as a well. `triangle_utils_grid_connections()` gives, for each face
+two cells share, the distance from each center to the face along its normal,
+the face's width, and the direction of its normal, for MODFLOW DISU (CL12,
+HWVA, and ANGLDEGX); a center beyond a face, as an obtuse triangle's
+circumcenter, is an error. `triangle_utils_grid_create()` makes a grid from a
 caller's arrays. The API also returns the versions of triangle-utils and
 Triangle, the license, and Triangle's copyright notice. Calls must not run
 concurrently, since Triangle keeps global state.

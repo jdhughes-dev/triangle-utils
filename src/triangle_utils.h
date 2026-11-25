@@ -46,6 +46,10 @@ typedef struct TriangleUtilsGrid TriangleUtilsGrid;
    each; free it with triangle_utils_cell_lengths_free(). */
 typedef struct TriangleUtilsCellLengths TriangleUtilsCellLengths;
 
+/* The faces the cells of a grid share, for MODFLOW DISU; free it with
+   triangle_utils_connections_free(). */
+typedef struct TriangleUtilsConnections TriangleUtilsConnections;
+
 /* The reason for the last status other than TRIANGLE_UTILS_OK, or an empty
    string after a function that returns a status succeeded; valid until the
    next such call. */
@@ -352,6 +356,32 @@ int triangle_utils_cell_lengths_count(const TriangleUtilsCellLengths * cell_leng
    length; count must be the number of cell lengths. */
 int triangle_utils_cell_lengths(const TriangleUtilsCellLengths * cell_lengths, int count,
                                 int * cells, double * starts, double * lengths);
+
+/* The connections of a grid's cells to the cells they share a face with;
+   cells that share a face share its two corners. An error if an edge is a
+   side of more than two cells, two cells overlap, or a center is not on its
+   cell's side of a face, as an obtuse triangle's circumcenter is not.
+   *connections is NULL after a failure. */
+int triangle_utils_grid_connections(const TriangleUtilsGrid * grid,
+                                    TriangleUtilsConnections ** connections);
+
+/* Free connections; NULL is ignored. */
+void triangle_utils_connections_free(TriangleUtilsConnections * connections);
+
+/* The number of cells and of connections, each listed from both of its
+   cells. */
+int triangle_utils_connections_count(const TriangleUtilsConnections * connections, int * cell_count,
+                                     int * connection_count);
+
+/* The connections of cell i are offsets[i] up to offsets[i + 1], so offsets
+   has cell_count + 1 values; for each, in increasing order of the other
+   cell: the other cell (DISU JA, without the cell itself), the distance from
+   the cell's center to the face, normal to it (CL12), the face's width
+   (HWVA), and the direction of its normal out of the cell, in degrees
+   counterclockwise from the x axis, 0 up to 360 (ANGLDEGX). */
+int triangle_utils_connections(const TriangleUtilsConnections * connections, int cell_count,
+                               int * offsets, int connection_count, int * cells, double * distances,
+                               double * widths, double * angles);
 
 #ifdef __cplusplus
 }

@@ -31,10 +31,15 @@ class CellLengths(ctypes.Structure):
     """The opaque cell lengths."""
 
 
+class Connections(ctypes.Structure):
+    """The opaque connections."""
+
+
 MESH_POINTER = ctypes.POINTER(Mesh)
 GEOMETRY_POINTER = ctypes.POINTER(Geometry)
 GRID_POINTER = ctypes.POINTER(Grid)
 CELL_LENGTHS_POINTER = ctypes.POINTER(CellLengths)
+CONNECTIONS_POINTER = ctypes.POINTER(Connections)
 
 INT = ctypes.c_int
 DOUBLE = ctypes.c_double
@@ -117,6 +122,25 @@ SIGNATURES = {
     "cell_lengths": (
         INT,
         [CELL_LENGTHS_POINTER, INT, INT_ARRAY, DOUBLE_ARRAY, DOUBLE_ARRAY],
+    ),
+    "grid_connections": (
+        INT,
+        [GRID_POINTER, ctypes.POINTER(CONNECTIONS_POINTER)],
+    ),
+    "connections_free": (None, [CONNECTIONS_POINTER]),
+    "connections_count": (INT, [CONNECTIONS_POINTER, INT_ARRAY, INT_ARRAY]),
+    "connections": (
+        INT,
+        [
+            CONNECTIONS_POINTER,
+            INT,
+            INT_ARRAY,
+            INT,
+            INT_ARRAY,
+            DOUBLE_ARRAY,
+            DOUBLE_ARRAY,
+            DOUBLE_ARRAY,
+        ],
     ),
     "geometry_create": (INT, [ctypes.POINTER(GEOMETRY_POINTER)]),
     "geometry_free": (None, [GEOMETRY_POINTER]),

@@ -14,6 +14,7 @@
 #include <utility>
 #include <vector>
 
+#include "connections.hpp"
 #include "error.hpp"
 #include "features.hpp"
 #include "geometry.hpp"
@@ -35,6 +36,11 @@ struct TriangleUtilsGrid
 struct TriangleUtilsCellLengths
 {
     std::vector<triangle_utils::CellLength> cell_lengths;
+};
+
+struct TriangleUtilsConnections
+{
+    triangle_utils::Connections connections;
 };
 
 struct TriangleUtilsGeometry
@@ -988,5 +994,67 @@ int triangle_utils_grid_point_cells(const TriangleUtilsGrid * grid, int point_co
             if (point_count > 0) check_pointer(cells, "cell");
             const auto found = triangle_utils::cells_at_points(grid->grid, points);
             std::copy(found.begin(), found.end(), cells);
+        });
+}
+
+int triangle_utils_grid_connections(const TriangleUtilsGrid * grid,
+                                    TriangleUtilsConnections ** connections)
+{
+    return call(
+        [&]
+        {
+            check_pointer(connections, "connections");
+            *connections = nullptr;
+            check_pointer(grid, "grid");
+            auto stored = std::make_unique<TriangleUtilsConnections>();
+            stored->connections = triangle_utils::connect_cells(grid->grid);
+            *connections = stored.release();
+        });
+}
+
+void triangle_utils_connections_free(TriangleUtilsConnections * connections)
+{
+    delete connections;
+}
+
+int triangle_utils_connections_count(const TriangleUtilsConnections * connections, int * cell_count,
+                                     int * connection_count)
+{
+    return call(
+        [&]
+        {
+            check_pointer(connections, "connections");
+            check_pointer(cell_count, "cell count");
+            check_pointer(connection_count, "connection count");
+            // bounded by the grid's corners, which fit an int
+            *cell_count = static_cast<int>(connections->connections.offsets.size() - 1);
+            *connection_count = static_cast<int>(connections->connections.cells.size());
+        });
+}
+
+int triangle_utils_connections(const TriangleUtilsConnections * connections, int cell_count,
+                               int * offsets, int connection_count, int * cells, double * distances,
+                               double * widths, double * angles)
+{
+    return call(
+        [&]
+        {
+            check_pointer(connections, "connections");
+            const auto & c = connections->connections;
+            check_matches(cell_count, c.offsets.size() - 1, "cell", "result");
+            check_matches(connection_count, c.cells.size(), "connection", "result");
+            check_pointer(offsets, "offset");
+            if (connection_count > 0)
+            {
+                check_pointer(cells, "cell");
+                check_pointer(distances, "distance");
+                check_pointer(widths, "width");
+                check_pointer(angles, "angle");
+            }
+            std::copy(c.offsets.begin(), c.offsets.end(), offsets);
+            std::copy(c.cells.begin(), c.cells.end(), cells);
+            std::copy(c.distances.begin(), c.distances.end(), distances);
+            std::copy(c.widths.begin(), c.widths.end(), widths);
+            std::copy(c.angles.begin(), c.angles.end(), angles);
         });
 }

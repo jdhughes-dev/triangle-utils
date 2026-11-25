@@ -54,6 +54,10 @@
     triangle_utils_cell_lengths_count;
     triangle_utils_cell_lengths;
     triangle_utils_grid_point_cells;
+    triangle_utils_grid_connections;
+    triangle_utils_connections_free;
+    triangle_utils_connections_count;
+    triangle_utils_connections;
   local:
     *;
 };
