@@ -10,8 +10,12 @@ Cases:
                          package, gives the linear head.
   - test_disv_file_runs : the DISV file the disv command writes, run in place
                          of FloPy's, gives the linear head.
+  - test_disu_runs     : the Voronoi grid in DISU, with its connections, gives
+                         the linear head and the uniform specific discharge,
+                         as in DISV.
 """
 
+import itertools
 import os
 import shutil
 import subprocess
@@ -30,9 +34,10 @@ LENGTH, WIDTH = 10.0, 4.0
 WEST_HEAD, EAST_HEAD = 1.0, 0.0
 
 
-def run_model(workspace, vertices, cell2d, disv_file=None):
-    """The heads of a steady model with the grid and fixed heads at the ends,
-    with its DISV file replaced by disv_file if given."""
+def run_model(workspace, vertices, cell2d, disv_file=None, connections=None):
+    """The heads and specific discharge of a steady model with the grid and
+    fixed heads at the ends, with its DISV file replaced by disv_file if
+    given, or in DISU with the connections if given."""
     centers = np.array([cell[1:3] for cell in cell2d])
     simulation = flopy.mf6.MFSimulation(sim_ws=workspace, exe_name="mf6")
     flopy.mf6.ModflowTdis(simulation)
@@ -44,33 +49,83 @@ def run_model(workspace, vertices, cell2d, disv_file=None):
         inner_maximum=500,
         linear_acceleration="bicgstab",
     )
-    model = flopy.mf6.ModflowGwf(simulation, modelname="grid")
-    flopy.mf6.ModflowGwfdisv(
-        model,
-        nlay=1,
-        ncpl=len(cell2d),
-        nvert=len(vertices),
-        top=1.0,
-        botm=0.0,
-        vertices=vertices,
-        cell2d=cell2d,
-    )
-    flopy.mf6.ModflowGwfnpf(model, k=1.0)
+    model = flopy.mf6.ModflowGwf(simulation, modelname="grid", save_flows=True)
+    if connections is None:
+        flopy.mf6.ModflowGwfdisv(
+            model,
+            nlay=1,
+            ncpl=len(cell2d),
+            nvert=len(vertices),
+            top=1.0,
+            botm=0.0,
+            vertices=vertices,
+            cell2d=cell2d,
+        )
+    else:
+        add_disu(model, vertices, cell2d, connections)
+    flopy.mf6.ModflowGwfnpf(model, k=1.0, save_specific_discharge=True)
     flopy.mf6.ModflowGwfic(model, strt=0.5)
-    fixed = [[(0, cell), WEST_HEAD] for cell in np.flatnonzero(centers[:, 0] == 0.0)]
+    # DISU cells have no layer
+    layer = () if connections is not None else (0,)
+    fixed = [
+        [(*layer, cell), WEST_HEAD] for cell in np.flatnonzero(centers[:, 0] == 0.0)
+    ]
     fixed += [
-        [(0, cell), EAST_HEAD] for cell in np.flatnonzero(centers[:, 0] == LENGTH)
+        [(*layer, cell), EAST_HEAD] for cell in np.flatnonzero(centers[:, 0] == LENGTH)
     ]
     flopy.mf6.ModflowGwfchd(model, stress_period_data=fixed)
     flopy.mf6.ModflowGwfoc(
-        model, head_filerecord="grid.hds", saverecord=[("HEAD", "ALL")]
+        model,
+        head_filerecord="grid.hds",
+        budget_filerecord="grid.cbc",
+        saverecord=[("HEAD", "ALL"), ("BUDGET", "ALL")],
     )
     simulation.write_simulation(silent=True)
     if disv_file is not None:
         shutil.copy(disv_file, workspace / "grid.disv")
     success, _ = simulation.run_simulation(silent=True)
     assert success
-    return centers, model.output.head().get_data().ravel()
+    discharge = model.output.budget().get_data(text="DATA-SPDIS")[0]
+    return (
+        centers,
+        model.output.head().get_data().ravel(),
+        np.column_stack([discharge["qx"], discharge["qy"]]),
+    )
+
+
+def add_disu(model, vertices, cell2d, connections):
+    """A one-layer DISU package with the grid's horizontal connections; each
+    cell's row starts with the cell itself."""
+    xy = np.array([vertex[1:] for vertex in vertices])
+    corners = [cell[4:] for cell in cell2d]
+    area = [
+        0.5 * abs(np.dot(x, np.roll(y, -1)) - np.dot(y, np.roll(x, -1)))
+        for x, y in (xy[cell].T for cell in corners)
+    ]
+    iac, ja, cl12, hwva, angldegx = [], [], [], [], []
+    for cell, (start, end) in enumerate(itertools.pairwise(connections.offsets)):
+        iac.append(end - start + 1)
+        ja += [cell, *connections.cells[start:end]]
+        cl12 += [0.0, *connections.distances[start:end]]
+        hwva += [0.0, *connections.widths[start:end]]
+        angldegx += [0.0, *connections.angles[start:end]]
+    flopy.mf6.ModflowGwfdisu(
+        model,
+        nodes=len(cell2d),
+        nja=len(ja),
+        nvert=len(vertices),
+        top=1.0,
+        bot=0.0,
+        area=area,
+        iac=iac,
+        ja=ja,
+        ihc=[1] * len(ja),
+        cl12=cl12,
+        hwva=hwva,
+        angldegx=angldegx,
+        vertices=vertices,
+        cell2d=cell2d,
+    )
 
 
 def check_linear(centers, heads):
@@ -85,7 +140,7 @@ def test_voronoi_grid_runs(tmp_path):
         geometry, maximum_area=0.2, minimum_angle=28, conforming_delaunay=True
     )
     grid = tu.voronoi(mesh)
-    centers, heads = run_model(tmp_path, grid.disv_vertices(), grid.disv_cell2d())
+    centers, heads, _ = run_model(tmp_path, grid.disv_vertices(), grid.disv_cell2d())
     check_linear(centers, heads)
 
 
@@ -116,5 +171,27 @@ def test_disv_file_runs(tmp_path):
             )
             cell2d[-1] += corners
     workspace = tmp_path / "model"
-    centers, heads = run_model(workspace, vertices, cell2d, disv_file=f"{base}.1.disv")
+    centers, heads, _ = run_model(
+        workspace, vertices, cell2d, disv_file=f"{base}.1.disv"
+    )
     check_linear(centers, heads)
+
+
+def test_disu_runs(tmp_path):
+    geometry = tu.Geometry()
+    geometry.add_polygon([(0, 0), (LENGTH, 0), (LENGTH, WIDTH), (0, WIDTH)], marker=1)
+    mesh = tu.generate(
+        geometry, maximum_area=0.2, minimum_angle=28, conforming_delaunay=True
+    )
+    grid = tu.voronoi(mesh)
+    arguments = (grid.disv_vertices(), grid.disv_cell2d())
+    centers, heads, discharge = run_model(
+        tmp_path / "disu", *arguments, connections=tu.connect_cells(grid)
+    )
+    check_linear(centers, heads)
+    _, disv_heads, disv_discharge = run_model(tmp_path / "disv", *arguments)
+    np.testing.assert_allclose(heads, disv_heads, atol=1e-8)
+    # the exact specific discharge is uniform, along x
+    exact = [(WEST_HEAD - EAST_HEAD) / LENGTH, 0.0]
+    np.testing.assert_allclose(discharge, np.tile(exact, (len(heads), 1)), atol=1e-7)
+    np.testing.assert_allclose(disv_discharge, discharge, atol=1e-7)

@@ -20,6 +20,11 @@ Cases:
                          sum to their length, and the ring's center is in the
                          cell centered on it, a point outside in none; a grid
                          with a bad cell raises Error.
+  - test_connections   : the Voronoi grid's connections are symmetric, each
+                         face bisecting the line between its centers, and an
+                         interior cell's area follows from them; circumcenters
+                         outside their triangles raise Error, and a grid with
+                         no cells has no connections.
   - test_shapes        : arrays of the wrong shape, length, or range, and
                          values too large for an int, raise ValueError before
                          the library reads them.
@@ -29,6 +34,8 @@ Cases:
                          release are returned.
   - test_error         : the library's reason is raised as Error.
 """
+
+import itertools
 
 import numpy as np
 import pytest
@@ -164,6 +171,48 @@ def test_cells():
     centerless = tu.Grid(grid.vertices, grid.cells, grid.centers[:1], None, None)
     with pytest.raises(ValueError, match="centers has 1 rows"):
         tu.cells_along_line(centerless, river)
+
+
+def test_connections():
+    mesh = tu.generate(
+        square_geometry(), maximum_area=0.5, minimum_angle=25, conforming_delaunay=True
+    )
+    grid = tu.voronoi(mesh)
+    connections = tu.connect_cells(grid)
+    assert len(connections.offsets) == len(grid.cells) + 1
+    cell = np.repeat(np.arange(len(grid.cells)), np.diff(connections.offsets))
+    other = connections.cells
+    pairs = dict(zip(zip(cell.tolist(), other.tolist(), strict=True), range(len(cell))))
+    back = np.array([pairs[(m, n)] for n, m in zip(cell, other, strict=True)])
+    np.testing.assert_allclose(connections.widths[back], connections.widths)
+    np.testing.assert_allclose(
+        (connections.angles[back] - connections.angles) % 360.0, 180.0
+    )
+    assert ((connections.angles >= 0.0) & (connections.angles < 360.0)).all()
+    for start, end in itertools.pairwise(connections.offsets):
+        assert (np.diff(connections.cells[start:end]) > 0).all()
+    gap = np.hypot(*(grid.centers[other] - grid.centers[cell]).T)
+    np.testing.assert_allclose(connections.distances, 0.5 * gap)
+    # a cell whose every side is a face is the triangles between its center
+    # and its faces
+    interior = np.flatnonzero(
+        np.diff(connections.offsets) == [len(corners) for corners in grid.cells]
+    )
+    assert len(interior) > 100
+    halves = np.bincount(cell, weights=0.5 * connections.widths * connections.distances)
+    np.testing.assert_allclose(halves[interior], cell_areas(grid)[interior])
+    obtuse = tu.Mesh(
+        np.array([(0.0, 0.0), (4.0, 0.0), (2.0, 2.0 / np.sqrt(3.0)), (2.0, -5.0)]),
+        np.array([(0, 1, 2), (1, 0, 3)]),
+    )
+    tu.connect_cells(tu.triangle_grid(obtuse))
+    with pytest.raises(tu.Error, match="the center of cell 0 is not on its side"):
+        tu.connect_cells(tu.triangle_grid(obtuse, center="circumcenter"))
+    empty = tu.connect_cells(
+        tu.Grid(np.zeros((0, 2)), [], np.zeros((0, 2)), None, None)
+    )
+    np.testing.assert_array_equal(empty.offsets, [0])
+    assert len(empty.cells) == 0
 
 
 def test_shapes():

@@ -171,6 +171,15 @@ Figure~\ref{fig:voronoi} shows the Voronoi grid of the example valley, built fro
 
 A grid can also be made of the triangles themselves, centered on their centroids or their circumcenters. A circumcenter also gives faces perpendicular to the lines between centers, but it lies outside an obtuse triangle, so the obtuse triangles are refined and improved first. Either grid is written as the vertices and cells of a MODFLOW 6 DISV file.
 
+The unstructured discretization (DISU) of MODFLOW 6 and MODFLOW-USG describes the grid by its connections, with its vertices optional in MODFLOW 6: for each face two cells share, the distance from each cell's center to the face, measured along the face's normal (CL12), the face's width (HWVA), and the direction of the normal out of each cell, as an angle counterclockwise from the x axis (ANGLDEGX), which MODFLOW 6 needs for horizontal anisotropy, the XT3D formulation, and specific discharge. triangle-utils calculates them for either grid (fig.~\ref{fig:connections}). In a Voronoi grid each face bisects the line between the two centers, so each distance is half the length of that line; the Voronoi grid of the valley has \voronoifaces\ faces between cells. In a triangle grid centered on centroids, the line between two centers is not perpendicular to their face, and the two distances, measured along the normal, sum to less than the distance between the centers. In a triangle grid centered on circumcenters, an obtuse triangle's circumcenter lies beyond its longest side, which makes the distance to that face negative, and a right triangle's lies on it, which makes the distance zero; triangle-utils reports such a face as an error, naming its two cells, rather than giving MODFLOW a distance that is not positive.
+
+\begin{figure}[htbp]
+  \centering
+  \includegraphics{connections.pdf}
+  \caption{Connections of one cell to the cells beside it in the example valley. \textit{A}, the triangles of the conforming Delaunay mesh, centered on their centroids. \textit{B}, the Voronoi grid of the same mesh (fig.~\ref{fig:voronoi}). Each shared face has a distance from the cell's center to the face, measured along the face's normal, a width, and the direction of its normal}
+  \label{fig:connections}
+\end{figure}
+
 \section{Mapping Rivers, Boundaries, and Wells to Cells}
 
 The Streamflow-Routing (SFR) package of MODFLOW 6 needs the cells a river passes through, in order, with the length of river in each, its reaches; the General-Head Boundary (GHB) package and other boundary packages need the cells along a boundary with the length of boundary in each, which sets the conductance of each cell's connection to the boundary. The Well (WEL) and Multi-Aquifer Well (MAW) packages need the cell of each well. triangle-utils finds all three in a triangle or Voronoi grid: the cells along a line given by its points, such as a river; the cells on the segments of a mesh with a marker, such as the valley's boundary, in the order the segments were digitized; and the cell containing each point, such as a well, or the lowest-numbered cell where a point is on a face or corner. A cell the line passes through twice appears twice along it; a part of a line along a face two cells share, as a river along a triangle's edge, is in the cell on the line's left.
@@ -220,6 +229,10 @@ From Python, the triangle-utils module in the python folder of the repository ca
 \noindent The Voronoi grid (fig.~\ref{fig:voronoi}) is built from the geometry meshed and refined again with conforming Delaunay triangles, and its vertices and cells are returned in the form FloPy's DISV package takes:
 
 \VerbatimInput[fontsize=\small,firstline=\valleygridfirst,lastline=\valleygridlast]{valley.py}
+
+\noindent The connections between the grid's cells (fig.~\ref{fig:connections}) are calculated from the grid:
+
+\VerbatimInput[fontsize=\small,firstline=\valleyconnectionsfirst,lastline=\valleyconnectionslast]{valley.py}
 
 \noindent The river's, the boundary's, and the wells' cells (fig.~\ref{fig:features}) are found in the grid, the boundary's from the segments of the mesh with the boundary's marker:
 

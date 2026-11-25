@@ -14,6 +14,7 @@ import numpy as np
 
 from ._library import (
     CELL_LENGTHS_POINTER,
+    CONNECTIONS_POINTER,
     GEOMETRY_POINTER,
     GRID_POINTER,
     MESH_POINTER,
@@ -23,6 +24,7 @@ from ._library import (
 
 __all__ = [
     "CellLengths",
+    "Connections",
     "Error",
     "Geometry",
     "Grid",
@@ -30,6 +32,7 @@ __all__ = [
     "cells_along_line",
     "cells_at_points",
     "cells_on_segments",
+    "connect_cells",
     "count_angles_over",
     "generate",
     "improve",
@@ -714,3 +717,65 @@ def cells_at_points(grid, points):
     finally:
         api.triangle_utils_grid_free(handle)
     return cells
+
+
+@dataclass(eq=False)
+class Connections:
+    """The faces the cells of a grid share, for MODFLOW DISU; indices are
+    zero based. Those of cell i are offsets[i] up to offsets[i + 1], in
+    increasing order of the other cell, and each is listed from both of its
+    cells."""
+
+    # cell count + 1 values
+    offsets: np.ndarray
+    # the other cell (DISU JA, without the cell itself)
+    cells: np.ndarray
+    # the distance from the cell's center to the face, normal to it (CL12)
+    distances: np.ndarray
+    # the width of the face (HWVA)
+    widths: np.ndarray
+    # the direction of the face's normal out of the cell, in degrees
+    # counterclockwise from the x axis, 0 up to 360 (ANGLDEGX)
+    angles: np.ndarray
+
+
+def connect_cells(grid):
+    """The connections of a grid's cells to the cells they share a face with,
+    at two common corners;
+    an error if a center is on a face or beyond it, as an obtuse triangle's
+    circumcenter is."""
+    api = _api()
+    grid_handle = _grid_handle(grid)
+    try:
+        handle = CONNECTIONS_POINTER()
+        _check(api.triangle_utils_grid_connections(grid_handle, ctypes.byref(handle)))
+    finally:
+        api.triangle_utils_grid_free(grid_handle)
+    try:
+        cell_count = ctypes.c_int()
+        count = ctypes.c_int()
+        _check(
+            api.triangle_utils_connections_count(
+                handle, ctypes.byref(cell_count), ctypes.byref(count)
+            )
+        )
+        offsets, offset_pointer = _ints(np.zeros(cell_count.value + 1))
+        cells, cell_pointer = _ints(np.zeros(count.value))
+        distances, distance_pointer = _doubles(np.zeros(count.value))
+        widths, width_pointer = _doubles(np.zeros(count.value))
+        angles, angle_pointer = _doubles(np.zeros(count.value))
+        _check(
+            api.triangle_utils_connections(
+                handle,
+                cell_count,
+                offset_pointer,
+                count,
+                cell_pointer,
+                distance_pointer,
+                width_pointer,
+                angle_pointer,
+            )
+        )
+        return Connections(offsets, cells, distances, widths, angles)
+    finally:
+        api.triangle_utils_connections_free(handle)

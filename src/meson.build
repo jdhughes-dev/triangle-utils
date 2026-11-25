@@ -21,6 +21,7 @@ version_dep = declare_dependency(
 # are built on it
 core_lib = static_library(
   'triangle_utils_core',
+  'connections.cpp',
   'features.cpp',
   'geometry.cpp',
   'grid.cpp',
