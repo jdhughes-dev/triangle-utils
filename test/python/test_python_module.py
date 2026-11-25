@@ -9,6 +9,12 @@ Cases:
                          keeps its area and segments, and counts what is left.
   - test_improve       : improving toward 90 degrees removes obtuse triangles,
                          keeps the area, and does not move the ring's center.
+  - test_voronoi       : the Voronoi grid of a conforming Delaunay mesh has a
+                         cell per vertex centered on it, covering the area,
+                         in flopy's DISV form; a mesh that is not Delaunay
+                         raises Error.
+  - test_triangle_grid : a triangle grid has a cell per triangle with its
+                         attributes; a bad center raises ValueError.
   - test_shapes        : arrays of the wrong shape, length, or range, and
                          values too large for an int, raise ValueError before
                          the library reads them.
@@ -79,6 +85,53 @@ def test_improve():
     np.testing.assert_array_equal(improved.vertices[improved.fixed_vertices[0]], center)
     with pytest.raises(ValueError, match="smoothing must be"):
         tu.improve(refined, smoothing="other")
+
+
+def cell_areas(grid):
+    """The area of each cell, positive for clockwise corners."""
+    areas = []
+    for cell in grid.cells:
+        x, y = grid.vertices[cell].T
+        areas.append(0.5 * (np.dot(x, np.roll(y, 1)) - np.dot(y, np.roll(x, 1))))
+    return np.array(areas)
+
+
+def test_voronoi():
+    mesh = tu.generate(
+        square_geometry(), maximum_area=0.5, minimum_angle=25, conforming_delaunay=True
+    )
+    grid = tu.voronoi(mesh)
+    assert len(grid.cells) == len(mesh.vertices)
+    np.testing.assert_array_equal(grid.sources, np.arange(len(mesh.vertices)))
+    np.testing.assert_array_equal(grid.centers, mesh.vertices)
+    areas = cell_areas(grid)
+    assert (areas > 0).all()
+    assert areas.sum() == pytest.approx(96.0)
+    assert grid.attributes.shape == (len(grid.cells), 1)
+    assert set(np.unique(grid.attributes)) == {1.0, 2.0, 3.0}
+    vertices = grid.disv_vertices()
+    cell2d = grid.disv_cell2d()
+    assert vertices[0] == [0, *grid.vertices[0].tolist()]
+    assert cell2d[0][:4] == [0, *grid.centers[0].tolist(), len(grid.cells[0])]
+    assert cell2d[0][4:] == grid.cells[0].tolist()
+    obtuse = tu.Mesh(
+        np.array([(0.0, 0.0), (2.0, 0.0), (1.0, 0.2)]), np.array([(0, 1, 2)])
+    )
+    with pytest.raises(tu.Error, match="over 90"):
+        tu.voronoi(obtuse)
+
+
+def test_triangle_grid():
+    mesh = tu.generate(square_geometry(), maximum_area=0.5, minimum_angle=25)
+    for center in ("centroid", "circumcenter"):
+        grid = tu.triangle_grid(mesh, center=center)
+        assert len(grid.cells) == len(mesh.triangles)
+        assert cell_areas(grid).sum() == pytest.approx(96.0)
+        np.testing.assert_array_equal(grid.attributes, mesh.attributes)
+    centroids = mesh.vertices[mesh.triangles].mean(axis=1)
+    np.testing.assert_allclose(tu.triangle_grid(mesh).centers, centroids)
+    with pytest.raises(ValueError, match="center must be"):
+        tu.triangle_grid(mesh, center="other")
 
 
 def test_shapes():

@@ -22,6 +22,7 @@ version_dep = declare_dependency(
 core_lib = static_library(
   'triangle_utils_core',
   'geometry.cpp',
+  'grid.cpp',
   'improve.cpp',
   'mesh.cpp',
   'refine.cpp',
@@ -68,6 +69,7 @@ api_dep = declare_dependency(
 triangle_headers_dep = triangle_dep.partial_dependency(includes: true)
 files_lib = static_library(
   'triangle_utils_files',
+  'modflow_files.cpp',
   'triangle_files.cpp',
   dependencies: triangle_headers_dep,
 )

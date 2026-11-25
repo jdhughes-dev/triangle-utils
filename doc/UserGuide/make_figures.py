@@ -202,13 +202,14 @@ def zoom(ax, window):
     ax.set_ylim(y - 0.5 * side, y + 0.5 * side)
 
 
-def explanation(fig, handles):
-    """The explanation in one row below the panels."""
+def explanation(fig, handles, columns=None):
+    """The explanation below the panels, in one row unless the columns are
+    given."""
     legend = fig.legend(
         handles=handles,
         labels=[h.get_label() for h in handles],
         loc="outside lower center",
-        ncols=len(handles),
+        ncols=columns or len(handles),
         title="EXPLANATION",
         frameon=False,
     )
@@ -412,6 +413,72 @@ def close_up_figure(before, after, windows, limit, steps, name):
         plt.close(fig)
 
 
+def draw_grid(ax, grid, mesh, centers=False):
+    """Draw the cells colored by region, the river and the lake's shore, the
+    wells, and the cell centers if asked."""
+    regions = grid.attributes[:, 0].astype(int)
+    ax.add_collection(
+        PolyCollection(
+            [grid.vertices[cell] for cell in grid.cells],
+            facecolors=[REGION_COLORS[region] for region in regions],
+            edgecolors="0.35",
+            linewidths=0.15,
+        )
+    )
+    for segment, marker in zip(mesh.segments, mesh.segment_markers, strict=True):
+        if marker == RIVER_MARKER:
+            ax.plot(*mesh.vertices[segment].T, color="#1f78b4", lw=1.0)
+        elif marker == LAKE_MARKER:
+            ax.plot(*mesh.vertices[segment].T, color="#08306b", lw=0.6, ls="--")
+    if centers:
+        ax.plot(*grid.centers.T, marker=".", color="0.2", ms=1.2, ls="none")
+    for x, y in WELLS:
+        ax.plot(x, y, marker="o", color="black", ms=2.5, ls="none")
+    ax.xaxis.set_major_formatter(THOUSANDS)
+    ax.yaxis.set_major_formatter(THOUSANDS)
+    ax.set_aspect("equal")
+    ax.set_xlim(*X_LIMITS)
+    ax.set_ylim(*Y_LIMITS)
+
+
+def voronoi_figure(grid, mesh, windows):
+    """The Voronoi grid of the valley, with close-ups of a well and the river."""
+    with styles.USGSMap():
+        fig, axd = plt.subplot_mosaic(
+            [["A", "B"], ["A", "C"]],
+            # the height at which A and the two close-ups end together
+            figsize=(6.7, 6.2),
+            width_ratios=[1.2, 1.0],
+            layout="constrained",
+        )
+        draw_grid(axd["A"], grid, mesh)
+        for letter, window in windows.items():
+            show_window(axd["A"], window, letter)
+        styles.heading(ax=axd["A"], letter="A", heading="Valley")
+        styles.ylabel(ax=axd["A"], label="y, in meters")
+        styles.xlabel(ax=axd["A"], label="x, in meters")
+        for letter, heading in (("B", "Around a well"), ("C", "Along the river")):
+            draw_grid(axd[letter], grid, mesh, centers=True)
+            zoom(axd[letter], windows[letter])
+            styles.heading(ax=axd[letter], letter=letter, heading=heading)
+        styles.xlabel(ax=axd["C"], label="x, in meters")
+        handles = [
+            Patch(facecolor=REGION_COLORS[region], edgecolor="0.35", label=name)
+            for region, name in REGION_NAMES.items()
+        ]
+        handles += [
+            plt.Line2D([], [], color="#1f78b4", label="River"),
+            plt.Line2D([], [], color="#08306b", lw=0.6, ls="--", label="Lake shore"),
+            plt.Line2D(
+                [], [], color="0.2", marker=".", ms=3, ls="none", label="Cell center"
+            ),
+            well_handle(),
+        ]
+        explanation(fig, handles, columns=4)
+        save(fig, "voronoi_grid.pdf")
+        plt.close(fig)
+
+
 def cover_figure(mesh):
     """The cover image: the refined mesh of the valley in dark colors, under
     the white title, without axes."""
@@ -467,6 +534,22 @@ def main():
         ("refined", "improved"),
         "improved_close_ups.pdf",
     )
+    # the Voronoi grid needs conforming Delaunay triangles
+    delaunay = tu.refine(
+        tu.generate(
+            valley_geometry(),
+            maximum_area=MAXIMUM_AREA,
+            minimum_angle=MINIMUM_ANGLE,
+            conforming_delaunay=True,
+        ),
+        minimum_angle=MINIMUM_ANGLE,
+        maximum_angle=MAXIMUM_ANGLE,
+        conforming_delaunay=True,
+    )
+    grid = tu.voronoi(delaunay)
+    # the cells of the vertices on the lake's shore, which span both sides
+    shore = np.unique(delaunay.segments[delaunay.segment_markers == LAKE_MARKER])
+    voronoi_figure(grid, delaunay, windows)
     cover_figure(refined)
     # the class puts this page in place of the agency logo on the cover
     blank = plt.figure(figsize=(1, 1))
@@ -475,6 +558,11 @@ def main():
 
     # the values the text quotes, so they always match the figures
     values = {
+        "voronoicells": f"{len(grid.cells):,}",
+        "voronoivertices": f"{len(grid.vertices):,}",
+        "delaunaytriangles": f"{len(delaunay.triangles):,}",
+        "shorecells": len(shore),
+        "shorelakecells": int((grid.attributes[shore, 0] == LAKE_REGION).sum()),
         "generatedvertices": len(mesh.vertices),
         "generatedtriangles": len(mesh.triangles),
         "generatedover": int((mesh.largest_angles() > MAXIMUM_ANGLE).sum()),

@@ -8,6 +8,7 @@
 #include <filesystem>
 #include <fstream>
 #include <iostream>
+#include <limits>
 #include <memory>
 #include <stdexcept>
 #include <string>
@@ -16,6 +17,7 @@
 #include <vector>
 
 #include "error.hpp"
+#include "modflow_files.hpp"
 #include "triangle_files.hpp"
 #include "triangle_utils.h"
 
@@ -36,6 +38,7 @@ Commands:
   generate  mesh the geometry in a .poly file
   refine    refine a mesh in Triangle's files by area and angle
   improve   improve a mesh in Triangle's files by moving vertices
+  disv      write a MODFLOW 6 DISV grid of a mesh in Triangle's files
 
 Options:
   -h, --help    show this help
@@ -131,6 +134,27 @@ Options:
   -n, --iterations <n>      the most sweeps over the vertices (default 100)
   -t, --tolerance <t>       stop when no vertex moves farther than t times
                             the mean edge length (default 1e-4)
+)";
+
+constexpr const char * DISV_USAGE = R"(usage: triangle-utils disv [options] <base>
+
+Build a grid from the mesh in <base>.node and <base>.ele and write it, with
+one layer, to <output>.disv for MODFLOW 6. The Voronoi grid has a cell
+around each vertex, centered on it, so the line between two cells' centers
+is perpendicular to their shared face; its mesh must be conforming Delaunay
+(generate or refine with -D). A cell on a segment inside the mesh, such as a
+lake's shore, spans both sides and takes the attributes of the side with
+most of its area. A triangle grid has the triangles as its cells. Each
+cell's vertex or triangle, numbered as in <base>.node or <base>.ele, and
+its attributes are written to <output>.cells.
+
+Options:
+  -h, --help              show this help
+  -o, --output <output>   the output base name (default <base>)
+  -g, --grid <g>          voronoi (default), or centroid or circumcenter
+                          for the triangles centered on either
+  -t, --top <top>         the top of the layer (default 1)
+  -b, --bottom <bottom>   the bottom of the layer (default 0)
 )";
 
 // A command line that cannot be run as given.
@@ -629,6 +653,116 @@ int improve_command(const std::vector<std::string> & arguments)
     return EXIT_OK;
 }
 
+struct GridFree
+{
+    void operator()(TriangleUtilsGrid * grid) const { triangle_utils_grid_free(grid); }
+};
+
+using GridHandle = std::unique_ptr<TriangleUtilsGrid, GridFree>;
+
+int disv_command(const std::vector<std::string> & arguments)
+{
+    std::string output_base;
+    std::string grid_name = "voronoi";
+    double top = 1.0;
+    double bottom = 0.0;
+    std::vector<std::string> bases;
+    Options options("disv", arguments);
+    while (options.next())
+    {
+        if (options.is_flag("-h", "--help"))
+        {
+            std::cout << DISV_USAGE;
+            return EXIT_OK;
+        }
+        if (options.is("-o", "--output"))
+            output_base = options.value();
+        else if (options.is("-g", "--grid"))
+            grid_name = options.value();
+        else if (options.is("-t", "--top"))
+            top = options.number();
+        else if (options.is("-b", "--bottom"))
+            bottom = options.number();
+        else if (options.is_option())
+            options.unknown();
+        else
+            bases.push_back(options.argument());
+    }
+    if (bases.size() != 1) throw UsageError("disv: give one <base>");
+    if (grid_name != "voronoi" && grid_name != "centroid" && grid_name != "circumcenter")
+        throw UsageError(triangle_utils::message(
+            "disv: the grid must be voronoi, centroid, or circumcenter, not ", grid_name));
+    if (!(top > bottom))
+        throw UsageError(triangle_utils::message("disv: the top (", top,
+                                                 ") must be above the bottom (", bottom, ")"));
+    const std::string & base = bases[0];
+    if (output_base.empty()) output_base = base;
+
+    triangle_utils::VertexFile vertices;
+    const MeshHandle mesh = read_mesh(base, vertices);
+    TriangleUtilsGrid * built = nullptr;
+    if (grid_name == "voronoi")
+        check_status(triangle_utils_mesh_voronoi(mesh.get(), &built));
+    else
+        check_status(triangle_utils_mesh_triangle_grid(
+            mesh.get(),
+            grid_name == "centroid" ? TRIANGLE_UTILS_CENTROID : TRIANGLE_UTILS_CIRCUMCENTER,
+            &built));
+    const GridHandle grid(built);
+
+    int vertex_count = 0, cell_count = 0, corner_count = 0;
+    check_status(triangle_utils_grid_counts(grid.get(), &vertex_count, &cell_count, &corner_count));
+    std::vector<double> vertex_xy(2 * static_cast<std::size_t>(vertex_count));
+    check_status(triangle_utils_grid_vertices(grid.get(), vertex_count, vertex_xy.data()));
+    std::vector<int> offsets(static_cast<std::size_t>(cell_count) + 1);
+    std::vector<int> corners(static_cast<std::size_t>(corner_count));
+    check_status(triangle_utils_grid_cells(grid.get(), cell_count, offsets.data(), corner_count,
+                                           corners.data()));
+    std::vector<double> center_xy(2 * static_cast<std::size_t>(cell_count));
+    check_status(triangle_utils_grid_centers(grid.get(), cell_count, center_xy.data()));
+    std::vector<int> sources(static_cast<std::size_t>(cell_count));
+    check_status(triangle_utils_grid_sources(grid.get(), cell_count, sources.data()));
+    int attribute_count = 0;
+    check_status(triangle_utils_grid_attribute_count(grid.get(), &attribute_count));
+    std::vector<double> attributes(static_cast<std::size_t>(cell_count) * attribute_count);
+    check_status(triangle_utils_grid_attributes(grid.get(), static_cast<int>(attributes.size()),
+                                                attributes.data()));
+
+    triangle_utils::DisvFile disv;
+    disv.top = top;
+    disv.bottom = bottom;
+    for (std::size_t vertex = 0; vertex < static_cast<std::size_t>(vertex_count); vertex++)
+        disv.vertices.push_back({vertex_xy[2 * vertex], vertex_xy[2 * vertex + 1]});
+    for (std::size_t cell = 0; cell < static_cast<std::size_t>(cell_count); cell++)
+    {
+        disv.cells.emplace_back(corners.begin() + offsets[cell],
+                                corners.begin() + offsets[cell + 1]);
+        disv.centers.push_back({center_xy[2 * cell], center_xy[2 * cell + 1]});
+    }
+    std::ofstream disv_file = open_output(output_base + ".disv");
+    triangle_utils::write_disv(disv_file, disv);
+
+    // each cell's vertex or triangle, numbered as in Triangle's files, and
+    // its attributes
+    std::ofstream cells_file = open_output(output_base + ".cells");
+    cells_file.precision(std::numeric_limits<double>::max_digits10);
+    cells_file << "# cell, " << (grid_name == "voronoi" ? "vertex" : "triangle")
+               << ", and attributes\n"
+               << cell_count << " " << attribute_count << "\n";
+    for (std::size_t cell = 0; cell < static_cast<std::size_t>(cell_count); cell++)
+    {
+        cells_file << cell + 1 << " " << sources[cell] + vertices.first_number;
+        for (int attribute = 0; attribute < attribute_count; attribute++)
+            cells_file << " " << attributes[cell * attribute_count + attribute];
+        cells_file << "\n";
+    }
+    if (!cells_file) throw triangle_utils::Error("the cells file could not be written");
+
+    std::cout << output_base << ".disv: " << cell_count << " cells and " << vertex_count
+              << " vertices\n";
+    return EXIT_OK;
+}
+
 int generate_command(const std::vector<std::string> & arguments)
 {
     std::string output_base;
@@ -758,6 +892,7 @@ int run(const std::vector<std::string> & arguments)
     if (first == "generate") return generate_command(rest);
     if (first == "refine") return refine_command(rest);
     if (first == "improve") return improve_command(rest);
+    if (first == "disv") return disv_command(rest);
     if (!first.empty() && first[0] == '-')
         throw UsageError(triangle_utils::message("unknown option ", first));
     throw UsageError(triangle_utils::message("unknown command ", first));

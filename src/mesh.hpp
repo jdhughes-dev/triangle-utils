@@ -87,6 +87,10 @@ double total_area(const Mesh & mesh);
 // area, computed in floating point rather than exactly, is not positive.
 void check_triangles(const Mesh & mesh);
 
+// The neighbor opposite each corner of each triangle, or NO_NEIGHBOR,
+// found from the triangles' shared edges.
+std::vector<std::array<int, 3>> find_neighbors(const Mesh & mesh);
+
 // Throw Error if a triangle's neighbor is not the triangle across the edge
 // opposite the corner, the two run along the edge the same way, or an edge
 // is shared by more than two triangles; assumes check_triangles passes.

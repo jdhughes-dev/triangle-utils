@@ -48,10 +48,17 @@ segments bound them, since Triangle averages them across the edges it flips.
 `triangle_utils_mesh_improve()` moves the vertices that are not fixed and flips
 edges, toward a maximum angle such as 90 degrees, without making the smallest
 angle smaller unless a smaller minimum angle is given; a mesh's fixed vertices,
-which `generate` sets to its point features and ring centers, do not move. The
-API also returns the versions of triangle-utils and Triangle, the license, and
-Triangle's copyright notice. Calls must not run concurrently, since Triangle
-keeps global state.
+which `generate` sets to its point features and ring centers, do not move.
+`triangle_utils_mesh_voronoi()` builds the Voronoi grid of a conforming
+Delaunay mesh: a cell around each vertex, centered on it, so the line between
+two cells' centers is perpendicular to their shared face; a cell on a segment
+inside the mesh, such as a lake's shore, spans both sides and takes the
+attributes of the side with most of its area.
+`triangle_utils_mesh_triangle_grid()` makes the triangles the cells, centered
+on their centroids or circumcenters. Either grid lists each vertex once and
+each cell's corners clockwise, as MODFLOW 6 DISV does. The API also returns the
+versions of triangle-utils and Triangle, the license, and Triangle's copyright
+notice. Calls must not run concurrently, since Triangle keeps global state.
 
 ## User guide
 
@@ -67,6 +74,7 @@ arrays.
 triangle-utils generate [options] <base>  # mesh <base>.poly to <base>.1.*
 triangle-utils refine [options] <base>    # refine <base>.node and .ele
 triangle-utils improve [options] <base>   # move its vertices
+triangle-utils disv [options] <base>      # write <base>.disv for MODFLOW 6
 triangle-utils check <base>   # check <base>.node, .ele, and .neigh
 triangle-utils --version      # the versions of triangle-utils and Triangle,
                               # and the MODFLOW-ORG/triangle release
@@ -89,6 +97,12 @@ that improving must not move, such as a well, has marker 1 in the `.node`
 files they write, and a vertex with any nonzero marker in a `.node` file they
 read is kept in place; no vertex attributes are written. The program exits
 with 0 on success, 1 on an error, and 2 on a usage error.
+
+`disv` writes the Voronoi grid of the mesh in `<base>.node` and `.ele`, which
+must be conforming Delaunay (`-D`), or its triangles (`-g centroid` or
+`-g circumcenter`), as a one-layer MODFLOW 6 DISV file, `<base>.disv`, and
+each cell's mesh vertex or triangle and attributes to `<base>.cells`.
+`pixi run get-mf6` downloads MODFLOW 6 into the pixi environment.
 
 ## License
 

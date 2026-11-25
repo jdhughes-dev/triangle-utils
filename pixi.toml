@@ -13,6 +13,8 @@ numpy = "*"
 ruff = "*"
 codespell = "*"
 clang-format = "23.1.*"
+# get-modflow, for MODFLOW 6, which runs the grids
+flopy = "*"
 
 [tasks]
 
@@ -23,6 +25,8 @@ build = "meson install -C builddir"
 
 # test
 test = { cmd = "meson test --verbose --no-rebuild -C builddir" }
+# download MODFLOW 6 from MODFLOW-ORG/executables into the environment's bin
+get-mf6 = { cmd = "get-modflow :python --subset mf6" }
 
 # tests built with the address and undefined behavior sanitizers; any error
 # they report fails the test, and so does a leak where the leak sanitizer runs
@@ -52,7 +56,6 @@ CXX = "g++"
 # the PDF built with latexmk, which needs TeX Live and the usgslatex class
 # (MODFLOW-ORG/usgslatex) installed outside pixi
 [feature.doc.dependencies]
-flopy = "*"
 matplotlib-base = "*"
 
 [feature.doc.tasks]

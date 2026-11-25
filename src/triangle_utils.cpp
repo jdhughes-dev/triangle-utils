@@ -16,6 +16,7 @@
 
 #include "error.hpp"
 #include "geometry.hpp"
+#include "grid.hpp"
 #include "improve.hpp"
 #include "mesh.hpp"
 #include "refine.hpp"
@@ -23,6 +24,11 @@
 struct TriangleUtilsMesh
 {
     triangle_utils::Mesh mesh;
+};
+
+struct TriangleUtilsGrid
+{
+    triangle_utils::Grid grid;
 };
 
 struct TriangleUtilsGeometry
@@ -244,13 +250,13 @@ namespace
 {
 
 // Throw ArgumentError if a count the caller gives is not the mesh's.
-void check_matches(int given, std::size_t actual, const char * name)
+void check_matches(int given, std::size_t actual, const char * name, const char * owner = "mesh")
 {
     check_count(given, name);
     if (static_cast<std::size_t>(given) != actual)
     {
-        throw ArgumentError(triangle_utils::message("the ", name, " count is ", given,
-                                                    ", but the mesh has ", actual));
+        throw ArgumentError(triangle_utils::message("the ", name, " count is ", given, ", but the ",
+                                                    owner, " has ", actual));
     }
 }
 
@@ -680,5 +686,167 @@ int triangle_utils_mesh_improve(const TriangleUtilsMesh * mesh, int smoothing, d
             auto result = std::make_unique<TriangleUtilsMesh>();
             result->mesh = triangle_utils::improve_mesh(mesh->mesh, options);
             *improved = result.release();
+        });
+}
+
+int triangle_utils_mesh_voronoi(const TriangleUtilsMesh * mesh, TriangleUtilsGrid ** grid)
+{
+    return call(
+        [&]
+        {
+            check_pointer(grid, "grid");
+            *grid = nullptr;
+            check_pointer(mesh, "mesh");
+            auto result = std::make_unique<TriangleUtilsGrid>();
+            result->grid = triangle_utils::voronoi_grid(mesh->mesh);
+            *grid = result.release();
+        });
+}
+
+int triangle_utils_mesh_triangle_grid(const TriangleUtilsMesh * mesh, int center,
+                                      TriangleUtilsGrid ** grid)
+{
+    return call(
+        [&]
+        {
+            check_pointer(grid, "grid");
+            *grid = nullptr;
+            check_pointer(mesh, "mesh");
+            triangle_utils::TriangleCenter at;
+            if (center == TRIANGLE_UTILS_CENTROID)
+                at = triangle_utils::TriangleCenter::CENTROID;
+            else if (center == TRIANGLE_UTILS_CIRCUMCENTER)
+                at = triangle_utils::TriangleCenter::CIRCUMCENTER;
+            else
+                throw ArgumentError(triangle_utils::message(
+                    "the center is ", center, ", but it must be ", TRIANGLE_UTILS_CENTROID,
+                    " (centroid) or ", TRIANGLE_UTILS_CIRCUMCENTER, " (circumcenter)"));
+            auto result = std::make_unique<TriangleUtilsGrid>();
+            result->grid = triangle_utils::triangle_grid(mesh->mesh, at);
+            *grid = result.release();
+        });
+}
+
+void triangle_utils_grid_free(TriangleUtilsGrid * grid)
+{
+    delete grid;
+}
+
+namespace
+{
+
+std::size_t corner_total(const triangle_utils::Grid & grid)
+{
+    std::size_t total = 0;
+    for (const auto & cell : grid.cells) total += cell.size();
+    return total;
+}
+
+} // namespace
+
+int triangle_utils_grid_counts(const TriangleUtilsGrid * grid, int * vertex_count, int * cell_count,
+                               int * corner_count)
+{
+    return call(
+        [&]
+        {
+            check_pointer(grid, "grid");
+            check_pointer(vertex_count, "vertex count");
+            check_pointer(cell_count, "cell count");
+            check_pointer(corner_count, "corner count");
+            // a grid's counts are bounded by its mesh's, which fit an int
+            *vertex_count = static_cast<int>(grid->grid.vertices.size());
+            *cell_count = static_cast<int>(grid->grid.cells.size());
+            *corner_count = static_cast<int>(corner_total(grid->grid));
+        });
+}
+
+int triangle_utils_grid_vertices(const TriangleUtilsGrid * grid, int vertex_count,
+                                 double * vertex_xy)
+{
+    return call(
+        [&]
+        {
+            check_pointer(grid, "grid");
+            check_matches(vertex_count, grid->grid.vertices.size(), "vertex", "grid");
+            if (vertex_count > 0) check_pointer(vertex_xy, "vertex coordinate");
+            for (std::size_t vertex = 0; vertex < grid->grid.vertices.size(); vertex++)
+            {
+                vertex_xy[2 * vertex] = grid->grid.vertices[vertex].x;
+                vertex_xy[2 * vertex + 1] = grid->grid.vertices[vertex].y;
+            }
+        });
+}
+
+int triangle_utils_grid_cells(const TriangleUtilsGrid * grid, int cell_count, int * corner_offsets,
+                              int corner_count, int * corners)
+{
+    return call(
+        [&]
+        {
+            check_pointer(grid, "grid");
+            check_matches(cell_count, grid->grid.cells.size(), "cell", "grid");
+            check_matches(corner_count, corner_total(grid->grid), "corner", "grid");
+            check_pointer(corner_offsets, "corner offset");
+            if (corner_count > 0) check_pointer(corners, "corner");
+            int offset = 0;
+            for (std::size_t cell = 0; cell < grid->grid.cells.size(); cell++)
+            {
+                corner_offsets[cell] = offset;
+                for (const int corner : grid->grid.cells[cell]) corners[offset++] = corner;
+            }
+            corner_offsets[cell_count] = offset;
+        });
+}
+
+int triangle_utils_grid_centers(const TriangleUtilsGrid * grid, int cell_count, double * center_xy)
+{
+    return call(
+        [&]
+        {
+            check_pointer(grid, "grid");
+            check_matches(cell_count, grid->grid.cells.size(), "cell", "grid");
+            if (cell_count > 0) check_pointer(center_xy, "center coordinate");
+            for (std::size_t cell = 0; cell < grid->grid.centers.size(); cell++)
+            {
+                center_xy[2 * cell] = grid->grid.centers[cell].x;
+                center_xy[2 * cell + 1] = grid->grid.centers[cell].y;
+            }
+        });
+}
+
+int triangle_utils_grid_sources(const TriangleUtilsGrid * grid, int cell_count, int * sources)
+{
+    return call(
+        [&]
+        {
+            check_pointer(grid, "grid");
+            check_matches(cell_count, grid->grid.cells.size(), "cell", "grid");
+            if (cell_count > 0) check_pointer(sources, "source");
+            std::copy(grid->grid.sources.begin(), grid->grid.sources.end(), sources);
+        });
+}
+
+int triangle_utils_grid_attribute_count(const TriangleUtilsGrid * grid, int * attribute_count)
+{
+    return call(
+        [&]
+        {
+            check_pointer(grid, "grid");
+            check_pointer(attribute_count, "attribute count");
+            *attribute_count = grid->grid.attribute_count;
+        });
+}
+
+int triangle_utils_grid_attributes(const TriangleUtilsGrid * grid, int value_count,
+                                   double * attributes)
+{
+    return call(
+        [&]
+        {
+            check_pointer(grid, "grid");
+            check_matches(value_count, grid->grid.attributes.size(), "attribute value", "grid");
+            if (value_count > 0) check_pointer(attributes, "attribute");
+            std::copy(grid->grid.attributes.begin(), grid->grid.attributes.end(), attributes);
         });
 }

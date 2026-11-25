@@ -38,6 +38,11 @@ Cases:
   - test_improve_command : a refined mesh improves toward 90 degrees to x.3,
                          keeping its area and a vertex marked in the .node
                          file, and reports angles over 90 degrees.
+  - test_disv          : a conforming Delaunay mesh of the box writes a
+                         Voronoi DISV grid with a cell per vertex covering
+                         the box, and a .cells file; the triangle grids have
+                         a cell per triangle.
+  - test_disv_errors   : a mesh that is not Delaunay exits 1 with the reason.
   - test_generate_errors : a bad option value is a usage error (2), and a
                          boundary not closed and a missing file are errors
                          (1).
@@ -125,6 +130,15 @@ def test_license():
         (("bogus",), "unknown command bogus"),
         (("--version", "extra"), "--version takes no arguments"),
         (("--license", "extra"), "--license takes no arguments"),
+        (
+            ("disv", "-g", "other", "box"),
+            "disv: the grid must be voronoi, centroid, or circumcenter, not other",
+        ),
+        (
+            ("disv", "-t", "0", "-b", "1", "box"),
+            "disv: the top (0) must be above the bottom (1)",
+        ),
+        (("disv",), "disv: give one <base>"),
         (("check",), "check: give one <base>"),
         (("check", "one", "two"), "check: give one <base>"),
         (("check", "--bogus", "base"), "check: unknown option --bogus"),
@@ -398,3 +412,80 @@ def test_improve_keeps_points(tmp_path):
         point = [r for r in rows if float(r[1]) == 0.33 and float(r[2]) == 0.41]
         assert len(point) == 1, name
         assert point[0][3] == "1"
+
+
+def read_disv(name):
+    """The dimensions, vertices, and cells of a DISV file."""
+    lines = [line.split() for line in open(name) if line.strip()]
+    block = None
+    dimensions, vertices, cells = {}, {}, []
+    for words in lines:
+        if words[0] == "BEGIN":
+            block = words[1]
+        elif words[0] == "END":
+            block = None
+        elif block == "DIMENSIONS":
+            dimensions[words[0]] = int(words[1])
+        elif block == "VERTICES":
+            vertices[int(words[0])] = (float(words[1]), float(words[2]))
+        elif block == "CELL2D":
+            count = int(words[3])
+            corners = [int(word) for word in words[4 : 4 + count]]
+            assert len(words) == 4 + count
+            cells.append((int(words[0]), float(words[1]), float(words[2]), corners))
+    return dimensions, vertices, cells
+
+
+def clockwise_area(vertices, corners):
+    """The area of a cell, positive for clockwise corners."""
+    points = [vertices[corner] for corner in corners]
+    return 0.5 * sum(
+        bx * ay - ax * by
+        for (ax, ay), (bx, by) in zip(points, points[1:] + points[:1], strict=True)
+    )
+
+
+def test_disv(tmp_path):
+    (tmp_path / "box.poly").write_text(BOX_POLY)
+    base = str(tmp_path / "box")
+    assert run("generate", "-a", "0.1", "-q", "25", "-D", base)[0] == 0
+    vertex_total = vertex_count(f"{base}.1")
+    status, output, _ = run("disv", "-t", "10", "-b", "-5", f"{base}.1")
+    assert status == 0
+    assert output.startswith(f"{base}.1.disv: {vertex_total} cells and ")
+    dimensions, vertices, cells = read_disv(f"{base}.1.disv")
+    assert dimensions == {"NLAY": 1, "NCPL": vertex_total, "NVERT": len(vertices)}
+    assert [cell[0] for cell in cells] == list(range(1, vertex_total + 1))
+    areas = [clockwise_area(vertices, cell[3]) for cell in cells]
+    assert min(areas) > 0
+    assert sum(areas) == pytest.approx(8.0)
+    text = open(f"{base}.1.disv").read()
+    assert "TOP\n    CONSTANT 10\n" in text
+    assert "BOTM LAYERED\n    CONSTANT -5\n" in text
+    rows = [line.split() for line in open(f"{base}.1.cells")][1:]
+    assert rows[0] == [str(vertex_total), "0"]
+    assert [row[:2] for row in rows[1:]] == [
+        [str(cell), str(cell)] for cell in range(1, vertex_total + 1)
+    ]
+    for grid in ("centroid", "circumcenter"):
+        status, output, _ = run("disv", "-g", grid, "-o", f"{base}.{grid}", f"{base}.1")
+        assert status == 0
+        dimensions, vertices, cells = read_disv(f"{base}.{grid}.disv")
+        triangle_total = len(open(f"{base}.1.ele").readlines()) - 1
+        assert dimensions["NCPL"] == triangle_total
+        assert len(vertices) == vertex_total
+        assert sum(clockwise_area(vertices, cell[3]) for cell in cells) == (
+            pytest.approx(8.0)
+        )
+
+
+def test_disv_errors(tmp_path):
+    # a triangle whose angle opposite its long edge is obtuse
+    base = write_mesh(
+        tmp_path, node="3 2 0 0\n1 0 0\n2 2 0\n3 1 0.2\n", ele="1 3 0\n1 1 2 3\n"
+    )
+    status, output, errors = run("disv", base)
+    assert status == 1
+    assert output == ""
+    assert "over 90" in errors
+    assert "conforming Delaunay" in errors

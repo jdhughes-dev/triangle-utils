@@ -23,8 +23,13 @@ class Geometry(ctypes.Structure):
     """The opaque geometry."""
 
 
+class Grid(ctypes.Structure):
+    """The opaque grid."""
+
+
 MESH_POINTER = ctypes.POINTER(Mesh)
 GEOMETRY_POINTER = ctypes.POINTER(Geometry)
+GRID_POINTER = ctypes.POINTER(Grid)
 
 INT = ctypes.c_int
 DOUBLE = ctypes.c_double
@@ -70,6 +75,16 @@ SIGNATURES = {
         INT,
         [MESH_POINTER, INT, DOUBLE, DOUBLE, INT, DOUBLE, ctypes.POINTER(MESH_POINTER)],
     ),
+    "mesh_voronoi": (INT, [MESH_POINTER, ctypes.POINTER(GRID_POINTER)]),
+    "mesh_triangle_grid": (INT, [MESH_POINTER, INT, ctypes.POINTER(GRID_POINTER)]),
+    "grid_free": (None, [GRID_POINTER]),
+    "grid_counts": (INT, [GRID_POINTER, INT_ARRAY, INT_ARRAY, INT_ARRAY]),
+    "grid_vertices": (INT, [GRID_POINTER, INT, DOUBLE_ARRAY]),
+    "grid_cells": (INT, [GRID_POINTER, INT, INT_ARRAY, INT, INT_ARRAY]),
+    "grid_centers": (INT, [GRID_POINTER, INT, DOUBLE_ARRAY]),
+    "grid_sources": (INT, [GRID_POINTER, INT, INT_ARRAY]),
+    "grid_attribute_count": (INT, [GRID_POINTER, INT_ARRAY]),
+    "grid_attributes": (INT, [GRID_POINTER, INT, DOUBLE_ARRAY]),
     "geometry_create": (INT, [ctypes.POINTER(GEOMETRY_POINTER)]),
     "geometry_free": (None, [GEOMETRY_POINTER]),
     "geometry_add_polygon": (INT, [GEOMETRY_POINTER, INT, DOUBLE_ARRAY, DOUBLE, INT]),
