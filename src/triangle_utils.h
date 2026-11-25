@@ -336,6 +336,12 @@ int triangle_utils_grid_segment_cells(const TriangleUtilsGrid * grid,
                                       const TriangleUtilsMesh * mesh, int marker,
                                       TriangleUtilsCellLengths ** cell_lengths);
 
+/* The cell containing each of point_count points, such as wells, or -1
+   outside the grid; a point on a face or corner is in the lowest-numbered
+   cell there. cells has point_count values. */
+int triangle_utils_grid_point_cells(const TriangleUtilsGrid * grid, int point_count,
+                                    const double * point_xy, int * cells);
+
 /* Free cell lengths; NULL is ignored. */
 void triangle_utils_cell_lengths_free(TriangleUtilsCellLengths * cell_lengths);
 

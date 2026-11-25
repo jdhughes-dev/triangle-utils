@@ -314,6 +314,49 @@ TEST(Features, BoundaryCellsShareTheBoundaryLength)
     }
 }
 
+TEST(Features, MarkedSegmentsAreInTheOrderTheyWereDigitized)
+{
+    const Mesh mesh = square_mesh();
+    const Grid grid = voronoi_grid(mesh);
+    // the river's segments give the cells its line does, in order
+    EXPECT_EQ(cells_of(cells_on_segments(grid, mesh, RIVER)),
+              cells_of(cells_along_line(grid, RIVER_LINE)));
+    // the boundary, digitized from (0, 0) toward (10, 0), starts there and
+    // goes that way around: each cell's center is farther along it
+    const auto cells = cells_on_segments(grid, mesh, BOUNDARY);
+    auto along_boundary = [](const Point & p)
+    {
+        if (p.y == 0.0) return p.x;
+        if (p.x == 10.0) return 10.0 + p.y;
+        if (p.y == 10.0) return 30.0 - p.x;
+        return 40.0 - p.y;
+    };
+    EXPECT_EQ(grid.centers[cells.front().cell].x, 0.0);
+    EXPECT_EQ(grid.centers[cells.front().cell].y, 0.0);
+    for (std::size_t i = 1; i < cells.size(); i++)
+    {
+        EXPECT_GT(along_boundary(grid.centers[cells[i].cell]),
+                  along_boundary(grid.centers[cells[i - 1].cell]))
+            << "cell " << i;
+        EXPECT_GT(cells[i].start, cells[i - 1].start);
+    }
+}
+
+TEST(Features, PointsAreInTheCellsThatContainThem)
+{
+    const Grid grid = squares(3);
+    // inside, on a face, on a corner of four, on the grid's edge, outside
+    const auto cells =
+        cells_at_points(grid, {{1.5, 2.5}, {1.0, 0.5}, {2.0, 2.0}, {3.0, 0.5}, {4.0, 1.0}});
+    EXPECT_EQ(cells, (std::vector<int>{7, 0, 4, 2, -1}));
+    // a mesh vertex is in its own Voronoi cell
+    const Mesh mesh = square_mesh();
+    const Grid voronoi = voronoi_grid(mesh);
+    const auto at_vertices = cells_at_points(voronoi, mesh.vertices);
+    for (std::size_t vertex = 0; vertex < mesh.vertices.size(); vertex++)
+        EXPECT_EQ(voronoi.sources[at_vertices[vertex]], static_cast<int>(vertex));
+}
+
 TEST(Features, ErrorsGiveTheReason)
 {
     const Mesh mesh = square_mesh();
@@ -336,6 +379,7 @@ TEST(Features, ErrorsGiveTheReason)
               "point 1 of the line is not finite");
     EXPECT_EQ(reason([&] { cells_on_segments(grid, mesh, 9); }),
               "no segment of the mesh has marker 9");
+    EXPECT_EQ(reason([&] { cells_at_points(grid, {{1.0, NAN}}); }), "point 0 is not finite");
     Grid flat = squares(1);
     flat.vertices = {{0.0, 0.0}, {1.0, 0.0}, {2.0, 0.0}, {3.0, 0.0}};
     EXPECT_EQ(reason([&] { cells_along_line(flat, {{0.0, 0.0}, {1.0, 0.0}}); }),

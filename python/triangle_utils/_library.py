@@ -111,6 +111,7 @@ SIGNATURES = {
         INT,
         [GRID_POINTER, MESH_POINTER, INT, ctypes.POINTER(CELL_LENGTHS_POINTER)],
     ),
+    "grid_point_cells": (INT, [GRID_POINTER, INT, DOUBLE_ARRAY, INT_ARRAY]),
     "cell_lengths_free": (None, [CELL_LENGTHS_POINTER]),
     "cell_lengths_count": (INT, [CELL_LENGTHS_POINTER, INT_ARRAY]),
     "cell_lengths": (

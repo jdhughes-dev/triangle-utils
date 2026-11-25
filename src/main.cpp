@@ -162,21 +162,26 @@ Options:
 
 constexpr const char * CELLS_USAGE = R"(usage: triangle-utils cells [options] <base>
 
-Find the cells of the grid of the mesh in <base>.node and <base>.ele that a
-line, or the segments of <base>.poly with a marker, pass through, and print
-each cell, numbered from 1 as in the DISV file, where its part starts along
-the line or segments, and its length. Along a line, such as a river, the
-cells are in order, and a cell the line enters twice is printed twice; a
-part along a face is in the cell on the line's left, or on its right where
-none is on the left. On segments, such as a boundary, each cell is printed
-once, with its length of segment summed; a segment between two cells is in
-only one of them.
+Find the cells of the grid of the mesh in <base>.node and <base>.ele that
+points contain, or that a line or the segments of <base>.poly with a marker
+pass through. For points, such as wells, print each point's number and its
+cell, numbered from 1 as in the DISV file, or 0 outside the grid; a point on
+a face or corner is in the lowest-numbered cell there. For a line or
+segments, print each cell, where its part starts along the line or segments,
+and its length. Along a line, such as a river, the cells are in order, and a
+cell the line enters twice is printed twice; a part along a face is in the
+cell on the line's left, or on its right where none is on the left. On
+segments, such as a boundary, each cell is printed once, with its length of
+segment summed, in the order the segments were digitized; a segment between
+two cells is in only one of them.
 
 Options:
   -h, --help              show this help
   -g, --grid <g>          voronoi (default), or centroid or circumcenter
                           for the triangles, as for disv
   -l, --line <file>       a line: x and y of a point on each line of the
+                          file, with # comments
+  -p, --points <file>     points: x and y of a point on each line of the
                           file, with # comments
   -m, --marker <m>        the segments of <base>.poly with marker m
 )";
@@ -846,6 +851,7 @@ int cells_command(const std::vector<std::string> & arguments)
 {
     std::string grid_name = "voronoi";
     std::string line_name;
+    std::string points_name;
     bool has_marker = false;
     int marker = 0;
     std::vector<std::string> bases;
@@ -861,6 +867,8 @@ int cells_command(const std::vector<std::string> & arguments)
             grid_name = options.value();
         else if (options.is("-l", "--line"))
             line_name = options.value();
+        else if (options.is("-p", "--points"))
+            points_name = options.value();
         else if (options.is("-m", "--marker"))
         {
             marker = options.integer();
@@ -873,13 +881,27 @@ int cells_command(const std::vector<std::string> & arguments)
     }
     if (bases.size() != 1) throw UsageError("cells: give one <base>");
     check_grid_name("cells", grid_name);
-    if (line_name.empty() == !has_marker) throw UsageError("cells: give one of -l and -m");
+    if (!line_name.empty() + !points_name.empty() + has_marker != 1)
+        throw UsageError("cells: give one of -l, -p, and -m");
     const std::string & base = bases[0];
 
     triangle_utils::VertexFile vertices;
     // a marker needs the segments of <base>.poly
     const MeshHandle mesh = read_mesh(base, vertices, has_marker);
     const GridHandle grid = build_grid(mesh.get(), grid_name);
+    std::cout.precision(std::numeric_limits<double>::max_digits10);
+    if (!points_name.empty())
+    {
+        const std::vector<double> xy = read_line(points_name);
+        std::vector<int> cells(xy.size() / 2);
+        check_status(triangle_utils_grid_point_cells(grid.get(), static_cast<int>(cells.size()),
+                                                     xy.data(), cells.data()));
+        // cells from 1, and 0 for a point outside the grid
+        std::cout << "# point and cell of " << points_name << "\n";
+        for (std::size_t point = 0; point < cells.size(); point++)
+            std::cout << point + 1 << " " << cells[point] + 1 << "\n";
+        return EXIT_OK;
+    }
     TriangleUtilsCellLengths * found = nullptr;
     if (has_marker)
         check_status(triangle_utils_grid_segment_cells(grid.get(), mesh.get(), marker, &found));
@@ -896,7 +918,6 @@ int cells_command(const std::vector<std::string> & arguments)
     std::vector<double> starts(cells.size()), lengths(cells.size());
     check_status(triangle_utils_cell_lengths(result.get(), count, cells.data(), starts.data(),
                                              lengths.data()));
-    std::cout.precision(std::numeric_limits<double>::max_digits10);
     std::cout << "# cell, start, and length along "
               << (has_marker ? "the segments with marker " + std::to_string(marker) : line_name)
               << "\n";

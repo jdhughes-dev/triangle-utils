@@ -976,3 +976,17 @@ int triangle_utils_cell_lengths(const TriangleUtilsCellLengths * cell_lengths, i
             }
         });
 }
+
+int triangle_utils_grid_point_cells(const TriangleUtilsGrid * grid, int point_count,
+                                    const double * point_xy, int * cells)
+{
+    return call(
+        [&]
+        {
+            check_pointer(grid, "grid");
+            const auto points = copy_points(point_count, point_xy);
+            if (point_count > 0) check_pointer(cells, "cell");
+            const auto found = triangle_utils::cells_at_points(grid->grid, points);
+            std::copy(found.begin(), found.end(), cells);
+        });
+}

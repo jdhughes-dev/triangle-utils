@@ -171,22 +171,22 @@ Figure~\ref{fig:voronoi} shows the Voronoi grid of the example valley, built fro
 
 A grid can also be made of the triangles themselves, centered on their centroids or their circumcenters. A circumcenter also gives faces perpendicular to the lines between centers, but it lies outside an obtuse triangle, so the obtuse triangles are refined and improved first. Either grid is written as the vertices and cells of a MODFLOW 6 DISV file.
 
-\section{Mapping Rivers and Boundaries to Cells}
+\section{Mapping Rivers, Boundaries, and Wells to Cells}
 
-The Streamflow-Routing (SFR) package of MODFLOW 6 needs the cells a river passes through, in order, with the length of river in each, its reaches; the General-Head Boundary (GHB) package and other boundary packages need the cells along a boundary with the length of boundary in each, which sets the conductance of each cell's connection to the boundary. triangle-utils finds both in a triangle or Voronoi grid, for a line given by its points, such as a river, or for the segments of a mesh with a marker, such as the valley's boundary. A cell the line passes through twice appears twice along it; a part of a line along a face two cells share, as a river along a triangle's edge, is in the cell on the line's left.
+The Streamflow-Routing (SFR) package of MODFLOW 6 needs the cells a river passes through, in order, with the length of river in each, its reaches; the General-Head Boundary (GHB) package and other boundary packages need the cells along a boundary with the length of boundary in each, which sets the conductance of each cell's connection to the boundary. The Well (WEL) and Multi-Aquifer Well (MAW) packages need the cell of each well. triangle-utils finds all three in a triangle or Voronoi grid: the cells along a line given by its points, such as a river; the cells on the segments of a mesh with a marker, such as the valley's boundary, in the order the segments were digitized; and the cell containing each point, such as a well, or the lowest-numbered cell where a point is on a face or corner. A cell the line passes through twice appears twice along it; a part of a line along a face two cells share, as a river along a triangle's edge, is in the cell on the line's left.
 
-Figure~\ref{fig:features} shows the cells of the river and the boundary in the Voronoi grid of Figure~\ref{fig:voronoi}. The river's \riverlength~m pass through \rivercells\ cells, centered on the river's vertices, and the boundary's \boundarylength~m through \boundarycells\ cells. A boundary cell's length is half the distance to the boundary vertex on each side of its own.
+Figure~\ref{fig:features} shows the cells of the river and the boundary in the Voronoi grid of Figure~\ref{fig:voronoi}. The river's \riverlength~m pass through \rivercells\ cells, centered on the river's vertices, and the boundary's \boundarylength~m through \boundarycells\ cells. A boundary cell's length is half the distance to the boundary vertex on each side of its own. Each well is the center of its ring, a vertex of the mesh, so its cell is centered on the well.
 
 \begin{figure}[htbp]
   \centering
   \includegraphics{features.pdf}
-  \caption{Cells of the river and the boundary in the Voronoi grid of the example valley (fig.~\ref{fig:voronoi}), with the windows of panels \textit{B} and \textit{C} (boxes). The river's cells alternate in color along it. \textit{A}, the valley. \textit{B}, along the river. \textit{C}, on the boundary at the valley's west corner}
+  \caption{Cells of the river, the boundary, and the wells in the Voronoi grid of the example valley (fig.~\ref{fig:voronoi}), with the windows of panels \textit{B}--\textit{D} (boxes). The river's cells alternate in color along it. \textit{A}, the valley. \textit{B}, along the river. \textit{C}, on the boundary at the valley's west corner. \textit{D}, around a well}
   \label{fig:features}
 \end{figure}
 
 \section{Using triangle-utils}
 
-The \texttt{triangle-utils} program reads and writes the files of Triangle. The \texttt{generate} command meshes the segments, vertices, holes, and regions of a .poly file, such as one describing the boundary, river, and lake of a valley, the \texttt{refine} command refines the mesh in a .node file and an .ele file, with the segments of a .poly file and the area of each triangle in an .area file if they exist, the \texttt{improve} command moves the vertices of such a mesh, the \texttt{disv} command writes its Voronoi grid, or its triangles, as a MODFLOW 6 DISV file, and the \texttt{cells} command prints the cells of the grid a line or the segments with a marker pass through. A vertex with marker 1 in a .node file, as \texttt{generate} writes for the points of the .poly file, such as wells, stays in place:
+The \texttt{triangle-utils} program reads and writes the files of Triangle. The \texttt{generate} command meshes the segments, vertices, holes, and regions of a .poly file, such as one describing the boundary, river, and lake of a valley, the \texttt{refine} command refines the mesh in a .node file and an .ele file, with the segments of a .poly file and the area of each triangle in an .area file if they exist, the \texttt{improve} command moves the vertices of such a mesh, the \texttt{disv} command writes its Voronoi grid, or its triangles, as a MODFLOW 6 DISV file, and the \texttt{cells} command prints the cells of the grid that points contain or that a line or the segments with a marker pass through. A vertex with marker 1 in a .node file, as \texttt{generate} writes for the points of the .poly file, such as wells, stays in place:
 
 \begin{Verbatim}[fontsize=\small,commandchars=\\\{\}]
 triangle-utils generate -a \maximumareavalue -q \minimumangle -s \boundaryspacingvalue -D valley
@@ -196,9 +196,10 @@ triangle-utils check valley.3
 triangle-utils disv valley.2
 triangle-utils cells -l river.txt valley.2
 triangle-utils cells -m \boundarymarker valley.2
+triangle-utils cells -p wells.txt valley.2
 \end{Verbatim}
 
-\noindent Each command writes its mesh to files named as Triangle names them, valley.1 for valley and valley.2 for valley.1, and \texttt{disv} writes the Voronoi grid of the refined mesh to valley.2.disv, as Figure~\ref{fig:voronoi} shows; \texttt{triangle-utils generate -h}, \texttt{refine -h}, \texttt{improve -h}, \texttt{disv -h}, and \texttt{cells -h} list the options of each. The file river.txt gives the x and y of each of the river's points, one point to a line, such as the coordinates of RIVER in valley.py below.
+\noindent Each command writes its mesh to files named as Triangle names them, valley.1 for valley and valley.2 for valley.1, and \texttt{disv} writes the Voronoi grid of the refined mesh to valley.2.disv, as Figure~\ref{fig:voronoi} shows; \texttt{triangle-utils generate -h}, \texttt{refine -h}, \texttt{improve -h}, \texttt{disv -h}, and \texttt{cells -h} list the options of each. The files river.txt and wells.txt give the x and y of each of the river's points and of each well, one point to a line, such as the coordinates of RIVER and WELLS in valley.py below.
 
 From Python, the triangle-utils module in the python folder of the repository calls the library directly, and meshes and grids are returned as NumPy arrays. The script valley.py in the doc/UserGuide folder builds the example of this guide in steps, printed here in turn; the script make\_figures.py beside it uses its meshes and grid to make the figures. First come the coordinates of the boundary, river, lake, and wells:
 
@@ -220,7 +221,7 @@ From Python, the triangle-utils module in the python folder of the repository ca
 
 \VerbatimInput[fontsize=\small,firstline=\valleygridfirst,lastline=\valleygridlast]{valley.py}
 
-\noindent The river's and the boundary's cells (fig.~\ref{fig:features}) are found in the grid, the boundary's from the segments of the mesh with the boundary's marker:
+\noindent The river's, the boundary's, and the wells' cells (fig.~\ref{fig:features}) are found in the grid, the boundary's from the segments of the mesh with the boundary's marker:
 
 \VerbatimInput[fontsize=\small,firstline=\valleyfeaturesfirst,lastline=\valleyfeatureslast]{valley.py}
 

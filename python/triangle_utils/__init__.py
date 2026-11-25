@@ -28,6 +28,7 @@ __all__ = [
     "Grid",
     "Mesh",
     "cells_along_line",
+    "cells_at_points",
     "cells_on_segments",
     "count_angles_over",
     "generate",
@@ -695,3 +696,21 @@ def cells_on_segments(grid, mesh, marker):
             api.triangle_utils_mesh_free(mesh_handle)
     finally:
         api.triangle_utils_grid_free(grid_handle)
+
+
+def cells_at_points(grid, points):
+    """The cell containing each (x, y) point, such as a well, or -1 outside the
+    grid; a point on a face or corner is in the lowest-numbered cell there."""
+    xy, point_pointer = _doubles(_rows(points, 2, "points", np.float64))
+    cells, cell_pointer = _ints(np.zeros(len(xy)))
+    api = _api()
+    handle = _grid_handle(grid)
+    try:
+        _check(
+            api.triangle_utils_grid_point_cells(
+                handle, len(xy), point_pointer, cell_pointer
+            )
+        )
+    finally:
+        api.triangle_utils_grid_free(handle)
+    return cells

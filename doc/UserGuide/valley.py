@@ -1,5 +1,5 @@
 """The example valley: meshed, refined, improved, made a Voronoi grid, and its
-river and boundary mapped to the grid's cells."""
+river, boundary, and wells mapped to the grid's cells."""
 
 import triangle_utils as tu
 
@@ -91,7 +91,8 @@ disv_vertices = grid.disv_vertices()
 disv_cell2d = grid.disv_cell2d()
 
 # the river's cells, in order, with the length of river in each, for
-# streamflow routing reaches, and the cells on the boundary, with the length
-# of boundary in each, for boundary conductances
+# streamflow routing reaches, the cells on the boundary, with the length of
+# boundary in each, for boundary conductances, and the wells' cells
 river_cells = tu.cells_along_line(grid, RIVER)
 boundary_cells = tu.cells_on_segments(grid, delaunay_refined, BOUNDARY_MARKER)
+well_cells = tu.cells_at_points(grid, WELLS)

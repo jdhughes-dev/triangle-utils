@@ -51,3 +51,4 @@ _triangle_utils_grid_segment_cells
 _triangle_utils_cell_lengths_free
 _triangle_utils_cell_lengths_count
 _triangle_utils_cell_lengths
+_triangle_utils_grid_point_cells

@@ -51,7 +51,8 @@ Cases:
   - test_disv_errors   : a mesh that is not Delaunay exits 1 with the reason.
   - test_cells         : a line across the box and the box's boundary print
                          their cells, numbered from 1, whose lengths sum to
-                         the line's length in the box and to the boundary's.
+                         the line's length in the box and to the boundary's,
+                         and points print their cells, 0 outside the box.
   - test_cells_errors  : a bad line file and a marker no segment has exit 1
                          with the reason.
   - test_generate_errors : a bad option value is a usage error (2), and a
@@ -151,8 +152,8 @@ def test_license():
             "disv: the top (0) must be above the bottom (1)",
         ),
         (("disv",), "disv: give one <base>"),
-        (("cells", "box"), "cells: give one of -l and -m"),
-        (("cells", "-l", "x", "-m", "1", "box"), "cells: give one of -l and -m"),
+        (("cells", "box"), "cells: give one of -l, -p, and -m"),
+        (("cells", "-l", "x", "-m", "1", "box"), "cells: give one of -l, -p, and -m"),
         (("cells", "-m", "1.5", "box"), "cells: -m needs a whole number, not 1.5"),
         (("check",), "check: give one <base>"),
         (("check", "one", "two"), "check: give one <base>"),
@@ -558,6 +559,14 @@ def test_cells(tmp_path):
         assert next_start == pytest.approx(start + length)
     vertex_total = vertex_count(f"{base}.1")
     assert all(1 <= cell <= vertex_total for cell, _, _ in cells)
+    # a point of the box's corner and one outside it
+    (tmp_path / "points.txt").write_text("0 0\n5 5\n")
+    status, output, _ = run("cells", "-p", str(tmp_path / "points.txt"), f"{base}.1")
+    assert status == 0
+    rows = [line.split() for line in output.splitlines()[1:]]
+    assert [row[0] for row in rows] == ["1", "2"]
+    assert int(rows[0][1]) >= 1
+    assert rows[1][1] == "0"
     for grid in ("voronoi", "centroid"):
         status, output, _ = run("cells", "-g", grid, "-m", "1", f"{base}.1")
         assert status == 0

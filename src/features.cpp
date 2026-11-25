@@ -3,6 +3,7 @@
 #include "features.hpp"
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <limits>
 #include <map>
@@ -94,6 +95,27 @@ public:
             if (contains(m_grid.cells[cell], point)) return cell;
         }
         return -1;
+    }
+
+    // The lowest-numbered cell containing a point or with it on a face, or -1.
+    int lowest_cell_at(const Point & point) const
+    {
+        if (m_boxes.empty() || point.x < m_extent.xmin || point.x > m_extent.xmax ||
+            point.y < m_extent.ymin || point.y > m_extent.ymax)
+            return -1;
+        int lowest = -1;
+        for (const int cell :
+             m_bins[static_cast<std::size_t>(row_of(point.y)) * m_columns + column_of(point.x)])
+        {
+            if (lowest >= 0 && cell > lowest) continue;
+            const Box & box = m_boxes[cell];
+            if (point.x < box.xmin || point.x > box.xmax || point.y < box.ymin ||
+                point.y > box.ymax)
+                continue;
+            if (contains(m_grid.cells[cell], point) || on_face(m_grid.cells[cell], point))
+                lowest = cell;
+        }
+        return lowest;
     }
 
     // The parameters along the segment from p to q, between 0 and 1, where it
@@ -196,6 +218,23 @@ private:
         return cells;
     }
 
+    // Whether a point is on a face of a polygon, within rounding.
+    bool on_face(const std::vector<int> & corners, const Point & point) const
+    {
+        for (std::size_t i = 0; i < corners.size(); i++)
+        {
+            const Point & a = m_grid.vertices[corners[i]];
+            const Point & b = m_grid.vertices[corners[(i + 1) % corners.size()]];
+            const double ex = b.x - a.x, ey = b.y - a.y;
+            const double px = point.x - a.x, py = point.y - a.y;
+            const double length = std::hypot(ex, ey);
+            if (std::abs(cross(ex, ey, px, py)) <= SAME_FRACTION * length * length &&
+                px * ex + py * ey >= 0.0 && px * ex + py * ey <= length * length)
+                return true;
+        }
+        return false;
+    }
+
     // Whether a polygon contains a point, by the crossings of a ray to +x.
     bool contains(const std::vector<int> & corners, const Point & point) const
     {
@@ -286,30 +325,135 @@ std::vector<CellLength> cells_along_line(const Grid & grid, const std::vector<Po
     return parts;
 }
 
-std::vector<CellLength> cells_on_segments(const Grid & grid, const Mesh & mesh, int marker)
+namespace
 {
-    check_grid(grid);
-    check_sizes(mesh);
-    CellFinder finder(grid);
-    std::vector<CellLength> parts;
-    double distance = 0.0;
-    bool found = false;
+
+// The segments with a marker, joined end to end into chains of vertices, in
+// the order of the mesh's vertex numbers: each chain starts at its
+// lowest-numbered vertex, a closed chain runs toward its second-lowest, and
+// the chains follow their lowest vertices. A mesh triangle-utils generates
+// numbers its input vertices first, in the order given, so this is the order
+// the features were digitized.
+std::vector<std::vector<int>> chains_of(const Mesh & mesh, int marker)
+{
+    std::vector<std::array<int, 2>> segments;
     for (std::size_t segment = 0; segment < mesh.segments.size(); segment++)
     {
         if (mesh.segment_markers.empty() || mesh.segment_markers[segment] != marker) continue;
-        found = true;
         for (const int end : mesh.segments[segment])
             if (end < 0 || static_cast<std::size_t>(end) >= mesh.vertices.size())
                 throw Error(message("segment ", segment, " refers to vertex ", end,
                                     ", but the mesh has ", mesh.vertices.size(), " vertices"));
-        const Point & p = mesh.vertices[mesh.segments[segment][0]];
-        const Point & q = mesh.vertices[mesh.segments[segment][1]];
-        // segments are summed by cell below, so each starts its own parts
-        bool outside = true;
-        add_parts(finder, p, q, distance, parts, outside);
-        distance += std::hypot(q.x - p.x, q.y - p.y);
+        segments.push_back(mesh.segments[segment]);
     }
-    if (!found) throw Error(message("no segment of the mesh has marker ", marker));
+    if (segments.empty()) throw Error(message("no segment of the mesh has marker ", marker));
+    std::map<int, std::vector<int>> at;
+    for (std::size_t segment = 0; segment < segments.size(); segment++)
+        for (const int end : segments[segment]) at[end].push_back(static_cast<int>(segment));
+    std::vector<bool> used(segments.size(), false);
+    auto unused_at = [&](int vertex)
+    {
+        std::vector<int> found;
+        for (const int segment : at[vertex])
+            if (!used[segment]) found.push_back(segment);
+        return found;
+    };
+    auto other_end = [&](int segment, int vertex)
+    { return segments[segment][0] == vertex ? segments[segment][1] : segments[segment][0]; };
+    // the vertices from a vertex along a segment, through vertices where the
+    // chain does not branch, to an end, a branch, or the start again
+    auto walk = [&](int start, int first)
+    {
+        std::vector<int> vertices{start};
+        std::vector<int> taken{first};
+        int segment = first, vertex = start;
+        while (true)
+        {
+            vertex = other_end(segment, vertex);
+            vertices.push_back(vertex);
+            if (vertex == start) break;
+            std::vector<int> next;
+            for (const int candidate : unused_at(vertex))
+                if (std::find(taken.begin(), taken.end(), candidate) == taken.end())
+                    next.push_back(candidate);
+            if (next.size() != 1 || at[vertex].size() != 2) break;
+            segment = next[0];
+            taken.push_back(segment);
+        }
+        return std::pair(vertices, taken);
+    };
+
+    std::vector<std::vector<int>> chains;
+    while (std::find(used.begin(), used.end(), false) != used.end())
+    {
+        // an end or a branch, if any, otherwise the lowest vertex of a loop
+        int start = -1;
+        for (const auto & [vertex, segments_at] : at)
+        {
+            const auto free = unused_at(vertex);
+            if (free.empty()) continue;
+            if (start < 0) start = vertex;
+            if (at[vertex].size() != 2)
+            {
+                start = vertex;
+                break;
+            }
+        }
+        auto choices = unused_at(start);
+        std::pair<std::vector<int>, std::vector<int>> chosen;
+        if (choices.size() == 2 && at[start].size() == 2)
+        {
+            // a loop: toward its second-lowest vertex, the nearer way
+            auto one = walk(start, choices[0]);
+            auto other = walk(start, choices[1]);
+            // the lowest vertex but the start, which the loop ends at too
+            int second = -1;
+            for (const int vertex : one.first)
+                if (vertex != start && (second < 0 || vertex < second)) second = vertex;
+            const auto steps = [&](const std::vector<int> & vertices)
+            { return std::find(vertices.begin(), vertices.end(), second) - vertices.begin(); };
+            chosen = steps(one.first) <= steps(other.first) ? one : other;
+        }
+        else
+        {
+            // from an end or a branch, toward the lowest neighbor
+            const int first =
+                *std::min_element(choices.begin(), choices.end(), [&](int a, int b)
+                                  { return other_end(a, start) < other_end(b, start); });
+            chosen = walk(start, first);
+        }
+        for (const int segment : chosen.second) used[segment] = true;
+        chains.push_back(chosen.first);
+    }
+    // ends and branches were taken first; the chains follow their lowest
+    // vertices
+    std::stable_sort(
+        chains.begin(), chains.end(), [](const std::vector<int> & a, const std::vector<int> & b)
+        { return *std::min_element(a.begin(), a.end()) < *std::min_element(b.begin(), b.end()); });
+    return chains;
+}
+
+} // namespace
+
+std::vector<CellLength> cells_on_segments(const Grid & grid, const Mesh & mesh, int marker)
+{
+    check_grid(grid);
+    check_sizes(mesh);
+    const auto chains = chains_of(mesh, marker);
+    CellFinder finder(grid);
+    std::vector<CellLength> parts;
+    double distance = 0.0;
+    for (const auto & chain : chains)
+    {
+        bool outside = true;
+        for (std::size_t i = 0; i + 1 < chain.size(); i++)
+        {
+            const Point & p = mesh.vertices[chain[i]];
+            const Point & q = mesh.vertices[chain[i + 1]];
+            add_parts(finder, p, q, distance, parts, outside);
+            distance += std::hypot(q.x - p.x, q.y - p.y);
+        }
+    }
     // each cell once, with its parts' lengths summed
     std::vector<CellLength> cells;
     std::map<int, std::size_t> index;
@@ -321,6 +465,18 @@ std::vector<CellLength> cells_on_segments(const Grid & grid, const Mesh & mesh, 
         else
             cells[entry->second].length += part.length;
     }
+    return cells;
+}
+
+std::vector<int> cells_at_points(const Grid & grid, const std::vector<Point> & points)
+{
+    check_grid(grid);
+    for (std::size_t point = 0; point < points.size(); point++)
+        if (!std::isfinite(points[point].x) || !std::isfinite(points[point].y))
+            throw Error(message("point ", point, " is not finite"));
+    const CellFinder finder(grid);
+    std::vector<int> cells;
+    for (const Point & point : points) cells.push_back(finder.lowest_cell_at(point));
     return cells;
 }
 

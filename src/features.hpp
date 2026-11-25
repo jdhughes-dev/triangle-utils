@@ -29,10 +29,18 @@ std::vector<CellLength> cells_along_line(const Grid & grid, const std::vector<Po
 
 // The cells on the mesh's segments with a marker, each once, in order of
 // where they first meet the segments, with the length of segment in each;
-// start is that distance along the segments, taken in turn. A segment along
-// a face two cells share, as inside a triangle grid, is in only one of them.
-// Throws Error if no segment has the marker.
+// start is that distance along the segments. The segments are joined into
+// chains, each from its lowest-numbered vertex (toward its second-lowest,
+// if closed), in the order of those vertices, which is the order they were
+// digitized in a mesh triangle-utils generates. A segment along a face two
+// cells share, as inside a triangle grid, is in only one of them. Throws
+// Error if no segment has the marker.
 std::vector<CellLength> cells_on_segments(const Grid & grid, const Mesh & mesh, int marker);
+
+// The cell containing each point, such as a well, or -1 outside the grid; a
+// point on a face or corner is in the lowest-numbered cell there. Throws
+// Error if a point is not finite.
+std::vector<int> cells_at_points(const Grid & grid, const std::vector<Point> & points);
 
 } // namespace triangle_utils
 

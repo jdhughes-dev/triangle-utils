@@ -16,9 +16,10 @@ Cases:
   - test_triangle_grid : a triangle grid has a cell per triangle with its
                          attributes; a bad center raises ValueError.
   - test_cells         : the river's cells in a Voronoi grid, in order, sum to
-                         its length, and the boundary's cells, with the hole's,
-                         sum to their length; a grid with a bad cell raises
-                         Error.
+                         its length, the boundary's cells, with the hole's,
+                         sum to their length, and the ring's center is in the
+                         cell centered on it, a point outside in none; a grid
+                         with a bad cell raises Error.
   - test_shapes        : arrays of the wrong shape, length, or range, and
                          values too large for an int, raise ValueError before
                          the library reads them.
@@ -155,6 +156,11 @@ def test_cells():
     bad = tu.Grid(grid.vertices, [np.array([0, 1])], grid.centers[:1], None, None)
     with pytest.raises(tu.Error, match="cell 0 has 2 corners"):
         tu.cells_along_line(bad, river)
+    # the ring's center is a vertex of the mesh, so in its own cell
+    center = mesh.vertices[mesh.fixed_vertices[0]]
+    cells = tu.cells_at_points(grid, [center, (20.0, 20.0)])
+    np.testing.assert_array_equal(grid.centers[cells[0]], center)
+    assert cells[1] == -1
     centerless = tu.Grid(grid.vertices, grid.cells, grid.centers[:1], None, None)
     with pytest.raises(ValueError, match="centers has 1 rows"):
         tu.cells_along_line(centerless, river)
