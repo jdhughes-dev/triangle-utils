@@ -23,7 +23,8 @@ Cases:
   - test_connections   : the Voronoi grid's connections are symmetric, each
                          face bisecting the line between its centers, and an
                          interior cell's area follows from them; circumcenters
-                         outside their triangles raise Error.
+                         outside their triangles raise Error, and a grid with
+                         no cells has no connections.
   - test_shapes        : arrays of the wrong shape, length, or range, and
                          values too large for an int, raise ValueError before
                          the library reads them.
@@ -202,6 +203,11 @@ def test_connections():
     tu.connect_cells(tu.triangle_grid(obtuse))
     with pytest.raises(tu.Error, match="the center of cell 0 is not on its side"):
         tu.connect_cells(tu.triangle_grid(obtuse, center="circumcenter"))
+    empty = tu.connect_cells(
+        tu.Grid(np.zeros((0, 2)), [], np.zeros((0, 2)), None, None)
+    )
+    np.testing.assert_array_equal(empty.offsets, [0])
+    assert len(empty.cells) == 0
 
 
 def test_shapes():

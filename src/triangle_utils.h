@@ -358,8 +358,9 @@ int triangle_utils_cell_lengths(const TriangleUtilsCellLengths * cell_lengths, i
                                 int * cells, double * starts, double * lengths);
 
 /* The connections of a grid's cells to the cells they share a face with;
-   cells that share a face share its two corners. An error if an edge is a
-   side of more than two cells, two cells overlap, or a center is on a face or
+   cells that share a face share its two corners, and the edges two cells
+   share are one face. An error if an edge is a side of more than two cells,
+   two cells overlap, or a center is on a face, within 1e-9 of its width, or
    beyond it, as an obtuse triangle's circumcenter is.
    *connections is NULL after a failure. */
 int triangle_utils_grid_connections(const TriangleUtilsGrid * grid,

@@ -133,9 +133,10 @@ Connections connect_cells(const Grid & grid)
         first = last;
     }
     // the parts of a face, as where two cells share more than one edge, are
-    // summed
-    std::sort(parts.begin(), parts.end(), [](const Part & p, const Part & q)
-              { return std::tie(p.cell, p.other) < std::tie(q.cell, q.other); });
+    // summed, in the order of their edges so the sums do not depend on the
+    // sort
+    std::stable_sort(parts.begin(), parts.end(), [](const Part & p, const Part & q)
+                     { return std::tie(p.cell, p.other) < std::tie(q.cell, q.other); });
 
     Connections connections;
     connections.offsets.assign(grid.cells.size() + 1, 0);
