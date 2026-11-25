@@ -65,12 +65,11 @@ WELL_AREA = 300.0
 MINIMUM_ANGLE = 30.0
 MAXIMUM_ANGLE = 100.0
 
-# the axis limits of a valley panel: a margin around the boundary, and room
-# above it for the explanation
+# the axis limits of a valley panel: a margin around the boundary
 _x, _y = np.array(BOUNDARY, dtype=float).T
 MARGIN = 100.0
 X_LIMITS = (_x.min() - MARGIN, _x.max() + MARGIN)
-Y_LIMITS = (_y.min() - MARGIN, _y.max() + 0.3 * (_y.max() - _y.min()))
+Y_LIMITS = (_y.min() - MARGIN, _y.max() + MARGIN)
 # the sides of the square close-ups around a well and along the river, in
 # meters
 WELL_WINDOW = 600.0
@@ -203,13 +202,17 @@ def zoom(ax, window):
     ax.set_ylim(y - 0.5 * side, y + 0.5 * side)
 
 
-def explanation(ax, handles):
-    styles.graph_legend(
-        ax=ax,
+def explanation(fig, handles):
+    """The explanation in one row below the panels."""
+    legend = fig.legend(
         handles=handles,
         labels=[h.get_label() for h in handles],
-        loc="upper right",
+        loc="outside lower center",
+        ncols=len(handles),
+        title="EXPLANATION",
+        frameon=False,
     )
+    legend.get_title().set_fontweight("bold")
 
 
 def well_handle():
@@ -240,15 +243,21 @@ def mesh_figure(mesh, windows):
             for region, name in REGION_NAMES.items()
         ]
         handles += [plt.Line2D([], [], color="#1f78b4", label="River"), well_handle()]
-        explanation(axd["A"], handles)
+        explanation(fig, handles)
         fig.savefig(FIGURES / "generated_mesh.pdf")
         plt.close(fig)
 
 
-def over_handles():
+def over_handles(limit, region):
+    """The explanation of a figure of triangles over an angle, with the region
+    its panels show."""
     return [
-        Patch(facecolor="#e31a1c", label=f"Angle over {MAXIMUM_ANGLE:g} degrees"),
-        Patch(facecolor=REGION_COLORS[LAKE_REGION], edgecolor="0.35", label="Lake"),
+        Patch(facecolor="#e31a1c", label=f"Angle over {limit:g} degrees"),
+        Patch(
+            facecolor=REGION_COLORS[region],
+            edgecolor="0.35",
+            label=REGION_NAMES[region],
+        ),
         plt.Line2D([], [], color="#1f78b4", label="River"),
         well_handle(),
     ]
@@ -272,7 +281,7 @@ def refine_figure(mesh, refined, windows):
             styles.heading(ax=axd[letter], letter=letter, heading=heading)
             styles.xlabel(ax=axd[letter], label="x, in meters")
         styles.ylabel(ax=axd["A"], label="y, in meters")
-        explanation(axd["A"], over_handles())
+        explanation(fig, over_handles(MAXIMUM_ANGLE, LAKE_REGION))
         fig.savefig(FIGURES / "refined_mesh.pdf")
         plt.close(fig)
 
@@ -360,22 +369,7 @@ def improve_figure(refined, improved, traded, windows):
             styles.heading(ax=axd[letter], letter=letter, heading=heading)
             styles.xlabel(ax=axd[letter], label="x, in meters")
         styles.ylabel(ax=axd["A"], label="y, in meters")
-        handles = [
-            Patch(facecolor="#e31a1c", label=f"Angle over {IMPROVE_ANGLE:g} degrees"),
-            Patch(facecolor=REGION_COLORS[LAKE_REGION], edgecolor="0.35", label="Lake"),
-            plt.Line2D([], [], color="#1f78b4", label="River"),
-            well_handle(),
-        ]
-        # below the panels, which are too narrow for it
-        legend = fig.legend(
-            handles=handles,
-            labels=[h.get_label() for h in handles],
-            loc="outside lower center",
-            ncols=len(handles),
-            title="EXPLANATION",
-            frameon=False,
-        )
-        legend.get_title().set_fontweight("bold")
+        explanation(fig, over_handles(IMPROVE_ANGLE, LAKE_REGION))
         fig.savefig(FIGURES / "improved_mesh.pdf")
         plt.close(fig)
 
@@ -401,6 +395,7 @@ def close_up_figure(before, after, windows, limit, steps, name):
             styles.ylabel(ax=axd[letter], label="y, in meters")
         for letter in ("C", "D"):
             styles.xlabel(ax=axd[letter], label="x, in meters")
+        explanation(fig, over_handles(limit, WELL_REGION))
         fig.savefig(FIGURES / name)
         plt.close(fig)
 
