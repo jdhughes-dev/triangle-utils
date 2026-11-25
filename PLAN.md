@@ -14,7 +14,8 @@ tests), #6 (Triangle files and the command-line program), #11 (generate a
 mesh from geometry), #7 (refine), #40 (start the user guide), #42 (a point
 on an edge splits it), #8 (improve by moving vertices), #9 (Voronoi and
 triangle grids for DISV), #12 (the cells of points, lines, and boundaries),
-#13 (DISU connection data), #46 (the Python package's wheels).
+#13 (DISU connection data), #46 (the Python package's wheels), #55 (a
+tributary in the guide's example).
 
 1. #50 read features from GeoDataFrames and shapely geometries in Python
 2. #19 layers, DISV and DISU output

@@ -6,7 +6,8 @@ package would, and runs against each wheel.
 
 Cases:
   - test_example : the valley's Voronoi grid matches its DISV arrays, its
-                   connections are symmetric, and its features' cells are right.
+                   connections are symmetric, and its features' cells are
+                   right, with the tributary ending in a cell of the river.
 """
 
 import runpy
@@ -37,8 +38,14 @@ def test_example():
     pairs = set(zip(cell.tolist(), connections.cells.tolist(), strict=True))
     assert all((m, n) in pairs for n, m in pairs)
     assert (connections.distances > 0).all()
-    river = valley["river_cells"]
-    assert river.lengths.sum() == pytest.approx(length(valley["RIVER"]))
+    river, tributary = valley["stream_cells"]
+    for cells, stream in zip(valley["stream_cells"], valley["STREAMS"], strict=True):
+        assert cells.lengths.sum() == pytest.approx(length(stream))
+    # the tributary ends in the cell centered on the point it shares with the
+    # river, which is one of the river's
+    confluence = tributary.cells[-1]
+    np.testing.assert_allclose(grid.centers[confluence], valley["TRIBUTARY"][-1])
+    assert confluence in river.cells
     boundary = valley["boundary_cells"]
     assert boundary.lengths.sum() == pytest.approx(
         length(valley["BOUNDARY"], closed=True)
