@@ -57,9 +57,19 @@ inward; a cell on a segment inside the mesh, such as a lake's shore, spans both
 sides and takes the attributes of the side with most of its area.
 `triangle_utils_mesh_triangle_grid()` makes the triangles the cells, centered
 on their centroids or circumcenters. Either grid lists each vertex once and
-each cell's corners clockwise, as MODFLOW 6 DISV does. The API also returns the
-versions of triangle-utils and Triangle, the license, and Triangle's copyright
-notice. Calls must not run concurrently, since Triangle keeps global state.
+each cell's corners clockwise, as MODFLOW 6 DISV does.
+`triangle_utils_grid_line_cells()` gives the cells along a line, such as a
+river, in order, with the length of line in each, for stream reaches; a part
+along a face is in the cell on the line's left, or on its right where none is
+on the left. `triangle_utils_grid_segment_cells()` gives the cells on a mesh's
+segments with a marker, such as a boundary, each once, with the length of
+segment in each, for boundary conductances, in the order the segments were
+digitized; a segment between two cells, as inside a triangle grid, is in only
+one of them. `triangle_utils_grid_point_cells()` gives the cell containing each
+point, such as a well. `triangle_utils_grid_create()` makes a grid from a
+caller's arrays. The API also returns the versions of triangle-utils and
+Triangle, the license, and Triangle's copyright notice. Calls must not run
+concurrently, since Triangle keeps global state.
 
 ## User guide
 
@@ -76,6 +86,7 @@ triangle-utils generate [options] <base>  # mesh <base>.poly to <base>.1.*
 triangle-utils refine [options] <base>    # refine <base>.node and .ele
 triangle-utils improve [options] <base>   # move its vertices
 triangle-utils disv [options] <base>      # write <base>.disv for MODFLOW 6
+triangle-utils cells [options] <base>     # cells of points, a line, a boundary
 triangle-utils check <base>   # check <base>.node, .ele, and .neigh
 triangle-utils --version      # the versions of triangle-utils and Triangle,
                               # and the MODFLOW-ORG/triangle release
@@ -104,6 +115,11 @@ must be conforming Delaunay (`-D`), or its triangles (`-g centroid` or
 `-g circumcenter`), as a one-layer MODFLOW 6 DISV file, `<base>.disv`, and
 each cell's mesh vertex or triangle and attributes to `<base>.cells`.
 `pixi run get-mf6` downloads MODFLOW 6 into the pixi environment.
+
+`cells` prints the cells of the same grid that points contain (`-p`, a file
+of x and y), or that a line (`-l`) or the segments of `<base>.poly` with a
+marker (`-m`) pass through, with where each part starts and its length;
+cells are numbered from 1, as in the DISV file.
 
 ## License
 

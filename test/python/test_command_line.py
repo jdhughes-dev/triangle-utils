@@ -49,11 +49,18 @@ Cases:
                          .poly file with its own vertices beside them does
                          not stop it.
   - test_disv_errors   : a mesh that is not Delaunay exits 1 with the reason.
+  - test_cells         : a line across the box and the box's boundary print
+                         their cells, numbered from 1, whose lengths sum to
+                         the line's length in the box and to the boundary's,
+                         and points print their cells, 0 outside the box.
+  - test_cells_errors  : a bad line file and a marker no segment has exit 1
+                         with the reason.
   - test_generate_errors : a bad option value is a usage error (2), and a
                          boundary not closed and a missing file are errors
                          (1).
 """
 
+import itertools
 import math
 import os
 import subprocess
@@ -145,6 +152,9 @@ def test_license():
             "disv: the top (0) must be above the bottom (1)",
         ),
         (("disv",), "disv: give one <base>"),
+        (("cells", "box"), "cells: give one of -l, -p, and -m"),
+        (("cells", "-l", "x", "-m", "1", "box"), "cells: give one of -l, -p, and -m"),
+        (("cells", "-m", "1.5", "box"), "cells: -m needs a whole number, not 1.5"),
         (("check",), "check: give one <base>"),
         (("check", "one", "two"), "check: give one <base>"),
         (("check", "--bogus", "base"), "check: unknown option --bogus"),
@@ -523,3 +533,56 @@ def test_disv_errors(tmp_path):
     assert output == ""
     assert "over 90" in errors
     assert "conforming Delaunay" in errors
+
+
+def read_cells(output):
+    """The cells, starts, and lengths cells prints, after its comment."""
+    lines = output.splitlines()
+    assert lines[0].startswith("# cell, start, and length along ")
+    rows = [line.split() for line in lines[1:]]
+    return [(int(cell), float(start), float(length)) for cell, start, length in rows]
+
+
+def test_cells(tmp_path):
+    (tmp_path / "box.poly").write_text(BOX_POLY)
+    base = str(tmp_path / "box")
+    assert run("generate", "-a", "0.1", "-q", "25", "-D", base)[0] == 0
+    # from outside the box to beyond it, through 3 of the box and none of the
+    # hole, which it misses
+    (tmp_path / "line.txt").write_text("# x y\n-1 0.5\n\n4 0.5  # east of the box\n")
+    status, output, _ = run("cells", "-l", str(tmp_path / "line.txt"), f"{base}.1")
+    assert status == 0
+    cells = read_cells(output)
+    assert cells[0][1] == pytest.approx(1.0)
+    assert sum(length for _, _, length in cells) == pytest.approx(3.0)
+    for (_, start, length), (_, next_start, _) in itertools.pairwise(cells):
+        assert next_start == pytest.approx(start + length)
+    vertex_total = vertex_count(f"{base}.1")
+    assert all(1 <= cell <= vertex_total for cell, _, _ in cells)
+    # a point of the box's corner and one outside it
+    (tmp_path / "points.txt").write_text("0 0\n5 5\n")
+    status, output, _ = run("cells", "-p", str(tmp_path / "points.txt"), f"{base}.1")
+    assert status == 0
+    rows = [line.split() for line in output.splitlines()[1:]]
+    assert [row[0] for row in rows] == ["1", "2"]
+    assert int(rows[0][1]) >= 1
+    assert rows[1][1] == "0"
+    for grid in ("voronoi", "centroid"):
+        status, output, _ = run("cells", "-g", grid, "-m", "1", f"{base}.1")
+        assert status == 0
+        cells = read_cells(output)
+        assert sum(length for _, _, length in cells) == pytest.approx(12.0)
+        assert len({cell for cell, _, _ in cells}) == len(cells)
+
+
+def test_cells_errors(tmp_path):
+    (tmp_path / "box.poly").write_text(BOX_POLY)
+    base = str(tmp_path / "box")
+    assert run("generate", "-a", "0.1", "-D", base)[0] == 0
+    (tmp_path / "bad.txt").write_text("0 0\n1\n")
+    status, _, errors = run("cells", "-l", str(tmp_path / "bad.txt"), f"{base}.1")
+    assert status == 1
+    assert "bad.txt line 2: expected x and y" in errors
+    status, _, errors = run("cells", "-m", "7", f"{base}.1")
+    assert status == 1
+    assert "no segment of the mesh has marker 7" in errors

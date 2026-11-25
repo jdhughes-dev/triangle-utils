@@ -42,6 +42,10 @@ typedef struct TriangleUtilsGeometry TriangleUtilsGeometry;
    it with triangle_utils_grid_free(). */
 typedef struct TriangleUtilsGrid TriangleUtilsGrid;
 
+/* The cells a line or marked segments pass through, with the length in
+   each; free it with triangle_utils_cell_lengths_free(). */
+typedef struct TriangleUtilsCellLengths TriangleUtilsCellLengths;
+
 /* The reason for the last status other than TRIANGLE_UTILS_OK, or an empty
    string after a function that returns a status succeeded; valid until the
    next such call. */
@@ -304,6 +308,50 @@ int triangle_utils_grid_attribute_count(const TriangleUtilsGrid * grid, int * at
    attribute count times the cell count. */
 int triangle_utils_grid_attributes(const TriangleUtilsGrid * grid, int value_count,
                                    double * attributes);
+
+/* A grid from its vertices, x and y of each in turn, its cells' corners
+   (those of cell i are corners[corner_offsets[i]] up to
+   corners[corner_offsets[i + 1]]), and its centers, such as a grid read back
+   from a caller's arrays; it has no sources or attributes. *grid is NULL
+   after a failure. */
+int triangle_utils_grid_create(int vertex_count, const double * vertex_xy, int cell_count,
+                               const int * corner_offsets, int corner_count, const int * corners,
+                               const double * center_xy, TriangleUtilsGrid ** grid);
+
+/* The cells along a line of point_count points, in order, with the length of
+   line in each; a cell the line enters twice appears twice, a part along a
+   face is in the cell on the line's left, or on its right where none is on
+   the left, and parts outside the grid are left out. *cell_lengths is NULL
+   after a failure. */
+int triangle_utils_grid_line_cells(const TriangleUtilsGrid * grid, int point_count,
+                                   const double * point_xy,
+                                   TriangleUtilsCellLengths ** cell_lengths);
+
+/* The cells on the mesh's segments with a marker, such as a boundary, each
+   once, in order of where they first meet the segments, with the length of
+   segment in each; a segment along a face two cells share is in only one of
+   them; an error if no segment has the marker. *cell_lengths is NULL after
+   a failure. */
+int triangle_utils_grid_segment_cells(const TriangleUtilsGrid * grid,
+                                      const TriangleUtilsMesh * mesh, int marker,
+                                      TriangleUtilsCellLengths ** cell_lengths);
+
+/* The cell containing each of point_count points, such as wells, or -1
+   outside the grid; a point on a face or corner is in the lowest-numbered
+   cell there. cells has point_count values. */
+int triangle_utils_grid_point_cells(const TriangleUtilsGrid * grid, int point_count,
+                                    const double * point_xy, int * cells);
+
+/* Free cell lengths; NULL is ignored. */
+void triangle_utils_cell_lengths_free(TriangleUtilsCellLengths * cell_lengths);
+
+/* The number of cell lengths. */
+int triangle_utils_cell_lengths_count(const TriangleUtilsCellLengths * cell_lengths, int * count);
+
+/* Each cell, where its part starts along the line or segments, and its
+   length; count must be the number of cell lengths. */
+int triangle_utils_cell_lengths(const TriangleUtilsCellLengths * cell_lengths, int count,
+                                int * cells, double * starts, double * lengths);
 
 #ifdef __cplusplus
 }

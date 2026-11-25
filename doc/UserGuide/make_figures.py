@@ -26,6 +26,7 @@ import triangle_utils as tu  # noqa: E402
 from valley import (  # noqa: E402
     AQUIFER,
     BOUNDARY,
+    BOUNDARY_MARKER,
     BOUNDARY_SPACING,
     IMPROVE_ANGLE,
     LAKE_AREA,
@@ -43,11 +44,14 @@ from valley import (  # noqa: E402
     WELL_RADIUS,
     WELL_REGION,
     WELLS,
+    boundary_cells,
     delaunay_refined,
     grid,
     improved,
     mesh,
     refined,
+    river_cells,
+    well_cells,
 )
 
 FIGURES = HERE / "Figures"
@@ -149,6 +153,7 @@ VALLEY_SECTIONS = {
     "geometry": "geometry = tu.Geometry()",
     "meshing": "mesh = tu.generate(",
     "grid": "# the Voronoi grid needs",
+    "features": "# the river's cells",
 }
 
 
@@ -499,6 +504,92 @@ def voronoi_figure(grid, mesh, windows):
         plt.close(fig)
 
 
+# a window on the boundary at the valley's west corner, (x, y, side) in meters
+BOUNDARY_WINDOW = (300.0, 4000.0, 800.0)
+# the colors of the river's cells, in turn, and of the boundary's
+RIVER_CELL_COLORS = ("#6baed6", "#2171b5")
+BOUNDARY_CELL_COLOR = "#fd8d3c"
+WELL_CELL_COLOR = "#807dba"
+# the side of the close-up around a well, small enough to show its cell,
+# in meters
+WELL_CELL_WINDOW = 150.0
+
+
+def draw_features(ax, grid, mesh):
+    """Draw the grid with the river's cells in alternating blues, in order,
+    the boundary's cells in orange, and the wells' cells in purple."""
+    colors = ["#f0ece0"] * len(grid.cells)
+    for cell in boundary_cells.cells:
+        colors[cell] = BOUNDARY_CELL_COLOR
+    for cell in well_cells:
+        colors[cell] = WELL_CELL_COLOR
+    for reach, cell in enumerate(river_cells.cells):
+        colors[cell] = RIVER_CELL_COLORS[reach % 2]
+    ax.add_collection(
+        PolyCollection(
+            [grid.vertices[cell] for cell in grid.cells],
+            facecolors=colors,
+            edgecolors="0.35",
+            linewidths=0.15,
+        )
+    )
+    for segment, marker in zip(mesh.segments, mesh.segment_markers, strict=True):
+        if marker == RIVER_MARKER:
+            ax.plot(*mesh.vertices[segment].T, color="black", lw=0.8)
+    for x, y in WELLS:
+        ax.plot(x, y, marker="o", color="black", ms=2.5, ls="none")
+    ax.xaxis.set_major_formatter(THOUSANDS)
+    ax.yaxis.set_major_formatter(THOUSANDS)
+    ax.set_aspect("equal")
+    ax.set_xlim(*X_LIMITS)
+    ax.set_ylim(*Y_LIMITS)
+
+
+def features_figure(grid, mesh, windows):
+    """The river's, the boundary's, and the wells' cells in the Voronoi grid,
+    with close-ups along the river, on the boundary, and around a well."""
+    with styles.USGSMap():
+        fig, axd = valley_and_windows()
+        well_x, well_y, _ = windows["B"]
+        close_ups = {
+            "B": windows["C"],
+            "C": BOUNDARY_WINDOW,
+            "D": (well_x, well_y, WELL_CELL_WINDOW),
+        }
+        draw_features(axd["A"], grid, mesh)
+        for letter, window in close_ups.items():
+            show_window(axd["A"], window, letter)
+        styles.heading(ax=axd["A"], letter="A", heading="Valley")
+        styles.ylabel(ax=axd["A"], label="y, in meters")
+        styles.xlabel(ax=axd["A"], label="x, in meters")
+        for letter, heading in (
+            ("B", "Along the river"),
+            ("C", "On the boundary"),
+            ("D", "Around a well"),
+        ):
+            draw_features(axd[letter], grid, mesh)
+            zoom(axd[letter], close_ups[letter])
+            styles.heading(ax=axd[letter], letter=letter, heading=heading)
+        styles.xlabel(ax=axd["D"], label="x, in meters")
+        handles = [
+            Patch(facecolor=RIVER_CELL_COLORS[0], edgecolor="0.35", label="River cell"),
+            Patch(
+                facecolor=RIVER_CELL_COLORS[1],
+                edgecolor="0.35",
+                label="Next river cell",
+            ),
+            Patch(
+                facecolor=BOUNDARY_CELL_COLOR, edgecolor="0.35", label="Boundary cell"
+            ),
+            Patch(facecolor=WELL_CELL_COLOR, edgecolor="0.35", label="Well cell"),
+            plt.Line2D([], [], color="black", lw=0.8, label="River"),
+            well_handle(),
+        ]
+        explanation(fig, handles, columns=3)
+        save(fig, "features.pdf")
+        plt.close(fig)
+
+
 def cover_figure(mesh):
     """The cover image: the refined mesh of the valley in dark colors, under
     the white title, without axes."""
@@ -553,6 +644,15 @@ def main():
     # the cells of the vertices on the lake's shore, which span both sides
     shore = np.unique(delaunay.segments[delaunay.segment_markers == LAKE_MARKER])
     voronoi_figure(grid, delaunay, windows)
+    # each well is a vertex of the mesh, its ring's center, so its cell is
+    # centered on it
+    if not np.allclose(grid.centers[well_cells], WELLS):
+        raise ValueError("a well's cell is not centered on the well")
+    # the river's marked segments give its cells in the order it was digitized
+    along_segments = tu.cells_on_segments(grid, delaunay, RIVER_MARKER)
+    if not np.array_equal(along_segments.cells, river_cells.cells):
+        raise ValueError("the river's segments are not in the order it was digitized")
+    features_figure(grid, delaunay, windows)
     cover_figure(refined)
     # the class puts this page in place of the agency logo on the cover
     blank = plt.figure(figsize=(1, 1))
@@ -603,6 +703,11 @@ def main():
         "wellx": f"{windows['B'][0]:,.0f}",
         "welly": f"{windows['B'][1]:,.0f}",
         **valley_section_lines(),
+        "boundarymarker": BOUNDARY_MARKER,
+        "rivercells": len(river_cells.cells),
+        "riverlength": f"{river_cells.lengths.sum():,.0f}",
+        "boundarycells": len(boundary_cells.cells),
+        "boundarylength": f"{boundary_cells.lengths.sum():,.0f}",
         "lakewindowover": over_in(mesh, MAXIMUM_ANGLE, windows["D"]),
         "lakewindowrefinedover": over_in(refined, MAXIMUM_ANGLE, windows["D"]),
         "lakewindowrefinedoverninety": over_in(refined, IMPROVE_ANGLE, windows["D"]),
