@@ -1,0 +1,63 @@
+name: triangle-utils wheels
+# builds the Python package's wheels (pyproject.toml) and tests each in a
+# clean environment; publishing them to PyPI is part of the release (#10)
+on:
+  push:
+    paths:
+      - 'src/**'
+      - 'python/**'
+      - 'test/python/**'
+      - 'subprojects/*.wrap'
+      - 'meson.build'
+      - 'meson.options'
+      - 'pyproject.toml'
+      - 'LICENSE'
+      - 'LICENSE-Triangle'
+      - '.github/workflows/wheels.yml'
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'src/**'
+      - 'python/**'
+      - 'test/python/**'
+      - 'subprojects/*.wrap'
+      - 'meson.build'
+      - 'meson.options'
+      - 'pyproject.toml'
+      - 'LICENSE'
+      - 'LICENSE-Triangle'
+      - '.github/workflows/wheels.yml'
+  workflow_dispatch:
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+permissions:
+  contents: read
+jobs:
+  wheel:
+    name: ${{ matrix.os }} wheel
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        # Linux x86_64 and aarch64, macOS arm64 and x86_64, and Windows
+        # AMD64, each on a runner of its own architecture
+        os: [ubuntu-24.04, ubuntu-24.04-arm, macos-15, macos-15-intel, windows-2022]
+    steps:
+      - name: Checkout triangle-utils
+        uses: actions/checkout@v7
+
+      - name: Build and test the wheel
+        uses: pypa/cibuildwheel@v4.3.5
+        env:
+          # the oldest macOS the wheel runs on
+          MACOSX_DEPLOYMENT_TARGET: '11.0'
+
+      - name: Upload the wheel
+        uses: actions/upload-artifact@v7
+        with:
+          name: wheel-${{ matrix.os }}
+          path: wheelhouse/*.whl
+          retention-days: 7

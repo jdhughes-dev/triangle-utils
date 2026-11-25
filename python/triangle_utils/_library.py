@@ -3,7 +3,8 @@ The C API's functions, status codes, and handles for ctypes.
 
 load() opens the library and declares each function's types: the library
 named by the TRIANGLE_UTILS_LIBRARY environment variable, which meson test
-sets, or else the one `pixi run build` installs in the repository.
+sets, or else the one installed beside the module, or else the one
+`pixi run build` installs in the repository.
 """
 
 import ctypes
@@ -172,6 +173,11 @@ def library_path():
     """The library to load."""
     if os.environ.get("TRIANGLE_UTILS_LIBRARY"):
         return Path(os.environ["TRIANGLE_UTILS_LIBRARY"])
+    # the library installed with the package, beside the module
+    for pattern in ("libtriangle_utils.so", "libtriangle_utils.dylib", "*.dll"):
+        found = sorted(Path(__file__).parent.glob(pattern))
+        if found:
+            return found[0]
     # the shared library, or its DLL, which Windows installs in bin
     for pattern in (
         "lib/libtriangle_utils.so",
@@ -182,8 +188,8 @@ def library_path():
         if found:
             return found[0]
     raise FileNotFoundError(
-        "the triangle-utils library was not found; run `pixi run build`, or set "
-        "TRIANGLE_UTILS_LIBRARY to its path"
+        "the triangle-utils library was not found beside the module or in the "
+        "repository; run `pixi run build`, or set TRIANGLE_UTILS_LIBRARY to its path"
     )
 
 

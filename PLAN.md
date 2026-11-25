@@ -14,25 +14,24 @@ tests), #6 (Triangle files and the command-line program), #11 (generate a
 mesh from geometry), #7 (refine), #40 (start the user guide), #42 (a point
 on an edge splits it), #8 (improve by moving vertices), #9 (Voronoi and
 triangle grids for DISV), #12 (the cells of points, lines, and boundaries),
-#13 (DISU connection data).
+#13 (DISU connection data), #46 (the Python package's wheels).
 
-1. #46 package the Python module for PyPI
-2. #50 read features from GeoDataFrames and shapely geometries in Python
-3. #19 layers, DISV and DISU output
-4. #51 read shapefiles in the C++ library with shapelib
-5. #52 evaluate reading GeoPackage and FlatGeobuf in the C++ library
-6. #23 ghost-node correction
-7. #43 hybrid grid, Voronoi cells around features and triangles elsewhere
-8. #44 a point feature centered in a triangle cell, evaluated before the
+1. #50 read features from GeoDataFrames and shapely geometries in Python
+2. #19 layers, DISV and DISU output
+3. #51 read shapefiles in the C++ library with shapelib
+4. #52 evaluate reading GeoPackage and FlatGeobuf in the C++ library
+5. #23 ghost-node correction
+6. #43 hybrid grid, Voronoi cells around features and triangles elsewhere
+7. #44 a point feature centered in a triangle cell, evaluated before the
    release: shipped as an option, or closed with its findings
-9. #14 grid quality report
-10. #18 model checks with MODFLOW 6, MODFLOW-USG, and MODFLOW-USG-Transport
-11. #20 different refinement by layer
-12. #15 structured grids, merging cells, and refinement by a field
-13. #21 user guide
-14. #22 Read the Docs
-15. #24 release notes
-16. #10 release and conda-forge package
+8. #14 grid quality report
+9. #18 model checks with MODFLOW 6, MODFLOW-USG, and MODFLOW-USG-Transport
+10. #20 different refinement by layer
+11. #15 structured grids, merging cells, and refinement by a field
+12. #21 user guide
+13. #22 Read the Docs
+14. #24 release notes
+15. #10 release and conda-forge package
 
 ## Triangle
 
@@ -96,8 +95,14 @@ triangle grids for DISV), #12 (the cells of points, lines, and boundaries),
 - **Windows runtime DLLs:** the Windows DLL depends on its compiler's
   runtime DLLs (the Intel build failed to load from Python without them in
   #38), which Python since 3.8 does not look for on `PATH`; the tests load
-  it with `winmode=0`. #46 links the runtimes statically, so a wheel needs
-  nothing beside it; the release (#10) does the same for its archives.
+  it with `winmode=0`. #46 links the runtimes statically in the wheels
+  (`b_vscrt=mt`, and `-static-libstdc++` and `-static-libgcc` with gcc), so
+  a wheel needs nothing beside it; the release (#10) does the same for its
+  archives.
+- **PyPI:** #46 builds and tests the wheels in CI but publishes nothing. The
+  wheels go to PyPI, as `triangle-utils`, only with the first release
+  (#10), from the same tag as the release archives and the conda-forge
+  package.
 
 ## User guide
 
@@ -109,5 +114,5 @@ triangle grids for DISV), #12 (the cells of points, lines, and boundaries),
 ## Open questions
 
 - **Python wrapper:** `python/triangle_utils/` (#40) is a minimal module,
-  meshes in and out as NumPy arrays. #46 packages it for PyPI, with the
-  library inside each wheel; #19 decides what it returns for FloPy.
+  meshes in and out as NumPy arrays, packaged with the library inside each
+  wheel (#46); #19 decides what it returns for FloPy.

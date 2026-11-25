@@ -30,6 +30,8 @@ MODFLOW-ORG/triangle and MODFLOW-ORG/gridgen.
 - **Build the user guide** (its figures and `doc/UserGuide/triangle-utils.pdf`;
   needs `pixi run build` first, TeX Live, and the usgslatex class from
   MODFLOW-ORG/usgslatex): `pixi run -e doc build-guide`
+- **Build the Python package's wheel** (in `dist/`, from the packages in the
+  pixi environment): `pixi run wheel`
 - **Get MODFLOW 6** (6.7.0, into the pixi environment's `bin`, with flopy's
   `get-modflow`; `test_modflow.py` runs it on the grids, and skips without
   it, as in CI until #18): `pixi run get-mf6`
@@ -42,7 +44,12 @@ MODFLOW-ORG/triangle and MODFLOW-ORG/gridgen.
   pull request that changes the plan.
 - `README.md` — what the utilities do, the design, and the license terms.
 - `LICENSE` — CC0 1.0 for the code in this repository; Triangle has its own
-  terms (see Licenses below).
+  terms (see Licenses below), copied in `LICENSE-Triangle`, which
+  `test_package.py` checks against the subproject's.
+- `pyproject.toml` — the Python package, built by meson-python with the
+  `python` option (`meson.options`), which installs the module and the C API
+  library beside it, without the program, headers, or tests, and the
+  cibuildwheel settings that build and test the wheels.
 - `meson.build` — the project, its version, the floating-point options,
   and the dependencies; `src/meson.build` generates
   `triangle_utils_version.h`, the version as macros, builds the core as a
@@ -92,7 +99,10 @@ MODFLOW-ORG/triangle and MODFLOW-ORG/gridgen.
   request to `main` that can affect the build or tests, and daily;
   `.github/workflows/lint.yml` runs `pixi run check-format`;
   `.github/workflows/guide.yml` builds the user guide when it, the library,
-  or the Python module changes, and uploads the PDF as an artifact. Dependabot
+  or the Python module changes, and uploads the PDF as an artifact;
+  `.github/workflows/wheels.yml` builds the wheels with cibuildwheel and
+  tests each in a clean environment, and uploads them as artifacts; it does
+  not publish them, which waits for the release (#10). Dependabot
   opens the pull requests that bump action versions
   (`.github/dependabot.yml`).
 - `bin/`, `lib/`, `include/`, `builddir/`, `.pixi/`, and the downloads in
@@ -150,7 +160,8 @@ MODFLOW-ORG/triangle and MODFLOW-ORG/gridgen.
   commercial system needs an arrangement with Triangle's author. The
   command-line program prints Triangle's copyright notice and terms with
   `--license` (see Command line), since the library has no `triangle -h` to
-  print it.
+  print it; the Python package installs `LICENSE` and `LICENSE-Triangle`
+  beside the module.
 
 ## Versioning
 

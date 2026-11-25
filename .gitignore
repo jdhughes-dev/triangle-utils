@@ -3,6 +3,8 @@
 /include/
 /lib/
 builddir*/
+/dist/
+.mesonpy-*/
 subprojects/*/
 subprojects/packagecache/
 subprojects/.wraplock

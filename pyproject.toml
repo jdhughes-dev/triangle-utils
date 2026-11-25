@@ -1,0 +1,41 @@
+# the Python package: the module in python/triangle_utils with the C API
+# library beside it, built by meson-python with the python option
+[build-system]
+build-backend = "mesonpy"
+requires = ["meson-python>=0.17"]
+
+[project]
+name = "triangle-utils"
+dynamic = ["version"]
+description = "Meshes and grids for MODFLOW from Triangle"
+readme = "README.md"
+requires-python = ">=3.11"
+# triangle-utils is CC0 1.0; Triangle, linked into the library, has its own
+# terms, installed with the package as LICENSE-Triangle
+license = { text = "CC0-1.0 AND LicenseRef-Triangle" }
+dependencies = ["numpy"]
+
+[project.urls]
+Source = "https://github.com/jdhughes-dev/triangle-utils"
+
+[tool.meson-python]
+# the module calls the library through ctypes and uses no Python C API, so a
+# wheel built for one Python version serves every later one (abi3)
+limited-api = true
+
+[tool.meson-python.args]
+# the static C++ runtime on Windows, so the DLL needs nothing beside it
+setup = ["-Dpython=true", "-Db_vscrt=mt"]
+install = ["--tags=runtime,python-runtime"]
+
+[tool.cibuildwheel]
+# one wheel for each platform, built for the oldest Python supported, so it
+# serves every later one; it is tested in a clean environment with the
+# tests that use only the library
+build = "cp311-*"
+skip = "*-musllinux_*"
+test-requires = ["pytest"]
+test-command = "pytest -p no:cacheprovider {project}/test/python/test_c_api.py {project}/test/python/test_generate.py {project}/test/python/test_refine.py {project}/test/python/test_python_module.py {project}/test/python/test_package.py"
+
+[tool.cibuildwheel.environment]
+TRIANGLE_UTILS_TEST_INSTALLED = "1"

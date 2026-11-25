@@ -15,6 +15,9 @@ codespell = "*"
 clang-format = "23.1.*"
 # get-modflow, for MODFLOW 6, which runs the grids
 flopy = "*"
+# the Python package's wheel (pyproject.toml)
+meson-python = ">=0.17"
+python-build = "*"
 
 [tasks]
 
@@ -22,6 +25,9 @@ flopy = "*"
 clean = { cmd = "rm -rf builddir" }
 setup = { cmd = "meson setup --prefix=$(pwd) --bindir=bin --libdir=lib builddir" }
 build = "meson install -C builddir"
+
+# the Python package's wheel, in dist/, from the packages in the environment
+wheel = { cmd = "python -m build --wheel --no-isolation --outdir dist" }
 
 # test
 test = { cmd = "meson test --verbose --no-rebuild -C builddir" }
