@@ -205,10 +205,14 @@ refined = tu.refine(mesh, minimum_angle=MINIMUM_ANGLE, maximum_angle=MAXIMUM_ANG
 improved = tu.improve(refined, maximum_angle=IMPROVE_ANGLE)
 \end{Verbatim}
 
-\noindent The Voronoi grid of Figure~\ref{fig:voronoi} is built from a mesh generated and refined with \texttt{conforming\_delaunay=True}, and its vertices and cells are returned in the form FloPy's DISV package takes:
+\noindent The Voronoi grid of Figure~\ref{fig:voronoi} is built from the same geometry meshed with conforming Delaunay triangles, and its vertices and cells are returned in the form FloPy's DISV package takes:
 
 \begin{Verbatim}[fontsize=\small]
-grid = tu.voronoi(delaunay)
+mesh = tu.generate(geometry, maximum_area=MAXIMUM_AREA, minimum_angle=MINIMUM_ANGLE,
+                   conforming_delaunay=True)
+refined = tu.refine(mesh, minimum_angle=MINIMUM_ANGLE, maximum_angle=MAXIMUM_ANGLE,
+                    conforming_delaunay=True)
+grid = tu.voronoi(refined)
 vertices, cell2d = grid.disv_vertices(), grid.disv_cell2d()
 \end{Verbatim}
 
