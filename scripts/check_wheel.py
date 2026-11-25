@@ -1,12 +1,9 @@
 """
 Check that a wheel holds only the package and needs nothing beside it.
 
-Fails if the wheel holds a file other than the module files, the library,
-the licenses, the notice, and the metadata; if its library links anything
-but the system libraries every machine has, read with the platform's own
-tool (readelf on Linux, otool on macOS, dumpbin on Windows); or, on macOS,
-if the library needs a macOS later than MACOSX_DEPLOYMENT_TARGET. Run by
-.github/workflows/wheels.yml on each wheel it builds.
+Checks its files and metadata, the libraries its library links (with
+readelf, otool, or dumpbin), and on macOS MACOSX_DEPLOYMENT_TARGET; run by
+.github/workflows/wheels.yml.
 """
 
 import argparse

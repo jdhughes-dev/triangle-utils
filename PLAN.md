@@ -105,8 +105,8 @@ triangle grids for DISV), #12 (the cells of points, lines, and boundaries),
   package. #10 also decides how a wheel's Triangle source is made available:
   `NOTICE` gives the wrap's archive URL, and there is no sdist yet.
 - **Wheel platforms:** Linux (manylinux) x86_64 and aarch64, macOS arm64,
-  and Windows x86_64, each an abi3 wheel for CPython 3.11 and later. macOS on Intel is
-  not supported (decided in #46): Triangle's CI does not test it.
+  and Windows x86_64, each an abi3 wheel for CPython 3.11 and later. macOS
+  on Intel is not supported (decided in #46): Triangle's CI does not test it.
 
 ## User guide
 

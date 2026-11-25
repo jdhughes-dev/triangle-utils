@@ -193,7 +193,8 @@ def library_path():
             return found[0]
     raise FileNotFoundError(
         "the triangle-utils library was not found beside the module or in the "
-        "repository; run `pixi run build`, or set TRIANGLE_UTILS_LIBRARY to its path"
+        "repository; reinstall the package, run `pixi run build` in a clone, or set "
+        "TRIANGLE_UTILS_LIBRARY to its path"
     )
 
 

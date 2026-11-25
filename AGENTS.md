@@ -90,8 +90,10 @@ MODFLOW-ORG/triangle and MODFLOW-ORG/gridgen.
 - `test/` — the GoogleTest tests; `test_c_header.c`, which builds the API
   header as C; and `python/`, the pytest tests of the C API through
   `ctypes` (declared in `python/triangle_utils/_library.py`), of the Python
-  module, and of the program, which
-  `meson test` runs except under the sanitizers.
+  module, of the installed package (`test_package.py`), of the user guide's
+  example (`test_example.py`, which runs `doc/UserGuide/valley.py`), and of
+  the program, which `meson test` runs except under the sanitizers; the
+  wheels run all but the program's and MODFLOW 6's.
 - `scripts/clang_format.py` — runs clang-format on the tracked C and C++
   files, for `pixi run check-format` and `fix-format`.
 - `scripts/check_wheel.py` — checks that a wheel holds only the package's
@@ -112,8 +114,8 @@ MODFLOW-ORG/triangle and MODFLOW-ORG/gridgen.
   artifacts; it does not publish them, which waits for the release (#10).
   Dependabot opens the pull requests that bump action versions
   (`.github/dependabot.yml`).
-- `bin/`, `lib/`, `include/`, `builddir/`, `.pixi/`, and the downloads in
-  `subprojects/` — disposable build output, installed files, and
+- `bin/`, `lib/`, `include/`, `builddir/`, `dist/`, `wheelhouse/`, `.pixi/`,
+  and the downloads in `subprojects/` — disposable build output, installed files, and
   environment; never edit by hand or commit.
 
 ## Design
@@ -316,12 +318,17 @@ MODFLOW-ORG/triangle and MODFLOW-ORG/gridgen.
     Downloads are expected only through the pixi environments (conda-forge),
     the Meson wraps for Triangle and GoogleTest, and the CI workflows
     (including TeX Live, through `zauguin/install-texlive`, and
-    MODFLOW-ORG/usgslatex at a pinned commit, for the user guide), and
-    MODFLOW 6 from MODFLOW-ORG/executables through `pixi run get-mf6`;
+    MODFLOW-ORG/usgslatex at a pinned commit, for the user guide, and
+    cibuildwheel, its manylinux images, and the Python packages it and the
+    wheel tests install with pip, for the wheels), and MODFLOW 6 from
+    MODFLOW-ORG/executables through `pixi run get-mf6`;
   - programs run other than git, Meson, Ninja, the compilers, clang-format,
     ruff, codespell, the utilities themselves, pytest, pixi tasks, Python
     for `scripts/clang_format.py` and `doc/UserGuide/make_figures.py`,
-    latexmk and the TeX programs it runs, flopy's `get-modflow`, and mf6;
+    latexmk and the TeX programs it runs, flopy's `get-modflow`, mf6,
+    cibuildwheel and the auditwheel and delocate it runs, pip in the wheel
+    workflow, and readelf, otool, vswhere, and dumpbin from
+    `scripts/check_wheel.py`;
   - in Python, `eval`, `exec`, `compile`, `pickle` loads of untrusted
     files, or code that is encoded or obscured (base64 or hex strings that
     are decoded and run);

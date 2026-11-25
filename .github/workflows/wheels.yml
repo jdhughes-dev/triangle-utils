@@ -103,8 +103,8 @@ jobs:
           name: wheel-${{ matrix.os }}
           path: wheelhouse
 
-      # the subproject the license test compares with is not downloaded here;
-      # the wheel job runs that test
+      # the tests of pyproject.toml's test-command, less the license test,
+      # whose subproject is not downloaded here; the wheel job runs it
       - name: Install and test the wheel
         env:
           TRIANGLE_UTILS_TEST_INSTALLED: '1'
