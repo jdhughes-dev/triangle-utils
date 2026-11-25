@@ -173,9 +173,9 @@ A grid can also be made of the triangles themselves, centered on their centroids
 
 \section{Mapping Rivers and Boundaries to Cells}
 
-A stream package needs the cells a river passes through, in order, with the length of river in each, and a boundary package needs the cells along a boundary with the length of boundary in each, which sets the conductance of each cell's connection to the boundary. triangle-utils finds both in a triangle or Voronoi grid, for a line given by its points, such as a river, or for the segments of a mesh with a marker, such as the valley's boundary. A cell the line passes through twice appears twice along it; a part of a line along a face two cells share, as a river along a triangle's edge, is in the cell on the line's left.
+The Streamflow-Routing (SFR) package of MODFLOW 6 needs the cells a river passes through, in order, with the length of river in each, its reaches; the General-Head Boundary (GHB) package and other boundary packages need the cells along a boundary with the length of boundary in each, which sets the conductance of each cell's connection to the boundary. triangle-utils finds both in a triangle or Voronoi grid, for a line given by its points, such as a river, or for the segments of a mesh with a marker, such as the valley's boundary. A cell the line passes through twice appears twice along it; a part of a line along a face two cells share, as a river along a triangle's edge, is in the cell on the line's left.
 
-Figure~\ref{fig:features} shows the cells of the river and the boundary in the Voronoi grid of Figure~\ref{fig:voronoi}. The river's \riverlength~m pass through \rivercells\ cells, centered on the river's vertices, and the boundary's \boundarylength~m through \boundarycells\ cells, each with half of the boundary between its vertex and the next on each side.
+Figure~\ref{fig:features} shows the cells of the river and the boundary in the Voronoi grid of Figure~\ref{fig:voronoi}. The river's \riverlength~m pass through \rivercells\ cells, centered on the river's vertices, and the boundary's \boundarylength~m through \boundarycells\ cells. A boundary cell's length is half the distance to the boundary vertex on each side of its own.
 
 \begin{figure}[htbp]
   \centering
@@ -198,7 +198,7 @@ triangle-utils cells -l river.txt valley.2
 triangle-utils cells -m \boundarymarker valley.2
 \end{Verbatim}
 
-\noindent Each command writes its mesh to files named as Triangle names them, valley.1 for valley and valley.2 for valley.1, and \texttt{disv} writes the Voronoi grid of the refined mesh to valley.2.disv, as Figure~\ref{fig:voronoi} shows; \texttt{triangle-utils generate -h}, \texttt{refine -h}, \texttt{improve -h}, \texttt{disv -h}, and \texttt{cells -h} list the options of each. The file river.txt gives the x and y of each of the river's points on a line.
+\noindent Each command writes its mesh to files named as Triangle names them, valley.1 for valley and valley.2 for valley.1, and \texttt{disv} writes the Voronoi grid of the refined mesh to valley.2.disv, as Figure~\ref{fig:voronoi} shows; \texttt{triangle-utils generate -h}, \texttt{refine -h}, \texttt{improve -h}, \texttt{disv -h}, and \texttt{cells -h} list the options of each. The file river.txt gives the x and y of each of the river's points, one point to a line, such as the coordinates of RIVER in valley.py below.
 
 From Python, the triangle-utils module in the python folder of the repository calls the library directly, and meshes and grids are returned as NumPy arrays. The script valley.py in the doc/UserGuide folder builds the example of this guide in steps, printed here in turn; the script make\_figures.py beside it uses its meshes and grid to make the figures. First come the coordinates of the boundary, river, lake, and wells:
 

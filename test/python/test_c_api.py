@@ -411,6 +411,18 @@ def test_grid_create(library):
                 result, 3, cells, starts, lengths
             )
             assert status == INVALID_ARGUMENT
+            status = library.triangle_utils_cell_lengths(
+                result, 2, None, starts, lengths
+            )
+            assert status == INVALID_ARGUMENT
+            assert (
+                library.triangle_utils_cell_lengths_count(result, None)
+                == INVALID_ARGUMENT
+            )
+            status = library.triangle_utils_cell_lengths_count(
+                None, ctypes.byref(count)
+            )
+            assert status == INVALID_ARGUMENT
         finally:
             library.triangle_utils_cell_lengths_free(result)
         result = ctypes.cast(ctypes.c_void_p(1), CELL_LENGTHS_POINTER)

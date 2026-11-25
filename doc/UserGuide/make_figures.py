@@ -503,6 +503,10 @@ def voronoi_figure(grid, mesh, windows):
         plt.close(fig)
 
 
+# the height, in inches, and the width ratio at which the features figure's
+# valley and its two close-ups end together
+FEATURES_FIGURE_HEIGHT = 6.2
+FEATURES_FIGURE_RATIO = 1.2
 # a window on the boundary at the valley's west corner, (x, y, side) in meters
 BOUNDARY_WINDOW = (300.0, 4000.0, 800.0)
 # the colors of the river's cells, in turn, and of the boundary's
@@ -573,12 +577,6 @@ def features_figure(grid, mesh, windows):
         explanation(fig, handles)
         save(fig, "features.pdf")
         plt.close(fig)
-
-
-# the height, in inches, and the width ratio at which the features figure's
-# valley and its two close-ups end together
-FEATURES_FIGURE_HEIGHT = 6.2
-FEATURES_FIGURE_RATIO = 1.2
 
 
 def cover_figure(mesh):
