@@ -106,7 +106,9 @@ jobs:
           TRIANGLE_UTILS_TEST_INSTALLED: '1'
         run: |
           python -m venv venv
-          venv_python=$(ls venv/bin/python venv/Scripts/python.exe 2>/dev/null | head -1)
+          # the venv's Python, in Scripts on Windows
+          venv_python=$PWD/venv/bin/python
+          if [ ! -x "$venv_python" ]; then venv_python=$PWD/venv/Scripts/python.exe; fi
           "$venv_python" -m pip install wheelhouse/*.whl pytest
           cd venv
-          "$venv_python" -m pytest -p no:cacheprovider ../test/python --ignore=../test/python/test_command_line.py --ignore=../test/python/test_modflow.py --deselect=../test/python/test_package.py::test_triangle_license
+          "$venv_python" -m pytest -p no:cacheprovider ../test/python --ignore=../test/python/test_command_line.py --ignore=../test/python/test_modflow.py -k "not test_triangle_license"
