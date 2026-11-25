@@ -21,11 +21,8 @@ namespace triangle_utils
 namespace
 {
 
-// how far past 90 degrees an angle opposite a boundary edge, or past 180 the
-// two opposite an interior edge, may be from rounding, in degrees; within it
-// of those limits, the circumcenters on each side of the edge, or the
-// circumcenter and the boundary edge's midpoint, are one Voronoi vertex, as
-// for a rectangle's two triangles, so no face is shorter than rounding
+// the rounding allowed in the opposite angle sums, in degrees; points within
+// it of a limit are one Voronoi vertex
 constexpr double ANGLE_TOLERANCE = 1e-6;
 // the cross product of a boundary vertex's two edges, as a fraction of their
 // lengths' product, below which the boundary is straight there
@@ -74,9 +71,8 @@ std::string degrees(double value)
     return text.str();
 }
 
-// The angle opposite each edge of each triangle, plus the angle opposite it
-// in the neighbor across it, or twice the angle for a boundary edge, so 180
-// degrees is the limit for both.
+// The sum of the angles opposite each edge, or twice the angle opposite a
+// boundary edge, so the limit is 180 degrees for both.
 std::vector<std::array<double, 3>> opposite_sums(const Mesh & mesh,
                                                  const std::vector<std::array<int, 3>> & neighbors)
 {
@@ -111,10 +107,7 @@ void check_mesh(const Mesh & mesh)
     if (mesh.triangles.empty()) throw Error("the mesh has no triangles");
 }
 
-// Throw Error unless every triangle's circumcenter is in the mesh and on the
-// side of each edge its Voronoi cells need: an angle opposite a boundary
-// edge is at most 90 degrees, and two opposite an interior edge sum to at
-// most 180.
+// Throw Error unless every circumcenter is in the mesh and in order.
 void check_delaunay(const Mesh & mesh, const std::vector<std::array<int, 3>> & neighbors,
                     const std::vector<std::array<double, 3>> & sums)
 {

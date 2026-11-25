@@ -1,9 +1,9 @@
 """
 Python access to triangle-utils through its C API.
 
-Meshes go in and out as NumPy arrays; geometry is added to a Geometry and
-meshed with generate(). This is the interface the user guide's examples use;
-the full Python interface is decided before MODFLOW grids are written (#19).
+Meshes and grids go in and out as NumPy arrays; geometry is added to a
+Geometry and meshed with generate(), and a grid's vertices and cells are
+given in the form FloPy's DISV package takes.
 """
 
 import ctypes

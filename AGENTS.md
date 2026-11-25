@@ -32,7 +32,7 @@ MODFLOW-ORG/triangle and MODFLOW-ORG/gridgen.
   MODFLOW-ORG/usgslatex): `pixi run -e doc build-guide`
 - **Get MODFLOW 6** (6.7.0, into the pixi environment's `bin`, with flopy's
   `get-modflow`; `test_modflow.py` runs it on the grids, and skips without
-  it): `pixi run get-mf6`
+  it, as in CI until #18): `pixi run get-mf6`
 
 ## Repository orientation
 
@@ -169,7 +169,7 @@ MODFLOW-ORG/triangle and MODFLOW-ORG/gridgen.
 ## Command line
 
 - **Form:** `triangle-utils <command> [options]`, with one command per
-  utility (`generate`, `refine`, `improve`, `voronoi`), and `check`, which
+  utility (`generate`, `refine`, `improve`, `disv`), and `check`, which
   checks a mesh in Triangle's files.
 - **Information:** `-h` and `--help`, for the program and for each command;
   `--version`, which prints the triangle-utils version, Triangle's version,
@@ -190,12 +190,12 @@ MODFLOW-ORG/triangle and MODFLOW-ORG/gridgen.
   Do not use modules or coroutines, and keep `std::ranges` to simple uses.
   The C API is plain C.
 - **Testing:** unit tests use GoogleTest through a Meson wrap. Check mesh
-  properties rather than exact output, since Triangle's meshes differ
-  slightly between compilers: triangles are counterclockwise and their areas
-  sum to the domain area, a refined triangle meets its area limit, and
-  Voronoi cells are convex, do not overlap, and cover the domain. Test the C
-  API from Python with pytest through `ctypes`, and file I/O with
-  read-write round trips. Run the tests under the address and undefined
+  properties rather than exact output, since Triangle's meshes differ slightly
+  between compilers: triangles are counterclockwise and their areas sum to the
+  domain area, a refined triangle meets its area limit, and Voronoi cells are
+  convex, except where the boundary turns inward, do not overlap, and cover the
+  domain. Test the C API from Python with pytest through `ctypes`, and file I/O
+  with read-write round trips. Run the tests under the address and undefined
   behavior sanitizers in CI.
 - **Testing scope:** rebuild, then run the tests that cover the change
   before the full test suite.
