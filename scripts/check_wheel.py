@@ -43,7 +43,7 @@ def dumpbin():
         check=True,
         capture_output=True,
         text=True,
-    ).stdout.split()
+    ).stdout.splitlines()
     if not found:
         sys.exit("dumpbin was not found")
     return found[0]
