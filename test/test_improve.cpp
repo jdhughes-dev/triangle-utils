@@ -4,9 +4,9 @@
 
 #include <algorithm>
 #include <cmath>
+#include <string>
 #include <utility>
 #include <vector>
-#include <string>
 
 #include <gtest/gtest.h>
 

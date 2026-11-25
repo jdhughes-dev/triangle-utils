@@ -243,8 +243,6 @@ Mesh improve_mesh(const Mesh & mesh, const ImproveOptions & options)
         for (std::size_t vertex = 0; vertex < result.vertices.size(); vertex++)
         {
             if (fixed[vertex] || around[vertex].empty()) continue;
-            // the shape of the triangles around the vertex with it at a point,
-            // or none if a triangle would not be counterclockwise
             const Point here = result.vertices[vertex];
             // the mean length of the vertex's edges, the scale of its moves
             double local_length = 0.0;
