@@ -61,7 +61,7 @@ Y_LIMITS = (_y.min() - MARGIN, _y.max() + MARGIN)
 # the sides of the square close-ups around a well and along the river, in
 # meters
 WELL_WINDOW = 600.0
-# a window on the lake's shore at its east corner, for the Voronoi grid
+# a window on the lake's shore at its east corner, (x, y, side) in meters
 LAKE_WINDOW = (1500.0, 5400.0, 600.0)
 RIVER_WINDOW = 800.0
 
@@ -114,7 +114,8 @@ def in_window(points, window):
 
 def choose_windows(mesh):
     """The close-up windows: the well, and the place along the river, whose
-    window holds the most triangles over the maximum angle."""
+    window holds the most triangles over the maximum angle, and the lake's
+    shore."""
     over = centroids(mesh)[mesh.largest_angles() > MAXIMUM_ANGLE]
     wells = [(x, y, WELL_WINDOW) for x, y in WELLS]
     well = max(wells, key=lambda window: in_window(over, window).sum())
@@ -137,7 +138,42 @@ def choose_windows(mesh):
                 )
             )
     river = max(along, key=lambda window: in_window(over, window).sum())
-    return {"B": well, "C": river}
+    return {"B": well, "C": river, "D": LAKE_WINDOW}
+
+
+# the sections of valley.py the guide prints in turn, by the start of the
+# first line of each
+VALLEY_SECTIONS = {
+    "coordinates": "import triangle_utils as tu",
+    "values": "# the spacing of points along each feature",
+    "geometry": "geometry = tu.Geometry()",
+    "meshing": "mesh = tu.generate(",
+    "grid": "# the Voronoi grid needs",
+}
+
+
+def valley_section_lines():
+    """The first and last line of each section of valley.py, for the guide;
+    a section ends before the blank line that precedes the next."""
+    lines = (HERE / "valley.py").read_text().splitlines()
+    firsts = []
+    for start in VALLEY_SECTIONS.values():
+        found = [n for n, line in enumerate(lines, 1) if line.startswith(start)]
+        if len(found) != 1:
+            raise ValueError(f"valley.py has {len(found)} lines starting {start!r}")
+        firsts.append(found[0])
+    lasts = [first - 2 for first in firsts[1:]] + [len(lines)]
+    values = {}
+    for name, first, last in zip(VALLEY_SECTIONS, firsts, lasts, strict=True):
+        values[f"valley{name}first"] = first
+        values[f"valley{name}last"] = last
+    return values
+
+
+def over_in(mesh, limit, window):
+    """The number of triangles over an angle whose centroids are in a
+    window."""
+    return int(in_window(centroids(mesh)[mesh.largest_angles() > limit], window).sum())
 
 
 def show_window(ax, window, letter):
@@ -198,27 +234,44 @@ def well_handle():
     )
 
 
+# the height, in inches, and the width ratio at which a valley panel and
+# three close-ups beside it end together
+VALLEY_FIGURE_HEIGHT = 7.5
+VALLEY_FIGURE_RATIO = 1.6
+# the headings of the close-up windows
+WINDOW_HEADINGS = {
+    "B": "Around a well",
+    "C": "Along the river",
+    "D": "On the lake's shore",
+}
+
+
+def valley_and_windows():
+    """A figure with the valley in A and its three close-ups beside it."""
+    return plt.subplot_mosaic(
+        [["A", "B"], ["A", "C"], ["A", "D"]],
+        figsize=(6.7, VALLEY_FIGURE_HEIGHT),
+        width_ratios=[VALLEY_FIGURE_RATIO, 1.0],
+        layout="constrained",
+    )
+
+
 def mesh_figure(mesh, windows):
-    """The generated mesh of the valley, with close-ups of a well and the river."""
+    """The generated mesh of the valley, with close-ups of a well, the river,
+    and the lake's shore."""
     with styles.USGSMap():
-        fig, axd = plt.subplot_mosaic(
-            [["A", "B"], ["A", "C"]],
-            # the height at which A and the two close-ups end together
-            figsize=(6.7, 6.2),
-            width_ratios=[1.2, 1.0],
-            layout="constrained",
-        )
+        fig, axd = valley_and_windows()
         draw_mesh(axd["A"], mesh)
         for letter, window in windows.items():
             show_window(axd["A"], window, letter)
         styles.heading(ax=axd["A"], letter="A", heading="Valley")
         styles.ylabel(ax=axd["A"], label="y, in meters")
         styles.xlabel(ax=axd["A"], label="x, in meters")
-        for letter, heading in (("B", "Around a well"), ("C", "Along the river")):
+        for letter, heading in WINDOW_HEADINGS.items():
             draw_mesh(axd[letter], mesh)
             zoom(axd[letter], windows[letter])
             styles.heading(ax=axd[letter], letter=letter, heading=heading)
-        styles.xlabel(ax=axd["C"], label="x, in meters")
+        styles.xlabel(ax=axd["D"], label="x, in meters")
         handles = [
             Patch(facecolor=REGION_COLORS[region], edgecolor="0.35", label=name)
             for region, name in REGION_NAMES.items()
@@ -229,15 +282,18 @@ def mesh_figure(mesh, windows):
         plt.close(fig)
 
 
-def over_handles(limit, region):
-    """The explanation of a figure of triangles over an angle, with the region
-    its panels show."""
+def over_handles(limit, regions):
+    """The explanation of a figure of triangles over an angle, with the
+    regions its panels show."""
     return [
         Patch(facecolor="#e31a1c", label=f"Angle over {limit:g} degrees"),
-        Patch(
-            facecolor=REGION_COLORS[region],
-            edgecolor="0.35",
-            label=REGION_NAMES[region],
+        *(
+            Patch(
+                facecolor=REGION_COLORS[region],
+                edgecolor="0.35",
+                label=REGION_NAMES[region],
+            )
+            for region in regions
         ),
         plt.Line2D([], [], color="#1f78b4", label="River"),
         well_handle(),
@@ -262,7 +318,7 @@ def refine_figure(mesh, refined, windows):
             styles.heading(ax=axd[letter], letter=letter, heading=heading)
             styles.xlabel(ax=axd[letter], label="x, in meters")
         styles.ylabel(ax=axd["A"], label="y, in meters")
-        explanation(fig, over_handles(MAXIMUM_ANGLE, LAKE_REGION))
+        explanation(fig, over_handles(MAXIMUM_ANGLE, (LAKE_REGION,)))
         save(fig, "refined_mesh.pdf")
         plt.close(fig)
 
@@ -347,33 +403,37 @@ def improve_figure(refined, improved, traded, windows):
             styles.heading(ax=axd[letter], letter=letter, heading=heading)
             styles.xlabel(ax=axd[letter], label="x, in meters")
         styles.ylabel(ax=axd["A"], label="y, in meters")
-        explanation(fig, over_handles(IMPROVE_ANGLE, LAKE_REGION))
+        explanation(fig, over_handles(IMPROVE_ANGLE, (LAKE_REGION,)))
         save(fig, "improved_mesh.pdf")
         plt.close(fig)
 
 
+# the size of a figure of the three close-ups before and after a step, in
+# inches
+CLOSE_UP_FIGURE_SIZE = (5.4, 8.2)
+
+
 def close_up_figure(before, after, windows, limit, steps, name):
     """The close-up windows before and after a step, with the triangles over
-    an angle."""
+    an angle: a row for each window."""
     with styles.USGSMap():
         fig, axd = plt.subplot_mosaic(
-            [["A", "B"], ["C", "D"]], figsize=(6.7, 6.9), layout="constrained"
+            [["A", "B"], ["C", "D"], ["E", "F"]],
+            figsize=CLOSE_UP_FIGURE_SIZE,
+            layout="constrained",
         )
-        panels = (
-            ("A", before, "B", f"Around a well, {steps[0]}"),
-            ("B", after, "B", f"Around a well, {steps[1]}"),
-            ("C", before, "C", f"Along the river, {steps[0]}"),
-            ("D", after, "C", f"Along the river, {steps[1]}"),
-        )
-        for letter, item, window, heading in panels:
-            draw_mesh(axd[letter], item, highlight=item.largest_angles() > limit)
-            zoom(axd[letter], windows[window])
-            styles.heading(ax=axd[letter], letter=letter, heading=heading)
-        for letter in ("A", "C"):
-            styles.ylabel(ax=axd[letter], label="y, in meters")
-        for letter in ("C", "D"):
+        rows = zip(("AB", "CD", "EF"), WINDOW_HEADINGS.items(), strict=True)
+        for letters, (window, place) in rows:
+            for letter, item, step in zip(letters, (before, after), steps, strict=True):
+                draw_mesh(axd[letter], item, highlight=item.largest_angles() > limit)
+                zoom(axd[letter], windows[window])
+                styles.heading(
+                    ax=axd[letter], letter=letter, heading=f"{place}, {step}"
+                )
+            styles.ylabel(ax=axd[letters[0]], label="y, in meters")
+        for letter in ("E", "F"):
             styles.xlabel(ax=axd[letter], label="x, in meters")
-        explanation(fig, over_handles(limit, WELL_REGION))
+        explanation(fig, over_handles(limit, (WELL_REGION, LAKE_REGION)), columns=3)
         save(fig, name)
         plt.close(fig)
 
@@ -406,34 +466,17 @@ def draw_grid(ax, grid, mesh, centers=False):
     ax.set_ylim(*Y_LIMITS)
 
 
-# the height and width ratio at which figure 6's valley and its three
-# close-ups end together, in inches
-GRID_FIGURE_HEIGHT = 7.5
-GRID_FIGURE_RATIO = 1.6
-
-
 def voronoi_figure(grid, mesh, windows):
     """The Voronoi grid of the valley, with close-ups of a well and the river."""
     with styles.USGSMap():
-        fig, axd = plt.subplot_mosaic(
-            [["A", "B"], ["A", "C"], ["A", "D"]],
-            # the height at which A and the three close-ups end together
-            figsize=(6.7, GRID_FIGURE_HEIGHT),
-            width_ratios=[GRID_FIGURE_RATIO, 1.0],
-            layout="constrained",
-        )
-        windows = {**windows, "D": LAKE_WINDOW}
+        fig, axd = valley_and_windows()
         draw_grid(axd["A"], grid, mesh)
         for letter, window in windows.items():
             show_window(axd["A"], window, letter)
         styles.heading(ax=axd["A"], letter="A", heading="Valley")
         styles.ylabel(ax=axd["A"], label="y, in meters")
         styles.xlabel(ax=axd["A"], label="x, in meters")
-        for letter, heading in (
-            ("B", "Around a well"),
-            ("C", "Along the river"),
-            ("D", "On the lake's shore"),
-        ):
+        for letter, heading in WINDOW_HEADINGS.items():
             draw_grid(axd[letter], grid, mesh, centers=True)
             zoom(axd[letter], windows[letter])
             styles.heading(ax=axd[letter], letter=letter, heading=heading)
@@ -558,6 +601,12 @@ def main():
         "maximumangle": f"{MAXIMUM_ANGLE:g}",
         "wellx": f"{windows['B'][0]:,.0f}",
         "welly": f"{windows['B'][1]:,.0f}",
+        **valley_section_lines(),
+        "lakewindowover": over_in(mesh, MAXIMUM_ANGLE, windows["D"]),
+        "lakewindowrefinedover": over_in(refined, MAXIMUM_ANGLE, windows["D"]),
+        "lakewindowrefinedoverninety": over_in(refined, IMPROVE_ANGLE, windows["D"]),
+        "lakewindowimprovedover": over_in(improved, IMPROVE_ANGLE, windows["D"]),
+        "lakewindow": f"{LAKE_WINDOW[2]:,.0f}",
         "wellwindow": f"{WELL_WINDOW:,.0f}",
         "riverwindow": f"{RIVER_WINDOW:,.0f}",
         "wellwindowrefinedoverninety": int(
