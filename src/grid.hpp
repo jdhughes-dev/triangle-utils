@@ -42,9 +42,9 @@ Grid voronoi_grid(const Mesh & mesh);
 // A grid whose cells are the mesh's triangles.
 Grid triangle_grid(const Mesh & mesh, TriangleCenter center);
 
-// Throw Error if a point is not finite, a cell has fewer than 3 corners or
-// refers to a vertex that does not exist, or an array's size does not match
-// the cell count.
+// Throw Error if a point is not finite, a cell has fewer than 3 corners,
+// refers to a vertex that does not exist, or has no area, or an array's size
+// does not match the cell count.
 void check_grid(const Grid & grid);
 
 } // namespace triangle_utils

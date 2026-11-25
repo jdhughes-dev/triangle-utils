@@ -389,6 +389,9 @@ void check_grid(const Grid & grid)
             if (vertex < 0 || static_cast<std::size_t>(vertex) >= grid.vertices.size())
                 throw Error(message("cell ", cell, " refers to vertex ", vertex,
                                     ", but the grid has ", grid.vertices.size(), " vertices"));
+        std::vector<Point> corners;
+        for (const int vertex : grid.cells[cell]) corners.push_back(grid.vertices[vertex]);
+        if (twice_area(corners) == 0.0) throw Error(message("cell ", cell, " has no area"));
     }
     if (grid.centers.size() != grid.cells.size())
         throw Error(message("the grid has ", grid.cells.size(), " cells but ", grid.centers.size(),

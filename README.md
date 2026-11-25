@@ -60,13 +60,14 @@ on their centroids or circumcenters. Either grid lists each vertex once and
 each cell's corners clockwise, as MODFLOW 6 DISV does.
 `triangle_utils_grid_line_cells()` gives the cells along a line, such as a
 river, in order, with the length of line in each, for stream reaches; a part
-along a face two cells share is in the cell on the line's left.
-`triangle_utils_grid_segment_cells()` gives the cells on a mesh's segments with
-a marker, such as a boundary, each once, with the length of segment in each,
-for boundary conductances. `triangle_utils_grid_create()` makes a grid from a
-caller's arrays. The API also returns the versions of triangle-utils and
-Triangle, the license, and Triangle's copyright notice. Calls must not run
-concurrently, since Triangle keeps global state.
+along a face is in the cell on the line's left, or on its right where none is
+on the left. `triangle_utils_grid_segment_cells()` gives the cells on a mesh's
+segments with a marker, such as a boundary, each once, with the length of
+segment in each, for boundary conductances; a segment between two cells, as
+inside a triangle grid, is in only one of them. `triangle_utils_grid_create()`
+makes a grid from a caller's arrays. The API also returns the versions of
+triangle-utils and Triangle, the license, and Triangle's copyright notice.
+Calls must not run concurrently, since Triangle keeps global state.
 
 ## User guide
 

@@ -21,6 +21,8 @@ namespace
 // rounding steps of the coordinates
 constexpr double SIDE_FRACTION = 1e-6;
 constexpr double SIDE_STEPS = 64.0;
+// how much smaller each next offset is, where neither side is in a cell
+constexpr double SIDE_SHRINK = 1e-3;
 // breakpoints along a line segment closer than this fraction of its length
 // are one
 constexpr double SAME_FRACTION = 1e-12;
@@ -62,8 +64,9 @@ public:
         const double width = std::max(m_extent.xmax - m_extent.xmin, 1e-300);
         const double height = std::max(m_extent.ymax - m_extent.ymin, 1e-300);
         const double side = std::sqrt(width * height / static_cast<double>(m_boxes.size()));
-        m_columns = std::clamp(static_cast<int>(width / side) + 1, 1, 4096);
-        m_rows = std::clamp(static_cast<int>(height / side) + 1, 1, 4096);
+        // clamped before the cast, which a very thin grid would overflow
+        m_columns = static_cast<int>(std::clamp(width / side, 0.0, 4095.0)) + 1;
+        m_rows = static_cast<int>(std::clamp(height / side, 0.0, 4095.0)) + 1;
         m_bins.resize(static_cast<std::size_t>(m_columns) * m_rows);
         for (std::size_t cell = 0; cell < m_boxes.size(); cell++)
         {
@@ -236,13 +239,18 @@ void add_parts(CellFinder & finder, const Point & p, const Point & q, double dis
         const Point m{p.x + middle * (q.x - p.x), p.y + middle * (q.y - p.y)};
         const double part = (at[i + 1] - at[i]) * length;
         // the offset is a small fraction of the part, but more than rounding
-        // of the coordinates
-        const double offset =
-            std::max(SIDE_FRACTION * part, SIDE_STEPS * std::numeric_limits<double>::epsilon() *
-                                               std::max(std::abs(m.x), std::abs(m.y)));
-        // the cell on the left, or on the right where none is on the left
-        int cell = finder.cell_at({m.x + offset * nx, m.y + offset * ny});
-        if (cell < 0) cell = finder.cell_at({m.x - offset * nx, m.y - offset * ny});
+        // of the coordinates; smaller in turn, for a cell thinner than it
+        const double least = SIDE_STEPS * std::numeric_limits<double>::epsilon() *
+                             std::max(std::abs(m.x), std::abs(m.y));
+        int cell = -1;
+        for (double offset = std::max(SIDE_FRACTION * part, least); cell < 0;
+             offset = std::max(offset * SIDE_SHRINK, least))
+        {
+            // the cell on the left, or on the right where none is on the left
+            cell = finder.cell_at({m.x + offset * nx, m.y + offset * ny});
+            if (cell < 0) cell = finder.cell_at({m.x - offset * nx, m.y - offset * ny});
+            if (offset == least) break;
+        }
         if (cell < 0)
         {
             outside = true;
@@ -260,6 +268,7 @@ void add_parts(CellFinder & finder, const Point & p, const Point & q, double dis
 
 std::vector<CellLength> cells_along_line(const Grid & grid, const std::vector<Point> & line)
 {
+    check_grid(grid);
     if (line.size() < 2)
         throw Error(message("the line has ", line.size(), " points, but it needs at least 2"));
     for (std::size_t point = 0; point < line.size(); point++)
@@ -279,6 +288,7 @@ std::vector<CellLength> cells_along_line(const Grid & grid, const std::vector<Po
 
 std::vector<CellLength> cells_on_segments(const Grid & grid, const Mesh & mesh, int marker)
 {
+    check_grid(grid);
     check_sizes(mesh);
     CellFinder finder(grid);
     std::vector<CellLength> parts;

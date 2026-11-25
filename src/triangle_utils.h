@@ -318,18 +318,20 @@ int triangle_utils_grid_create(int vertex_count, const double * vertex_xy, int c
                                const int * corner_offsets, int corner_count, const int * corners,
                                const double * center_xy, TriangleUtilsGrid ** grid);
 
-/* The cells along a line of point_count points, in order, with the length
-   of line in each; a cell the line enters twice appears twice, a part along
-   a face two cells share is in the cell on the line's left, and parts
-   outside the grid are left out. *cell_lengths is NULL after a failure. */
+/* The cells along a line of point_count points, in order, with the length of
+   line in each; a cell the line enters twice appears twice, a part along a
+   face is in the cell on the line's left, or on its right where none is on
+   the left, and parts outside the grid are left out. *cell_lengths is NULL
+   after a failure. */
 int triangle_utils_grid_line_cells(const TriangleUtilsGrid * grid, int point_count,
                                    const double * point_xy,
                                    TriangleUtilsCellLengths ** cell_lengths);
 
 /* The cells on the mesh's segments with a marker, such as a boundary, each
    once, in order of where they first meet the segments, with the length of
-   segment in each; an error if no segment has the marker. *cell_lengths is
-   NULL after a failure. */
+   segment in each; a segment along a face two cells share is in only one of
+   them; an error if no segment has the marker. *cell_lengths is NULL after
+   a failure. */
 int triangle_utils_grid_segment_cells(const TriangleUtilsGrid * grid,
                                       const TriangleUtilsMesh * mesh, int marker,
                                       TriangleUtilsCellLengths ** cell_lengths);

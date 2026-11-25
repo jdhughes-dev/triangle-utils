@@ -155,6 +155,9 @@ def test_cells():
     bad = tu.Grid(grid.vertices, [np.array([0, 1])], grid.centers[:1], None, None)
     with pytest.raises(tu.Error, match="cell 0 has 2 corners"):
         tu.cells_along_line(bad, river)
+    centerless = tu.Grid(grid.vertices, grid.cells, grid.centers[:1], None, None)
+    with pytest.raises(ValueError, match="centers has 1 rows"):
+        tu.cells_along_line(centerless, river)
 
 
 def test_shapes():

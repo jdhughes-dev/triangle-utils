@@ -166,6 +166,28 @@ TEST(Features, LineThatLeavesAndReturnsEntersTheCellTwice)
     EXPECT_NEAR(parts[1].length, 0.5, TOLERANCE);
 }
 
+TEST(Features, LineAlongCellsThinnerThanTheOffsetIsInThem)
+{
+    // 1,000 cells, each 1 wide and 1e-9 tall, and a line along their middle
+    Grid grid;
+    for (int column = 0; column <= 1000; column++)
+    {
+        grid.vertices.push_back({static_cast<double>(column), 0.0});
+        grid.vertices.push_back({static_cast<double>(column), 1e-9});
+    }
+    for (int column = 0; column < 1000; column++)
+    {
+        const int a = 2 * column;
+        grid.cells.push_back({a, a + 1, a + 3, a + 2});
+        grid.centers.push_back({column + 0.5, 5e-10});
+    }
+    const auto parts = cells_along_line(grid, {{0.0, 5e-10}, {1000.0, 5e-10}});
+    ASSERT_EQ(parts.size(), 1000u);
+    double sum = 0.0;
+    for (const CellLength & part : parts) sum += part.length;
+    EXPECT_NEAR(sum, 1000.0, 1e-6);
+}
+
 TEST(Features, LineCrossesTheNotchOfACellThatIsNotConvex)
 {
     // an L, clockwise, whose notch is the square from (1, 1) to (2, 2)
@@ -314,4 +336,8 @@ TEST(Features, ErrorsGiveTheReason)
               "point 1 of the line is not finite");
     EXPECT_EQ(reason([&] { cells_on_segments(grid, mesh, 9); }),
               "no segment of the mesh has marker 9");
+    Grid flat = squares(1);
+    flat.vertices = {{0.0, 0.0}, {1.0, 0.0}, {2.0, 0.0}, {3.0, 0.0}};
+    EXPECT_EQ(reason([&] { cells_along_line(flat, {{0.0, 0.0}, {1.0, 0.0}}); }),
+              "cell 0 has no area");
 }

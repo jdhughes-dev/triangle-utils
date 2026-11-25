@@ -167,9 +167,10 @@ line, or the segments of <base>.poly with a marker, pass through, and print
 each cell, numbered from 1 as in the DISV file, where its part starts along
 the line or segments, and its length. Along a line, such as a river, the
 cells are in order, and a cell the line enters twice is printed twice; a
-part along a face two cells share is in the cell on the line's left. On
-segments, such as a boundary, each cell is printed once, with its length of
-segment summed.
+part along a face is in the cell on the line's left, or on its right where
+none is on the left. On segments, such as a boundary, each cell is printed
+once, with its length of segment summed; a segment between two cells is in
+only one of them.
 
 Options:
   -h, --help              show this help

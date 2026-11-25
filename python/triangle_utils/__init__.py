@@ -603,6 +603,7 @@ def _grid_handle(grid):
     vertices = _rows(grid.vertices, 2, "vertices", np.float64)
     centers = _rows(grid.centers, 2, "centers", np.float64)
     cells = [_integers(cell, "cells") for cell in grid.cells]
+    _check_length(centers, len(cells), "centers", "cells")
     offsets = np.concatenate([[0], np.cumsum([len(cell) for cell in cells])])
     corners = np.concatenate(cells) if cells else np.zeros(0)
     # the arrays are kept until the call that reads their pointers returns
