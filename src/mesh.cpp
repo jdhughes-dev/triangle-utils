@@ -286,6 +286,27 @@ void check_triangles(const Mesh & mesh)
     }
 }
 
+std::vector<std::array<int, 3>> find_neighbors(const Mesh & mesh)
+{
+    std::map<std::pair<int, int>, std::vector<std::pair<int, int>>> edges;
+    for (std::size_t triangle = 0; triangle < mesh.triangles.size(); triangle++)
+    {
+        const auto & corners = mesh.triangles[triangle];
+        for (int corner = 0; corner < 3; corner++)
+            edges[std::minmax(corners[(corner + 1) % 3], corners[(corner + 2) % 3])].push_back(
+                {static_cast<int>(triangle), corner});
+    }
+    std::vector<std::array<int, 3>> neighbors(mesh.triangles.size(),
+                                              {NO_NEIGHBOR, NO_NEIGHBOR, NO_NEIGHBOR});
+    for (const auto & [edge, sharing] : edges)
+    {
+        if (sharing.size() != 2) continue;
+        neighbors[sharing[0].first][sharing[0].second] = sharing[1].first;
+        neighbors[sharing[1].first][sharing[1].second] = sharing[0].first;
+    }
+    return neighbors;
+}
+
 void check_neighbors(const Mesh & mesh)
 {
     if (mesh.neighbors.size() != mesh.triangles.size())

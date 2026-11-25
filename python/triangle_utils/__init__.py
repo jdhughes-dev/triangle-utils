@@ -1,27 +1,31 @@
 """
 Python access to triangle-utils through its C API.
 
-Meshes go in and out as NumPy arrays; geometry is added to a Geometry and
-meshed with generate(). This is the interface the user guide's examples use;
-the full Python interface is decided before MODFLOW grids are written (#19).
+Meshes and grids go in and out as NumPy arrays; geometry is added to a
+Geometry and meshed with generate(), and a grid's vertices and cells are
+given in the form FloPy's DISV package takes.
 """
 
 import ctypes
+import itertools
 from dataclasses import dataclass, field
 
 import numpy as np
 
-from ._library import GEOMETRY_POINTER, MESH_POINTER, OK, load
+from ._library import GEOMETRY_POINTER, GRID_POINTER, MESH_POINTER, OK, load
 
 __all__ = [
     "Error",
     "Geometry",
+    "Grid",
     "Mesh",
     "count_angles_over",
     "generate",
     "improve",
     "refine",
+    "triangle_grid",
     "version",
+    "voronoi",
 ]
 
 _library = None
@@ -476,3 +480,108 @@ def improve(
         return _from_handle(improved)
     finally:
         api.triangle_utils_mesh_free(improved)
+
+
+@dataclass(eq=False)
+class Grid:
+    """A grid of polygonal cells for MODFLOW 6 DISV; indices are zero based."""
+
+    # x and y of each vertex, each once, shape (vertex count, 2)
+    vertices: np.ndarray
+    # the vertices of each cell, clockwise, one array per cell
+    cells: list
+    # x and y of each cell's center, shape (cell count, 2)
+    centers: np.ndarray
+    # the mesh vertex (Voronoi grid) or triangle (triangle grid) of each cell
+    sources: np.ndarray
+    # attributes of each cell, shape (cell count, attribute count)
+    attributes: np.ndarray
+
+    def disv_vertices(self):
+        """The vertices as flopy's ModflowGwfdisv takes them."""
+        return [[vertex, x, y] for vertex, (x, y) in enumerate(self.vertices.tolist())]
+
+    def disv_cell2d(self):
+        """The cells as flopy's ModflowGwfdisv takes them."""
+        return [
+            [cell, x, y, len(corners), *corners.tolist()]
+            for cell, ((x, y), corners) in enumerate(
+                zip(self.centers.tolist(), self.cells, strict=True)
+            )
+        ]
+
+
+def _grid_from_handle(handle):
+    """A Grid with the arrays of a grid handle."""
+    api = _api()
+    vertex_count = ctypes.c_int()
+    cell_count = ctypes.c_int()
+    corner_count = ctypes.c_int()
+    _check(
+        api.triangle_utils_grid_counts(
+            handle,
+            ctypes.byref(vertex_count),
+            ctypes.byref(cell_count),
+            ctypes.byref(corner_count),
+        )
+    )
+    vertices, vertex_pointer = _doubles(np.zeros((vertex_count.value, 2)))
+    _check(api.triangle_utils_grid_vertices(handle, vertex_count, vertex_pointer))
+    offsets, offset_pointer = _ints(np.zeros(cell_count.value + 1))
+    corners, corner_pointer = _ints(np.zeros(corner_count.value))
+    _check(
+        api.triangle_utils_grid_cells(
+            handle, cell_count, offset_pointer, corner_count, corner_pointer
+        )
+    )
+    centers, center_pointer = _doubles(np.zeros((cell_count.value, 2)))
+    _check(api.triangle_utils_grid_centers(handle, cell_count, center_pointer))
+    sources, source_pointer = _ints(np.zeros(cell_count.value))
+    _check(api.triangle_utils_grid_sources(handle, cell_count, source_pointer))
+    attribute_count = ctypes.c_int()
+    _check(
+        api.triangle_utils_grid_attribute_count(handle, ctypes.byref(attribute_count))
+    )
+    attributes, attribute_pointer = _doubles(
+        np.zeros((cell_count.value, attribute_count.value))
+    )
+    _check(
+        api.triangle_utils_grid_attributes(handle, attributes.size, attribute_pointer)
+    )
+    cells = [corners[start:end] for start, end in itertools.pairwise(offsets)]
+    return Grid(vertices, cells, centers, sources, attributes)
+
+
+def _grid(mesh, build):
+    """The grid a C API function builds from a mesh."""
+    api = _api()
+    mesh_handle = _to_handle(mesh)
+    try:
+        grid = GRID_POINTER()
+        _check(build(mesh_handle, ctypes.byref(grid)))
+    finally:
+        api.triangle_utils_mesh_free(mesh_handle)
+    try:
+        return _grid_from_handle(grid)
+    finally:
+        api.triangle_utils_grid_free(grid)
+
+
+def voronoi(mesh):
+    """The Voronoi grid of a conforming Delaunay mesh: a cell around each
+    vertex, centered on it."""
+    return _grid(mesh, _api().triangle_utils_mesh_voronoi)
+
+
+def triangle_grid(mesh, center="centroid"):
+    """A grid whose cells are the mesh's triangles; center is "centroid" or
+    "circumcenter"."""
+    choices = {"centroid": 0, "circumcenter": 1}
+    if center not in choices:
+        raise ValueError(f'center must be "centroid" or "circumcenter", not {center!r}')
+    return _grid(
+        mesh,
+        lambda handle, grid: _api().triangle_utils_mesh_triangle_grid(
+            handle, choices[center], grid
+        ),
+    )

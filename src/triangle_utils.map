@@ -37,6 +37,16 @@
     triangle_utils_mesh_fixed_vertex_count;
     triangle_utils_mesh_fixed_vertices;
     triangle_utils_mesh_improve;
+    triangle_utils_mesh_voronoi;
+    triangle_utils_mesh_triangle_grid;
+    triangle_utils_grid_free;
+    triangle_utils_grid_counts;
+    triangle_utils_grid_vertices;
+    triangle_utils_grid_cells;
+    triangle_utils_grid_centers;
+    triangle_utils_grid_sources;
+    triangle_utils_grid_attribute_count;
+    triangle_utils_grid_attributes;
   local:
     *;
 };

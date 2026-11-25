@@ -23,6 +23,10 @@ Cases:
   - test_fixed_vertices : a mesh takes fixed vertices and returns them, and
                          rejects one out of range, a negative or wrong count,
                          and a null array, unchanged.
+  - test_grid          : the Voronoi and triangle grids of a square report
+                         their counts, clockwise cells, centers, and sources;
+                         wrong counts, a bad center, and null pointers are
+                         invalid arguments, and the grid is null.
   - test_improve       : an interior vertex moves to the middle of a square
                          unless it is fixed; a bad smoothing and a null result
                          pointer are invalid arguments, and the result is null.
@@ -31,7 +35,13 @@ Cases:
 import ctypes
 import math
 
-from triangle_utils._library import ERROR, INVALID_ARGUMENT, MESH_POINTER, OK
+from triangle_utils._library import (
+    ERROR,
+    GRID_POINTER,
+    INVALID_ARGUMENT,
+    MESH_POINTER,
+    OK,
+)
 
 
 def not_null():
@@ -262,5 +272,96 @@ def test_improve(library):
         assert b"the smoothing is 2" in library.triangle_utils_last_error()
         status = library.triangle_utils_mesh_improve(mesh, 0, 0.0, 0.0, 100, 1e-4, None)
         assert status == INVALID_ARGUMENT
+    finally:
+        library.triangle_utils_mesh_free(mesh)
+
+
+def test_grid(library):
+    status, mesh = square_with_center(library, 0.5, 0.5)
+    try:
+        assert status == OK
+        for build in (
+            lambda grid: library.triangle_utils_mesh_voronoi(mesh, grid),
+            lambda grid: library.triangle_utils_mesh_triangle_grid(mesh, 1, grid),
+        ):
+            grid = ctypes.cast(ctypes.c_void_p(1), GRID_POINTER)
+            assert build(ctypes.byref(grid)) == OK
+            try:
+                counts = [ctypes.c_int(-1) for _ in range(3)]
+                status = library.triangle_utils_grid_counts(
+                    grid, *[ctypes.byref(count) for count in counts]
+                )
+                assert status == OK
+                vertex_count, cell_count, corner_count = (c.value for c in counts)
+                xy = (ctypes.c_double * (2 * vertex_count))()
+                assert (
+                    library.triangle_utils_grid_vertices(grid, vertex_count, xy) == OK
+                )
+                offsets = (ctypes.c_int * (cell_count + 1))()
+                corners = (ctypes.c_int * corner_count)()
+                status = library.triangle_utils_grid_cells(
+                    grid, cell_count, offsets, corner_count, corners
+                )
+                assert status == OK
+                assert offsets[cell_count] == corner_count
+                for cell in range(cell_count):
+                    ring = corners[offsets[cell] : offsets[cell + 1]]
+                    x = [xy[2 * v] for v in ring]
+                    y = [xy[2 * v + 1] for v in ring]
+                    twice = sum(
+                        x[i] * y[(i + 1) % len(ring)] - x[(i + 1) % len(ring)] * y[i]
+                        for i in range(len(ring))
+                    )
+                    assert twice < 0
+                centers = (ctypes.c_double * (2 * cell_count))()
+                assert (
+                    library.triangle_utils_grid_centers(grid, cell_count, centers) == OK
+                )
+                sources = (ctypes.c_int * cell_count)()
+                assert (
+                    library.triangle_utils_grid_sources(grid, cell_count, sources) == OK
+                )
+                assert list(sources) == list(range(cell_count))
+                count = ctypes.c_int(-1)
+                status = library.triangle_utils_grid_attribute_count(
+                    grid, ctypes.byref(count)
+                )
+                assert (status, count.value) == (OK, 0)
+                assert library.triangle_utils_grid_attributes(grid, 0, None) == OK
+                status = library.triangle_utils_grid_vertices(
+                    grid, vertex_count + 1, xy
+                )
+                assert status == INVALID_ARGUMENT
+                assert (
+                    library.triangle_utils_last_error()
+                    == (
+                        f"the vertex count is {vertex_count + 1}, but the grid has "
+                        f"{vertex_count}"
+                    ).encode()
+                )
+                status = library.triangle_utils_grid_cells(
+                    grid, cell_count, offsets, corner_count - 1, corners
+                )
+                assert status == INVALID_ARGUMENT
+            finally:
+                library.triangle_utils_grid_free(grid)
+        # the Voronoi grid has a cell per vertex, the triangle grid one per
+        # triangle
+        grid = GRID_POINTER()
+        assert library.triangle_utils_mesh_voronoi(mesh, ctypes.byref(grid)) == OK
+        counts = [ctypes.c_int() for _ in range(3)]
+        library.triangle_utils_grid_counts(grid, *[ctypes.byref(c) for c in counts])
+        library.triangle_utils_grid_free(grid)
+        assert counts[1].value == 5
+        grid = ctypes.cast(ctypes.c_void_p(1), GRID_POINTER)
+        status = library.triangle_utils_mesh_triangle_grid(mesh, 2, ctypes.byref(grid))
+        assert status == INVALID_ARGUMENT
+        assert not grid
+        assert b"the center is 2" in library.triangle_utils_last_error()
+        assert library.triangle_utils_mesh_voronoi(mesh, None) == INVALID_ARGUMENT
+        grid = ctypes.cast(ctypes.c_void_p(1), GRID_POINTER)
+        status = library.triangle_utils_mesh_voronoi(None, ctypes.byref(grid))
+        assert status == INVALID_ARGUMENT
+        assert not grid
     finally:
         library.triangle_utils_mesh_free(mesh)

@@ -70,7 +70,7 @@
 \section*{Abstract}
 \addcontentsline{toc}{section}{Abstract}
 
-triangle-utils is a set of utilities for building two-dimensional triangular meshes for groundwater models, such as MODFLOW~6 \citep{modflow6gwf}, from the boundaries, rivers, lakes, and wells of a model area. The utilities use Triangle \citep{shewchuk1996triangle}, which builds meshes whose triangles have no angle smaller than a specified limit. This guide describes generating a mesh that follows the boundary, rivers, and lakes of a model area and has smaller triangles around pumping wells, and refining a mesh by area and by angle, so that no triangle has an angle over a limit, which the flow calculation between the cells of a triangular grid needs. It also describes improving a mesh by moving its vertices, so that fewer triangles have an angle over 90 degrees. Generating, refining, and improving a mesh are demonstrated on an example valley with a river, a lake, and three pumping wells.
+triangle-utils is a set of utilities for building two-dimensional triangular meshes for groundwater models, such as MODFLOW~6 \citep{modflow6gwf}, from the boundaries, rivers, lakes, and wells of a model area. The utilities use Triangle \citep{shewchuk1996triangle}, which builds meshes whose triangles have no angle smaller than a specified limit. This guide describes generating a mesh that follows the boundary, rivers, and lakes of a model area and has smaller triangles around pumping wells, and refining a mesh by area and by angle, so that no triangle has an angle over a limit, which the flow calculation between the cells of a triangular grid needs. It also describes improving a mesh by moving its vertices, so that fewer triangles have an angle over 90 degrees, and building from a mesh a Voronoi grid, whose cells are centered on the mesh's vertices, for MODFLOW 6. Generating, refining, and improving a mesh, and building its grid, are demonstrated on an example valley with a river, a lake, and three pumping wells.
 
 \section{Introduction}
 
@@ -97,12 +97,12 @@ A mesh is generated from the features of the model area, each given by the coord
 
 Points are added along each polygon and line so that no two successive points are farther apart than a spacing given for that feature, which sets the size of the triangles along it. Points that appear in more than one feature are merged into one vertex, and a point of one feature that lies on an edge of another, such as the end of a river on the model boundary between two of its points, divides that edge, so the two features share the point. Points whose coordinates differ only in their last digits, by less than $10^{-12}$ of the largest coordinate (\valleytolerance~micrometers in the example valley), are merged in the same way, and a larger merge distance can be given, for features digitized separately whose shared points do not match exactly. The mesh covers the polygons, without the area inside a hole polygon or anything in it, and its triangles have no angle smaller than a given minimum angle, up to 34 degrees, and no area larger than a given largest area. Triangle spreads the attribute and area of a region only up to the polygons and lines around it, so a river that crosses the model area needs a region on each side.
 
-Figure~\ref{fig:generated} shows a mesh of an example valley of \valleyarea\ square kilometers (km$^2$), with points every \boundaryspacing\ meters (m) along its boundary, every \riverspacing~m along the river, and every \lakespacing~m around the lake. Triangles are no larger than \maximumarea\ square meters (m$^2$) in the aquifer and \lakearea~m$^2$ in the lake, and have no angle smaller than \minimumangle\ degrees. Each of the three wells is at the center of a ring with a radius of \wellradius~m and \wellpoints\ points, in which triangles are no larger than \wellarea~m$^2$. The river starts and ends on the boundary, between two of its points. Figures~\ref{fig:generated}\textit{B} and \ref{fig:generated}\textit{C} show the mesh in square windows \wellwindow~m and \riverwindow~m on a side around a well and along the river, where the generated mesh has the most triangles with an angle over \maximumangle\ degrees (fig.~\ref{fig:refined}). The mesh has \generatedvertices\ vertices and \generatedtriangles\ triangles.
+Figure~\ref{fig:generated} shows a mesh of an example valley of \valleyarea\ square kilometers (km$^2$), with points every \boundaryspacing\ meters (m) along its boundary, every \riverspacing~m along the river, and every \lakespacing~m around the lake. Triangles are no larger than \maximumarea\ square meters (m$^2$) in the aquifer and \lakearea~m$^2$ in the lake, and have no angle smaller than \minimumangle\ degrees. Each of the three wells is at the center of a ring with a radius of \wellradius~m and \wellpoints\ points, in which triangles are no larger than \wellarea~m$^2$. The river starts and ends on the boundary, between two of its points. Figures~\ref{fig:generated}\textit{B}--\textit{D} show the mesh in square windows \wellwindow~m, \riverwindow~m, and \lakewindow~m on a side around a well and along the river, where the generated mesh has the most triangles with an angle over \maximumangle\ degrees (fig.~\ref{fig:refined}), and on the lake's shore. The mesh has \generatedvertices\ vertices and \generatedtriangles\ triangles.
 
 \begin{figure}[htbp]
   \centering
   \includegraphics{generated_mesh.pdf}
-  \caption{Mesh generated for the example valley, colored by region. \textit{A}, the valley, with the river, the lake, the rings around the three wells, and the windows of panels \textit{B} and \textit{C} (boxes). \textit{B}, the mesh around the well at x = \wellx~m and y = \welly~m. The ring around each well gives it triangles of no more than \wellarea~m$^2$ while the triangles around the ring grow to the size of those in the aquifer. \textit{C}, the mesh along the river, whose triangles are smallest at the river and grow away from it}
+  \caption{Mesh generated for the example valley, colored by region. \textit{A}, the valley, with the river, the lake, the rings around the three wells, and the windows of panels \textit{B}--\textit{D} (boxes). \textit{B}, the mesh around the well at x = \wellx~m and y = \welly~m. The ring around each well gives it triangles of no more than \wellarea~m$^2$ while the triangles around the ring grow to the size of those in the aquifer. \textit{C}, the mesh along the river, whose triangles are smallest at the river and grow away from it. \textit{D}, the mesh on the lake's shore, whose triangles are no larger than \lakearea~m$^2$ in the lake}
   \label{fig:generated}
 \end{figure}
 
@@ -117,16 +117,16 @@ Figure~\ref{fig:refined} shows the mesh of Figure~\ref{fig:generated} refined to
 \begin{figure}[htbp]
   \centering
   \includegraphics{refined_mesh.pdf}
-  \caption{Triangles with an angle over \maximumangle\ degrees (red) in the mesh of the example valley, with the windows of figures~\ref{fig:generated}\textit{B}, \ref{fig:generated}\textit{C}, and~\ref{fig:closeups} (boxes). \textit{A}, the mesh generated with a minimum angle of \minimumangle\ degrees (fig.~\ref{fig:generated}). \textit{B}, the same mesh refined to a maximum angle of \maximumangle\ degrees, which leaves \refinedover\ triangles over it}
+  \caption{Triangles with an angle over \maximumangle\ degrees (red) in the mesh of the example valley, with the windows of figures~\ref{fig:generated}\textit{B}--\textit{D} and~\ref{fig:closeups} (boxes). \textit{A}, the mesh generated with a minimum angle of \minimumangle\ degrees (fig.~\ref{fig:generated}). \textit{B}, the same mesh refined to a maximum angle of \maximumangle\ degrees, which leaves \refinedover\ triangles over it}
   \label{fig:refined}
 \end{figure}
 
-Figure~\ref{fig:closeups} shows the windows of Figure~\ref{fig:generated} before and after refining. In the generated mesh, \wellwindowover\ triangles around the well and \riverwindowover\ along the river have an angle over \maximumangle\ degrees; in the refined mesh, \wellwindowrefinedover\ and \riverwindowrefinedover.
+Figure~\ref{fig:closeups} shows the windows of Figure~\ref{fig:generated} before and after refining. In the generated mesh, \wellwindowover\ triangles around the well, \riverwindowover\ along the river, and \lakewindowover\ on the lake's shore have an angle over \maximumangle\ degrees; in the refined mesh, \wellwindowrefinedover, \riverwindowrefinedover, and \lakewindowrefinedover.
 
 \begin{figure}[htbp]
   \centering
   \includegraphics{close_ups.pdf}
-  \caption{Triangles with an angle over \maximumangle\ degrees (red) in the windows of figures~\ref{fig:generated}\textit{B} and~\ref{fig:generated}\textit{C}. \textit{A}, around the well, generated. \textit{B}, around the well, refined. \textit{C}, along the river, generated. \textit{D}, along the river, refined}
+  \caption{Triangles with an angle over \maximumangle\ degrees (red) in the windows of figures~\ref{fig:generated}\textit{B}--\textit{D}. \textit{A}, around the well, generated. \textit{B}, around the well, refined. \textit{C}, along the river, generated. \textit{D}, along the river, refined. \textit{E}, on the lake's shore, generated. \textit{F}, on the lake's shore, refined}
   \label{fig:closeups}
 \end{figure}
 
@@ -145,47 +145,65 @@ Figure~\ref{fig:improved} shows the refined mesh of Figure~\ref{fig:refined} imp
   \label{fig:improved}
 \end{figure}
 
-Figure~\ref{fig:improvedcloseups} shows the windows of Figure~\ref{fig:generated} before and after improving. In the refined mesh, \wellwindowrefinedoverninety\ triangles around the well and \riverwindowrefinedoverninety\ along the river have an angle over \improveangle\ degrees; in the improved mesh, \wellwindowimprovedover\ and \riverwindowimprovedover.
+Figure~\ref{fig:improvedcloseups} shows the windows of Figure~\ref{fig:generated} before and after improving. In the refined mesh, \wellwindowrefinedoverninety\ triangles around the well, \riverwindowrefinedoverninety\ along the river, and \lakewindowrefinedoverninety\ on the lake's shore have an angle over \improveangle\ degrees; in the improved mesh, \wellwindowimprovedover, \riverwindowimprovedover, and \lakewindowimprovedover, although the vertices on the shore do not move.
 
 \begin{figure}[htbp]
   \centering
   \includegraphics{improved_close_ups.pdf}
-  \caption{Triangles with an angle over \improveangle\ degrees (red) in the windows of figures~\ref{fig:generated}\textit{B} and~\ref{fig:generated}\textit{C}. \textit{A}, around the well, refined. \textit{B}, around the well, improved. \textit{C}, along the river, refined. \textit{D}, along the river, improved}
+  \caption{Triangles with an angle over \improveangle\ degrees (red) in the windows of figures~\ref{fig:generated}\textit{B}--\textit{D}. \textit{A}, around the well, refined. \textit{B}, around the well, improved. \textit{C}, along the river, refined. \textit{D}, along the river, improved. \textit{E}, on the lake's shore, refined. \textit{F}, on the lake's shore, improved}
   \label{fig:improvedcloseups}
 \end{figure}
 
+\section{Building a Grid for MODFLOW 6}
+
+MODFLOW 6 calculates the flow between two cells from the difference in head between their centers, which represents the flow across their shared face exactly when the line between the centers is perpendicular to that face. In a Voronoi grid, each cell surrounds one vertex of the mesh and contains the points closer to that vertex than to any other, so the face two cells share is perpendicular to the line between their vertices, and the vertices are the cell centers. The corners of a cell are the circumcenters of the triangles around its vertex, the centers of the circles through each triangle's three corners. A cell on the boundary is closed by the midpoints of the boundary's edges, and by its vertices where it turns, so its center is on its edge, and it is not convex where the boundary turns inward, as at a corner of a hole. Each circumcenter must lie inside the model area, and the circumcenters around a vertex must follow one another around it, which holds when no circle through a triangle's corners contains another vertex and no angle opposite the boundary is over 90 degrees. Triangle's conforming Delaunay switch (D) adds vertices until both hold, so the mesh is generated and refined with it.
+
+Every line and polygon inside the model area runs through cell centers, since its vertices are vertices of the mesh, and the cells on it extend to both sides. Along the river, a cell's center, where MODFLOW 6 calculates its head, is on the channel. A cell on the edge of a region, such as the lake's shore or a well's ring, takes the region of the side with most of its area; of the \shorecells\ cells on the lake's shore, \shorelakecells\ take the lake's region (fig.~\ref{fig:voronoi}\textit{D}).
+
+Figure~\ref{fig:voronoi} shows the Voronoi grid of the example valley, built from a mesh generated and refined as in Figures~\ref{fig:generated} and~\ref{fig:refined} with conforming Delaunay triangles, \delaunaytriangles\ in all. The grid has \voronoicells\ cells and \voronoivertices\ cell corners.
+
+\begin{figure}[htbp]
+  \centering
+  \includegraphics{voronoi_grid.pdf}
+  \caption{Voronoi grid of the example valley, colored by region, with the windows of figures~\ref{fig:generated}\textit{B}--\textit{D} (boxes). \textit{A}, the valley. \textit{B}, around a well. \textit{C}, along the river. \textit{D}, on the lake's shore, where each cell takes the region of most of its area. The cell centers (dots) are the vertices of the mesh}
+  \label{fig:voronoi}
+\end{figure}
+
+A grid can also be made of the triangles themselves, centered on their centroids or their circumcenters. A circumcenter also gives faces perpendicular to the lines between centers, but it lies outside an obtuse triangle, so the obtuse triangles are refined and improved first. Either grid is written as the vertices and cells of a MODFLOW 6 DISV file.
+
 \section{Using triangle-utils}
 
-The \texttt{triangle-utils} program reads and writes the files of Triangle. The \texttt{generate} command meshes the segments, vertices, holes, and regions of a .poly file, such as one describing the boundary, river, and lake of a valley, the \texttt{refine} command refines the mesh in a .node file and an .ele file, with the segments of a .poly file and the area of each triangle in an .area file if they exist, and the \texttt{improve} command moves the vertices of such a mesh. A vertex with marker 1 in a .node file, as \texttt{generate} writes for the points of the .poly file, such as wells, stays in place:
+The \texttt{triangle-utils} program reads and writes the files of Triangle. The \texttt{generate} command meshes the segments, vertices, holes, and regions of a .poly file, such as one describing the boundary, river, and lake of a valley, the \texttt{refine} command refines the mesh in a .node file and an .ele file, with the segments of a .poly file and the area of each triangle in an .area file if they exist, the \texttt{improve} command moves the vertices of such a mesh, and the \texttt{disv} command writes its Voronoi grid, or its triangles, as a MODFLOW 6 DISV file. A vertex with marker 1 in a .node file, as \texttt{generate} writes for the points of the .poly file, such as wells, stays in place:
 
 \begin{Verbatim}[fontsize=\small,commandchars=\\\{\}]
-triangle-utils generate -a \maximumareavalue -q \minimumangle -s \boundaryspacingvalue valley
-triangle-utils refine -A \maximumangle valley.1
+triangle-utils generate -a \maximumareavalue -q \minimumangle -s \boundaryspacingvalue -D valley
+triangle-utils refine -A \maximumangle -D valley.1
 triangle-utils improve -A \improveangle valley.2
 triangle-utils check valley.3
+triangle-utils disv valley.2
 \end{Verbatim}
 
-\noindent Each command writes its mesh to files named as Triangle names them, valley.1 for valley and valley.2 for valley.1; \texttt{triangle-utils generate -h}, \texttt{refine -h}, and \texttt{improve -h} list the options of each.
+\noindent Each command writes its mesh to files named as Triangle names them, valley.1 for valley and valley.2 for valley.1, and \texttt{disv} writes the Voronoi grid of the refined mesh to valley.2.disv, as Figure~\ref{fig:voronoi} shows; \texttt{triangle-utils generate -h}, \texttt{refine -h}, \texttt{improve -h}, and \texttt{disv -h} list the options of each.
 
-From Python, the triangle-utils module in the python folder of the repository calls the library directly, and meshes are returned as NumPy arrays. The example valley is generated and refined as follows, with the values given above; the script make\_figures.py in the doc/UserGuide folder, from which this is taken and which gives the coordinates of the boundary, river, lake, and wells, makes the figures of this guide:
+From Python, the triangle-utils module in the python folder of the repository calls the library directly, and meshes and grids are returned as NumPy arrays. The script valley.py in the doc/UserGuide folder builds the example of this guide in steps, printed here in turn; the script make\_figures.py beside it uses its meshes and grid to make the figures. First come the coordinates of the boundary, river, lake, and wells:
 
-\begin{Verbatim}[fontsize=\small]
-import triangle_utils as tu
+\VerbatimInput[fontsize=\small,firstline=\valleycoordinatesfirst,lastline=\valleycoordinateslast]{valley.py}
 
-geometry = tu.Geometry()
-geometry.add_polygon(BOUNDARY, spacing=BOUNDARY_SPACING, marker=BOUNDARY_MARKER)
-geometry.add_line(RIVER, spacing=RIVER_SPACING, marker=RIVER_MARKER)
-geometry.add_polygon(LAKE, spacing=LAKE_SPACING, marker=LAKE_MARKER)
-# the river divides the aquifer, so it needs a region on each side
-geometry.add_region(500, 1000, attribute=AQUIFER)
-geometry.add_region(4000, 1000, attribute=AQUIFER)
-geometry.add_region(1100, 5400, attribute=LAKE_REGION, area_limit=LAKE_AREA)
-for x, y in WELLS:
-    geometry.add_ring(x, y, WELL_RADIUS, WELL_POINTS, WELL_REGION, WELL_AREA, WELL_MARKER)
-mesh = tu.generate(geometry, maximum_area=MAXIMUM_AREA, minimum_angle=MINIMUM_ANGLE)
-refined = tu.refine(mesh, minimum_angle=MINIMUM_ANGLE, maximum_angle=MAXIMUM_ANGLE)
-improved = tu.improve(refined, maximum_angle=IMPROVE_ANGLE)
-\end{Verbatim}
+\noindent Then come the spacings of the points along each feature, the largest triangle areas, the angles, and the attribute of each region and marker of each feature's segments:
+
+\VerbatimInput[fontsize=\small,firstline=\valleyvaluesfirst,lastline=\valleyvalueslast]{valley.py}
+
+\noindent The geometry is built from them: each feature with the spacing of its points and the marker of its segments, a point inside each region with its attribute and area limit, and a ring around each well:
+
+\VerbatimInput[fontsize=\small,firstline=\valleygeometryfirst,lastline=\valleygeometrylast]{valley.py}
+
+\noindent The geometry is meshed (fig.~\ref{fig:generated}), the mesh is refined by angle (fig.~\ref{fig:refined}), and the refined mesh is improved (fig.~\ref{fig:improved}):
+
+\VerbatimInput[fontsize=\small,firstline=\valleymeshingfirst,lastline=\valleymeshinglast]{valley.py}
+
+\noindent The Voronoi grid (fig.~\ref{fig:voronoi}) is built from the geometry meshed and refined again with conforming Delaunay triangles, and its vertices and cells are returned in the form FloPy's DISV package takes:
+
+\VerbatimInput[fontsize=\small,firstline=\valleygridfirst,lastline=\valleygridlast]{valley.py}
 
 \noindent The same functions are available to C, C++, and Fortran programs through the C interface declared in triangle\_utils.h.
 

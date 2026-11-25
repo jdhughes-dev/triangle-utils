@@ -37,6 +37,11 @@ typedef struct TriangleUtilsMesh TriangleUtilsMesh;
    triangle_utils_geometry_free(). Points are x and y of each in turn. */
 typedef struct TriangleUtilsGeometry TriangleUtilsGeometry;
 
+/* A grid of polygonal cells for MODFLOW 6 DISV, built from a mesh with
+   triangle_utils_mesh_voronoi() or triangle_utils_mesh_triangle_grid(); free
+   it with triangle_utils_grid_free(). */
+typedef struct TriangleUtilsGrid TriangleUtilsGrid;
+
 /* The reason for the last status other than TRIANGLE_UTILS_OK, or an empty
    string after a function that returns a status succeeded; valid until the
    next such call. */
@@ -245,6 +250,60 @@ int triangle_utils_mesh_fixed_vertices(const TriangleUtilsMesh * mesh, int fixed
 int triangle_utils_mesh_improve(const TriangleUtilsMesh * mesh, int smoothing, double maximum_angle,
                                 double minimum_angle, int iterations, double tolerance,
                                 TriangleUtilsMesh ** improved);
+
+/* The Voronoi grid of a mesh: a cell around each vertex, centered on it, with
+   corners at the circumcenters of the vertex's triangles, closed on the
+   boundary by the midpoints of its edges, and by its vertices where it
+   turns, so a boundary cell's center is on its edge and the cell is not
+   convex where the boundary turns inward, as at a hole's corner. A cell on
+   a segment inside the mesh, such as a lake's shore, spans both sides and
+   takes the attributes of the side with most of its area. The mesh must be
+   conforming Delaunay (Triangle's D switch), so each circumcenter is in the
+   mesh. *grid is NULL after a failure. */
+int triangle_utils_mesh_voronoi(const TriangleUtilsMesh * mesh, TriangleUtilsGrid ** grid);
+
+/* Centers for triangle_utils_mesh_triangle_grid(): each triangle's centroid,
+   or its circumcenter, which joins neighbors perpendicular to their shared
+   edge but lies outside an obtuse triangle. */
+#define TRIANGLE_UTILS_CENTROID 0
+#define TRIANGLE_UTILS_CIRCUMCENTER 1
+
+/* A grid whose cells are the mesh's triangles, with their attributes.
+   *grid is NULL after a failure. */
+int triangle_utils_mesh_triangle_grid(const TriangleUtilsMesh * mesh, int center,
+                                      TriangleUtilsGrid ** grid);
+
+/* Free a grid; NULL is ignored. */
+void triangle_utils_grid_free(TriangleUtilsGrid * grid);
+
+/* The number of vertices and cells of a grid, and the number of corners of
+   all its cells; unchanged after a failure. */
+int triangle_utils_grid_counts(const TriangleUtilsGrid * grid, int * vertex_count, int * cell_count,
+                               int * corner_count);
+
+/* The grid's vertices, x and y of each in turn; each is listed once. */
+int triangle_utils_grid_vertices(const TriangleUtilsGrid * grid, int vertex_count,
+                                 double * vertex_xy);
+
+/* The corners of each cell, clockwise as DISV lists them: those of cell i
+   are corners[corner_offsets[i]] up to corners[corner_offsets[i + 1]], so
+   corner_offsets has cell_count + 1 values. */
+int triangle_utils_grid_cells(const TriangleUtilsGrid * grid, int cell_count, int * corner_offsets,
+                              int corner_count, int * corners);
+
+/* The center of each cell, x and y in turn. */
+int triangle_utils_grid_centers(const TriangleUtilsGrid * grid, int cell_count, double * center_xy);
+
+/* The mesh vertex (Voronoi grid) or triangle (triangle grid) of each cell. */
+int triangle_utils_grid_sources(const TriangleUtilsGrid * grid, int cell_count, int * sources);
+
+/* The number of attributes of each cell, as of the mesh's triangles. */
+int triangle_utils_grid_attribute_count(const TriangleUtilsGrid * grid, int * attribute_count);
+
+/* The cells' attributes, attribute_count of each in turn; value_count is the
+   attribute count times the cell count. */
+int triangle_utils_grid_attributes(const TriangleUtilsGrid * grid, int value_count,
+                                   double * attributes);
 
 #ifdef __cplusplus
 }
