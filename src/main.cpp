@@ -35,6 +35,7 @@ Commands:
   check     check a mesh in Triangle's .node, .ele, and .neigh files
   generate  mesh the geometry in a .poly file
   refine    refine a mesh in Triangle's files by area and angle
+  improve   improve a mesh in Triangle's files by moving vertices
 
 Options:
   -h, --help    show this help
@@ -60,7 +61,9 @@ constexpr const char * GENERATE_USAGE = R"(usage: triangle-utils generate [optio
 Mesh the geometry in <base>.poly (with its vertices in <base>.node if the
 .poly file has none): its segments, which the mesh follows, its vertices,
 holes, and regions. Write the mesh to <output>.node, .ele, .neigh, and
-.poly, without vertex attributes or markers.
+.poly, without vertex attributes; the vertices of the .poly file, such as
+wells, have marker 1, so improving keeps them in place, and the vertices
+Triangle adds have 0.
 
 Options:
   -h, --help                show this help
@@ -85,8 +88,9 @@ segments in <base>.poly if it exists (each an edge of the mesh), and its
 triangle attributes where segments bound them; triangles are split to meet
 their limits in <base>.area if it exists, which, like the attributes, are
 averaged across edges Triangle flips where no segment bounds them. Write the
-mesh to <output>.node, .ele, .neigh, and .poly, without vertex attributes or
-markers, or holes and regions.
+mesh to <output>.node, .ele, .neigh, and .poly, without vertex attributes,
+holes, or regions; a vertex with a nonzero marker in <base>.node, such as a
+well, has marker 1, so improving keeps it in place.
 
 Options:
   -h, --help                show this help
@@ -101,6 +105,32 @@ Options:
   -n, --angle-splits <n>    the most times triangles are flagged for
                             splitting for the maximum angle (default 100000)
   -D, --conforming-delaunay make every triangle Delaunay
+)";
+
+constexpr const char * IMPROVE_USAGE = R"(usage: triangle-utils improve [options] <base>
+
+Improve the mesh in <base>.node and <base>.ele by moving its vertices and
+flipping edges, keeping in place the vertices on the segments of <base>.poly
+if it exists, on the boundary, where triangles of different attributes or
+area limits meet, and with a nonzero marker in <base>.node, such as wells;
+no triangle grows beyond its limit in <base>.area if it exists. Write the
+mesh to <output>.node, .ele, .neigh, and .poly.
+
+Options:
+  -h, --help                show this help
+  -o, --output <output>     the output base name (default <base>.1, or
+                            x.2 for x.1), which must not be <base>
+  -A, --maximum-angle <A>   the largest angle in degrees to aim for, over 60
+                            and under 180, such as 90 (default 0: improve
+                            the smallest angle only)
+  -q, --minimum-angle <q>   the smallest angle in degrees a move may leave,
+                            up to 60 (default 0: the mesh's own, so it
+                            does not decrease); lower trades smaller angles
+                            for fewer over the maximum angle
+  -s, --smoothing <s>       laplacian (default) or centroidal
+  -n, --iterations <n>      the most sweeps over the vertices (default 100)
+  -t, --tolerance <t>       stop when no vertex moves farther than t times
+                            the mean edge length (default 1e-4)
 )";
 
 // A command line that cannot be run as given.
@@ -356,6 +386,14 @@ void write_mesh(const TriangleUtilsMesh * mesh, const std::string & base, int fi
     {
         vertices.vertices.push_back({vertex_xy[2 * vertex], vertex_xy[2 * vertex + 1]});
     }
+    // a fixed vertex, such as a well, has marker 1, which reading the mesh
+    // again takes as fixed
+    int fixed_count = 0;
+    check_status(triangle_utils_mesh_fixed_vertex_count(mesh, &fixed_count));
+    std::vector<int> fixed(static_cast<std::size_t>(fixed_count));
+    check_status(triangle_utils_mesh_fixed_vertices(mesh, fixed_count, fixed.data()));
+    vertices.markers.assign(vertices.vertices.size(), 0);
+    for (const int vertex : fixed) vertices.markers[vertex] = 1;
 
     std::vector<int> corners(3 * static_cast<std::size_t>(triangle_count));
     check_status(triangle_utils_mesh_triangles(mesh, triangle_count, corners.data()));
@@ -431,6 +469,13 @@ MeshHandle read_mesh(const std::string & base, triangle_utils::VertexFile & vert
     MeshHandle mesh(created);
     check_status(triangle_utils_mesh_set_triangle_attributes(
         mesh.get(), triangle_count, triangles.attribute_count, triangles.attributes.data()));
+    // a vertex with a nonzero marker, such as a well, stays in place when
+    // the mesh is improved
+    std::vector<int> fixed;
+    for (std::size_t vertex = 0; vertex < vertices.markers.size(); vertex++)
+        if (vertices.markers[vertex] != 0) fixed.push_back(static_cast<int>(vertex));
+    check_status(triangle_utils_mesh_set_fixed_vertices(mesh.get(), static_cast<int>(fixed.size()),
+                                                        fixed.data()));
 
     std::error_code exists_error;
     const std::string poly_name = base + ".poly";
@@ -506,6 +551,72 @@ int refine_command(const std::vector<std::string> & arguments)
     check_status(triangle_utils_mesh_refine(mesh.get(), maximum_area, minimum_angle, maximum_angle,
                                             angle_splits, conforming_delaunay ? 1 : 0, &refined));
     const MeshHandle result(refined);
+    write_mesh(result.get(), output_base, vertices.first_number, {});
+    std::cout << output_base << ": " << mesh_summary(result.get());
+    if (maximum_angle > 0.0)
+    {
+        int over = 0;
+        check_status(triangle_utils_mesh_count_angles_over(result.get(), maximum_angle, &over));
+        std::cout << "; " << over << " with an angle over " << maximum_angle << " degrees";
+    }
+    std::cout << "\n";
+    return EXIT_OK;
+}
+
+int improve_command(const std::vector<std::string> & arguments)
+{
+    std::string output_base;
+    double maximum_angle = 0.0;
+    double minimum_angle = 0.0;
+    int smoothing = TRIANGLE_UTILS_LAPLACIAN;
+    int iterations = 100;
+    double tolerance = 1e-4;
+    std::vector<std::string> bases;
+    Options options("improve", arguments);
+    while (options.next())
+    {
+        if (options.is_flag("-h", "--help"))
+        {
+            std::cout << IMPROVE_USAGE;
+            return EXIT_OK;
+        }
+        if (options.is("-o", "--output"))
+            output_base = options.value();
+        else if (options.is("-A", "--maximum-angle"))
+            maximum_angle = options.number();
+        else if (options.is("-q", "--minimum-angle"))
+            minimum_angle = options.number();
+        else if (options.is("-s", "--smoothing"))
+        {
+            const std::string name = options.value();
+            if (name == "laplacian")
+                smoothing = TRIANGLE_UTILS_LAPLACIAN;
+            else if (name == "centroidal")
+                smoothing = TRIANGLE_UTILS_CENTROIDAL;
+            else
+                throw UsageError(triangle_utils::message(
+                    "improve: the smoothing must be laplacian or centroidal, not ", name));
+        }
+        else if (options.is("-n", "--iterations"))
+            iterations = options.integer();
+        else if (options.is("-t", "--tolerance"))
+            tolerance = options.number();
+        else if (options.is_option())
+            options.unknown();
+        else
+            bases.push_back(options.argument());
+    }
+    if (bases.size() != 1) throw UsageError("improve: give one <base>");
+    const std::string & base = bases[0];
+    if (output_base.empty()) output_base = next_base(base);
+    check_output("improve", output_base, base);
+
+    triangle_utils::VertexFile vertices;
+    const MeshHandle mesh = read_mesh(base, vertices);
+    TriangleUtilsMesh * improved = nullptr;
+    check_status(triangle_utils_mesh_improve(mesh.get(), smoothing, maximum_angle, minimum_angle,
+                                             iterations, tolerance, &improved));
+    const MeshHandle result(improved);
     write_mesh(result.get(), output_base, vertices.first_number, {});
     std::cout << output_base << ": " << mesh_summary(result.get());
     if (maximum_angle > 0.0)
@@ -646,6 +757,7 @@ int run(const std::vector<std::string> & arguments)
     if (first == "check") return check_command(rest);
     if (first == "generate") return generate_command(rest);
     if (first == "refine") return refine_command(rest);
+    if (first == "improve") return improve_command(rest);
     if (!first.empty() && first[0] == '-')
         throw UsageError(triangle_utils::message("unknown option ", first));
     throw UsageError(triangle_utils::message("unknown command ", first));

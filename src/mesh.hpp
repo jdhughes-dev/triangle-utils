@@ -42,6 +42,9 @@ struct Mesh
     // boundary segments and a marker for each, or empty
     std::vector<std::array<int, 2>> segments;
     std::vector<int> segment_markers;
+    // vertices that must not move when the mesh is improved, besides those on
+    // segments and the boundary, such as wells
+    std::vector<int> fixed_vertices;
 };
 
 // A triangulateio for Triangle's output, or its Voronoi output, whose arrays

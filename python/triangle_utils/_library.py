@@ -63,6 +63,13 @@ SIGNATURES = {
         [MESH_POINTER, DOUBLE, DOUBLE, DOUBLE, INT, INT, ctypes.POINTER(MESH_POINTER)],
     ),
     "mesh_count_angles_over": (INT, [MESH_POINTER, DOUBLE, INT_ARRAY]),
+    "mesh_set_fixed_vertices": (INT, [MESH_POINTER, INT, INT_ARRAY]),
+    "mesh_fixed_vertex_count": (INT, [MESH_POINTER, INT_ARRAY]),
+    "mesh_fixed_vertices": (INT, [MESH_POINTER, INT, INT_ARRAY]),
+    "mesh_improve": (
+        INT,
+        [MESH_POINTER, INT, DOUBLE, DOUBLE, INT, DOUBLE, ctypes.POINTER(MESH_POINTER)],
+    ),
     "geometry_create": (INT, [ctypes.POINTER(GEOMETRY_POINTER)]),
     "geometry_free": (None, [GEOMETRY_POINTER]),
     "geometry_add_polygon": (INT, [GEOMETRY_POINTER, INT, DOUBLE_ARRAY, DOUBLE, INT]),

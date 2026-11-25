@@ -330,6 +330,8 @@ void keep_triangles(Mesh & mesh, const std::vector<bool> & keep)
                 if (kept.vertex_markers[vertex] == 0) kept.vertex_markers[vertex] = 1;
         }
     }
+    for (const int vertex : mesh.fixed_vertices)
+        if (new_vertex[vertex] >= 0) kept.fixed_vertices.push_back(new_vertex[vertex]);
     mesh = std::move(kept);
 }
 
@@ -447,6 +449,9 @@ Mesh generate_mesh(const Geometry & geometry, const MeshOptions & options)
     const double tolerance = std::max(options.merge_distance, SPLIT_TOLERANCE * extent);
 
     Builder builder(tolerance);
+    // the point features and ring centers, which improving the mesh keeps in
+    // place; Triangle numbers the input vertices first, in order
+    std::vector<int> fixed;
     std::vector<Point> holes = geometry.holes;
     std::vector<Region> regions = geometry.regions;
 
@@ -500,13 +505,13 @@ Mesh generate_mesh(const Geometry & geometry, const MeshOptions & options)
                               item.center.y + item.radius * std::sin(angle)});
         }
         builder.add_chain(circle, true, item.marker);
-        builder.add_vertex(item.center);
+        fixed.push_back(builder.add_vertex(item.center));
         regions.push_back({item.center, item.attribute, item.area_limit});
     }
     for (std::size_t point = 0; point < geometry.points.size(); point++)
     {
         check_finite(geometry.points[point], "point", point);
-        builder.add_vertex(geometry.points[point]);
+        fixed.push_back(builder.add_vertex(geometry.points[point]));
     }
     for (std::size_t hole = 0; hole < holes.size(); hole++) check_finite(holes[hole], "hole", hole);
 
@@ -550,6 +555,9 @@ Mesh generate_mesh(const Geometry & geometry, const MeshOptions & options)
     TriangleOutput output;
     run_triangle(switches, input, output);
     Mesh mesh = from_triangulateio(output.get());
+    std::sort(fixed.begin(), fixed.end());
+    fixed.erase(std::unique(fixed.begin(), fixed.end()), fixed.end());
+    mesh.fixed_vertices = fixed;
 
     // Triangle's removal of a hole stops at any segment, and a line or ring
     // that leaves the polygons encloses area outside them, so remove the

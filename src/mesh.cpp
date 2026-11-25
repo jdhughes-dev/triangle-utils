@@ -244,6 +244,10 @@ void check_sizes(const Mesh & mesh)
         throw Error(message("the mesh has ", mesh.triangle_attributes.size(),
                             " triangle attributes, but ", mesh.triangle_attribute_count,
                             " for each of ", mesh.triangles.size(), " triangles are needed"));
+    for (const int vertex : mesh.fixed_vertices)
+        if (vertex < 0 || static_cast<std::size_t>(vertex) >= mesh.vertices.size())
+            throw Error(message("fixed vertex ", vertex, " is not a vertex of the mesh, which has ",
+                                mesh.vertices.size()));
 }
 
 double signed_area(const Mesh & mesh, std::size_t triangle)

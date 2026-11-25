@@ -138,7 +138,11 @@ Mesh refine_mesh(const Mesh & mesh, const RefineOptions & options)
     }
     TriangleOutput output;
     run_triangle(switches, triangle_input, output);
-    return from_triangulateio(output.get());
+    Mesh refined = from_triangulateio(output.get());
+    // Triangle numbers the input vertices first, in order, so they keep their
+    // indices
+    refined.fixed_vertices = mesh.fixed_vertices;
+    return refined;
 }
 
 std::size_t count_angles_over(const Mesh & mesh, double limit)

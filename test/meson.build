@@ -1,4 +1,4 @@
-foreach name : ['geometry', 'mesh', 'refine', 'triangulate', 'version']
+foreach name : ['geometry', 'improve', 'mesh', 'refine', 'triangulate', 'version']
   test(
     name,
     executable(

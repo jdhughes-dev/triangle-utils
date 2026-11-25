@@ -32,3 +32,7 @@ EXPORTS
   triangle_utils_mesh_set_area_limits
   triangle_utils_mesh_refine
   triangle_utils_mesh_count_angles_over
+  triangle_utils_mesh_set_fixed_vertices
+  triangle_utils_mesh_fixed_vertex_count
+  triangle_utils_mesh_fixed_vertices
+  triangle_utils_mesh_improve

@@ -16,6 +16,7 @@
 
 #include "error.hpp"
 #include "geometry.hpp"
+#include "improve.hpp"
 #include "mesh.hpp"
 #include "refine.hpp"
 
@@ -609,5 +610,75 @@ int triangle_utils_mesh_count_angles_over(const TriangleUtilsMesh * mesh, double
             check_pointer(count, "count");
             // check_sizes limits the triangle count to what an int holds
             *count = static_cast<int>(triangle_utils::count_angles_over(mesh->mesh, limit));
+        });
+}
+
+int triangle_utils_mesh_set_fixed_vertices(TriangleUtilsMesh * mesh, int fixed_count,
+                                           const int * fixed_vertices)
+{
+    return call(
+        [&]
+        {
+            check_pointer(mesh, "mesh");
+            check_count(fixed_count, "fixed vertex");
+            if (fixed_count > 0) check_pointer(fixed_vertices, "fixed vertex");
+            triangle_utils::Mesh checked = mesh->mesh;
+            checked.fixed_vertices.assign(fixed_vertices, fixed_vertices + fixed_count);
+            triangle_utils::check_sizes(checked);
+            mesh->mesh = std::move(checked);
+        });
+}
+
+int triangle_utils_mesh_fixed_vertex_count(const TriangleUtilsMesh * mesh, int * fixed_count)
+{
+    return call(
+        [&]
+        {
+            check_pointer(mesh, "mesh");
+            check_pointer(fixed_count, "fixed vertex count");
+            *fixed_count = static_cast<int>(mesh->mesh.fixed_vertices.size());
+        });
+}
+
+int triangle_utils_mesh_fixed_vertices(const TriangleUtilsMesh * mesh, int fixed_count,
+                                       int * fixed_vertices)
+{
+    return call(
+        [&]
+        {
+            check_pointer(mesh, "mesh");
+            check_matches(fixed_count, mesh->mesh.fixed_vertices.size(), "fixed vertex");
+            if (fixed_count > 0) check_pointer(fixed_vertices, "fixed vertex");
+            std::copy(mesh->mesh.fixed_vertices.begin(), mesh->mesh.fixed_vertices.end(),
+                      fixed_vertices);
+        });
+}
+
+int triangle_utils_mesh_improve(const TriangleUtilsMesh * mesh, int smoothing, double maximum_angle,
+                                double minimum_angle, int iterations, double tolerance,
+                                TriangleUtilsMesh ** improved)
+{
+    return call(
+        [&]
+        {
+            check_pointer(improved, "improved mesh");
+            *improved = nullptr;
+            check_pointer(mesh, "mesh");
+            triangle_utils::ImproveOptions options;
+            if (smoothing == TRIANGLE_UTILS_LAPLACIAN)
+                options.smoothing = triangle_utils::Smoothing::LAPLACIAN;
+            else if (smoothing == TRIANGLE_UTILS_CENTROIDAL)
+                options.smoothing = triangle_utils::Smoothing::CENTROIDAL;
+            else
+                throw ArgumentError(triangle_utils::message(
+                    "the smoothing is ", smoothing, ", but it must be ", TRIANGLE_UTILS_LAPLACIAN,
+                    " (Laplacian) or ", TRIANGLE_UTILS_CENTROIDAL, " (centroidal)"));
+            options.maximum_angle = maximum_angle;
+            options.minimum_angle = minimum_angle;
+            options.iterations = iterations;
+            options.tolerance = tolerance;
+            auto result = std::make_unique<TriangleUtilsMesh>();
+            result->mesh = triangle_utils::improve_mesh(mesh->mesh, options);
+            *improved = result.release();
         });
 }

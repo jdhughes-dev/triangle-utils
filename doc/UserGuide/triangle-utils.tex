@@ -70,7 +70,7 @@
 \section*{Abstract}
 \addcontentsline{toc}{section}{Abstract}
 
-triangle-utils is a set of utilities for building two-dimensional triangular meshes for groundwater models, such as MODFLOW~6 \citep{modflow6gwf}, from the boundaries, rivers, lakes, and wells of a model area. The utilities use Triangle \citep{shewchuk1996triangle}, which builds meshes whose triangles have no angle smaller than a specified limit. This guide describes generating a mesh that follows the boundary, rivers, and lakes of a model area and has smaller triangles around pumping wells, and refining a mesh by area and by angle, so that no triangle has an angle over a limit, which the flow calculation between the cells of a triangular grid needs. Generating a mesh and refining it by angle are demonstrated on an example valley with a river, a lake, and three pumping wells.
+triangle-utils is a set of utilities for building two-dimensional triangular meshes for groundwater models, such as MODFLOW~6 \citep{modflow6gwf}, from the boundaries, rivers, lakes, and wells of a model area. The utilities use Triangle \citep{shewchuk1996triangle}, which builds meshes whose triangles have no angle smaller than a specified limit. This guide describes generating a mesh that follows the boundary, rivers, and lakes of a model area and has smaller triangles around pumping wells, and refining a mesh by area and by angle, so that no triangle has an angle over a limit, which the flow calculation between the cells of a triangular grid needs. It also describes improving a mesh by moving its vertices, so that fewer triangles have an angle over 90 degrees. Generating, refining, and improving a mesh are demonstrated on an example valley with a river, a lake, and three pumping wells.
 
 \section{Introduction}
 
@@ -130,17 +130,42 @@ Figure~\ref{fig:closeups} shows the windows of Figure~\ref{fig:generated} before
   \label{fig:closeups}
 \end{figure}
 
+\section{Improving a Mesh}
+
+Improving moves the vertices of a mesh, other than those on its boundary, polygons, and lines, those of point features and wells, and those between regions, and redraws the edge two triangles share wherever that makes their smallest angles larger. A vertex is moved toward the average of its neighboring vertices, or toward the centroids of its triangles, only where every triangle around it keeps a positive area within its area limit, no angle falls below the smallest angle of the mesh, and the largest angle around it decreases toward a given maximum angle. With a maximum angle of 90 degrees, improving reduces the obtuse triangles that refining leaves, whose circumcenters lie outside them. An obtuse angle at a point on the boundary where only two triangles meet cannot be removed by moving vertices, because the two angles there sum to 180 degrees; refining that part of the boundary adds triangles that can.
+
+By default, no move may make an angle smaller than the smallest angle of the mesh, so improving never makes that angle smaller; some obtuse triangles can be removed only by making an angle smaller, and a smaller minimum angle can be given to allow it.
+
+Figure~\ref{fig:improved} shows the refined mesh of Figure~\ref{fig:refined} improved toward a maximum angle of \improveangle\ degrees. The refined mesh has \refinedoverninety\ triangles with an angle over \improveangle\ degrees and a smallest angle of \refinedsmallest\ degrees. Improved with that smallest angle kept, the mesh has \improvedoverninety\ triangles over \improveangle\ degrees: \improvedboundaryover\ with the angle at a point on the boundary where two triangles meet, \improvedfixedover\ at another point that does not move (on the river, the lake, or a ring), and \improvedfreeover\ at a vertex that moves. Improved with a minimum angle of \tradedangle\ degrees, the mesh has \tradedoverninety\ triangles over \improveangle\ degrees, \tradedfreeover\ of them at a vertex that moves, and a smallest angle of \tradedsmallest\ degrees, so keeping the smallest angle is what left the \improvedfreeover\ at vertices that move.
+
+\begin{figure}[htbp]
+  \centering
+  \includegraphics{improved_mesh.pdf}
+  \caption{Triangles with an angle over \improveangle\ degrees (red) in the mesh of the example valley. \textit{A}, the mesh refined to a maximum angle of \maximumangle\ degrees (fig.~\ref{fig:refined}\textit{B}). \textit{B}, the same mesh improved toward a maximum angle of \improveangle\ degrees, keeping its smallest angle. \textit{C}, the same mesh improved with a minimum angle of \tradedangle\ degrees. Boxes are the windows of figure~\ref{fig:improvedcloseups}}
+  \label{fig:improved}
+\end{figure}
+
+Figure~\ref{fig:improvedcloseups} shows the windows of Figure~\ref{fig:generated} before and after improving. In the refined mesh, \wellwindowrefinedoverninety\ triangles around the well and \riverwindowrefinedoverninety\ along the river have an angle over \improveangle\ degrees; in the improved mesh, \wellwindowimprovedover\ and \riverwindowimprovedover.
+
+\begin{figure}[htbp]
+  \centering
+  \includegraphics{improved_close_ups.pdf}
+  \caption{Triangles with an angle over \improveangle\ degrees (red) in the windows of figures~\ref{fig:generated}\textit{B} and~\ref{fig:generated}\textit{C}. \textit{A}, around the well, refined. \textit{B}, around the well, improved. \textit{C}, along the river, refined. \textit{D}, along the river, improved}
+  \label{fig:improvedcloseups}
+\end{figure}
+
 \section{Using triangle-utils}
 
-The \texttt{triangle-utils} program reads and writes the files of Triangle. The \texttt{generate} command meshes the segments, vertices, holes, and regions of a .poly file, such as one describing the boundary, river, and lake of a valley, and the \texttt{refine} command refines the mesh in a .node file and an .ele file, with the segments of a .poly file and the area of each triangle in an .area file if they exist:
+The \texttt{triangle-utils} program reads and writes the files of Triangle. The \texttt{generate} command meshes the segments, vertices, holes, and regions of a .poly file, such as one describing the boundary, river, and lake of a valley, the \texttt{refine} command refines the mesh in a .node file and an .ele file, with the segments of a .poly file and the area of each triangle in an .area file if they exist, and the \texttt{improve} command moves the vertices of such a mesh. A vertex with marker 1 in a .node file, as \texttt{generate} writes for the points of the .poly file, such as wells, stays in place:
 
 \begin{Verbatim}[fontsize=\small,commandchars=\\\{\}]
 triangle-utils generate -a \maximumareavalue -q \minimumangle -s \boundaryspacingvalue valley
 triangle-utils refine -A \maximumangle valley.1
-triangle-utils check valley.2
+triangle-utils improve -A \improveangle valley.2
+triangle-utils check valley.3
 \end{Verbatim}
 
-\noindent Each command writes its mesh to files named as Triangle names them, valley.1 for valley and valley.2 for valley.1; \texttt{triangle-utils generate -h} and \texttt{triangle-utils refine -h} list the options of each.
+\noindent Each command writes its mesh to files named as Triangle names them, valley.1 for valley and valley.2 for valley.1; \texttt{triangle-utils generate -h}, \texttt{refine -h}, and \texttt{improve -h} list the options of each.
 
 From Python, the triangle-utils module in the python folder of the repository calls the library directly, and meshes are returned as NumPy arrays. The example valley is generated and refined as follows, with the values given above; the script make\_figures.py in the doc/UserGuide folder, from which this is taken and which gives the coordinates of the boundary, river, lake, and wells, makes the figures of this guide:
 
@@ -159,6 +184,7 @@ for x, y in WELLS:
     geometry.add_ring(x, y, WELL_RADIUS, WELL_POINTS, WELL_REGION, WELL_AREA, WELL_MARKER)
 mesh = tu.generate(geometry, maximum_area=MAXIMUM_AREA, minimum_angle=MINIMUM_ANGLE)
 refined = tu.refine(mesh, minimum_angle=MINIMUM_ANGLE, maximum_angle=MAXIMUM_ANGLE)
+improved = tu.improve(refined, maximum_angle=IMPROVE_ANGLE)
 \end{Verbatim}
 
 \noindent The same functions are available to C, C++, and Fortran programs through the C interface declared in triangle\_utils.h.

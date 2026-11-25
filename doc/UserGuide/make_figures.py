@@ -65,12 +65,11 @@ WELL_AREA = 300.0
 MINIMUM_ANGLE = 30.0
 MAXIMUM_ANGLE = 100.0
 
-# the axis limits of a valley panel: a margin around the boundary, and room
-# above it for the explanation
+# the axis limits of a valley panel: a margin around the boundary
 _x, _y = np.array(BOUNDARY, dtype=float).T
 MARGIN = 100.0
 X_LIMITS = (_x.min() - MARGIN, _x.max() + MARGIN)
-Y_LIMITS = (_y.min() - MARGIN, _y.max() + 0.3 * (_y.max() - _y.min()))
+Y_LIMITS = (_y.min() - MARGIN, _y.max() + MARGIN)
 # the sides of the square close-ups around a well and along the river, in
 # meters
 WELL_WINDOW = 600.0
@@ -203,13 +202,25 @@ def zoom(ax, window):
     ax.set_ylim(y - 0.5 * side, y + 0.5 * side)
 
 
-def explanation(ax, handles):
-    styles.graph_legend(
-        ax=ax,
+def explanation(fig, handles):
+    """The explanation in one row below the panels."""
+    legend = fig.legend(
         handles=handles,
         labels=[h.get_label() for h in handles],
-        loc="upper right",
+        loc="outside lower center",
+        ncols=len(handles),
+        title="EXPLANATION",
+        frameon=False,
     )
+    legend.get_title().set_fontweight("bold")
+
+
+def save(fig, name):
+    """Save a figure with the axis labels of its panels aligned."""
+    fig.align_labels()
+    # the layout leaves no room for the panel headings, which are text above
+    # the panels, so the saved figure is cropped to everything drawn
+    fig.savefig(FIGURES / name, bbox_inches="tight", pad_inches=0.05)
 
 
 def well_handle():
@@ -222,7 +233,11 @@ def mesh_figure(mesh, windows):
     """The generated mesh of the valley, with close-ups of a well and the river."""
     with styles.USGSMap():
         fig, axd = plt.subplot_mosaic(
-            [["A", "B"], ["A", "C"]], figsize=(6.7, 6.6), layout="constrained"
+            [["A", "B"], ["A", "C"]],
+            # the height at which A and the two close-ups end together
+            figsize=(6.7, 6.2),
+            width_ratios=[1.2, 1.0],
+            layout="constrained",
         )
         draw_mesh(axd["A"], mesh)
         for letter, window in windows.items():
@@ -240,15 +255,21 @@ def mesh_figure(mesh, windows):
             for region, name in REGION_NAMES.items()
         ]
         handles += [plt.Line2D([], [], color="#1f78b4", label="River"), well_handle()]
-        explanation(axd["A"], handles)
-        fig.savefig(FIGURES / "generated_mesh.pdf")
+        explanation(fig, handles)
+        save(fig, "generated_mesh.pdf")
         plt.close(fig)
 
 
-def over_handles():
+def over_handles(limit, region):
+    """The explanation of a figure of triangles over an angle, with the region
+    its panels show."""
     return [
-        Patch(facecolor="#e31a1c", label=f"Angle over {MAXIMUM_ANGLE:g} degrees"),
-        Patch(facecolor=REGION_COLORS[LAKE_REGION], edgecolor="0.35", label="Lake"),
+        Patch(facecolor="#e31a1c", label=f"Angle over {limit:g} degrees"),
+        Patch(
+            facecolor=REGION_COLORS[region],
+            edgecolor="0.35",
+            label=REGION_NAMES[region],
+        ),
         plt.Line2D([], [], color="#1f78b4", label="River"),
         well_handle(),
     ]
@@ -272,34 +293,122 @@ def refine_figure(mesh, refined, windows):
             styles.heading(ax=axd[letter], letter=letter, heading=heading)
             styles.xlabel(ax=axd[letter], label="x, in meters")
         styles.ylabel(ax=axd["A"], label="y, in meters")
-        explanation(axd["A"], over_handles())
-        fig.savefig(FIGURES / "refined_mesh.pdf")
+        explanation(fig, over_handles(MAXIMUM_ANGLE, LAKE_REGION))
+        save(fig, "refined_mesh.pdf")
         plt.close(fig)
 
 
-def close_up_figure(mesh, refined, windows):
-    """The close-up windows before and after refining."""
+# the largest angle improving aims for, in degrees; 90 puts every
+# circumcenter inside its triangle
+IMPROVE_ANGLE = 90.0
+# a smallest angle below the generated mesh's, which improving may trade for
+# fewer triangles over the improving angle, in degrees
+TRADED_ANGLE = 25.0
+
+
+def smallest_angle(mesh):
+    """The smallest angle of a mesh in degrees."""
+    corners = mesh.vertices[mesh.triangles]
+    smallest = 180.0
+    for corner in range(3):
+        to_next = corners[:, (corner + 1) % 3] - corners[:, corner]
+        to_previous = corners[:, (corner + 2) % 3] - corners[:, corner]
+        cross = np.abs(
+            to_next[:, 0] * to_previous[:, 1] - to_next[:, 1] * to_previous[:, 0]
+        )
+        dot = (to_next * to_previous).sum(axis=1)
+        smallest = min(smallest, np.degrees(np.arctan2(cross, dot)).min())
+    return smallest
+
+
+def obtuse_kinds(mesh, limit):
+    """The angles over the limit at a boundary point where two triangles
+    meet, at another vertex that does not move (on a segment, or a well),
+    and at a vertex that moves."""
+    triangle_count = np.bincount(mesh.triangles.ravel(), minlength=len(mesh.vertices))
+    on_boundary = np.zeros(len(mesh.vertices), dtype=bool)
+    for triangle, corners in enumerate(mesh.triangles):
+        for corner in range(3):
+            if mesh.neighbors[triangle, corner] == -1:
+                on_boundary[corners[(corner + 1) % 3]] = True
+                on_boundary[corners[(corner + 2) % 3]] = True
+    fixed = on_boundary.copy()
+    fixed[mesh.segments.ravel()] = True
+    fixed[mesh.fixed_vertices] = True
+    kinds = {"boundary": 0, "fixed": 0, "free": 0}
+    points = mesh.vertices[mesh.triangles]
+    for triangle, corners in enumerate(mesh.triangles):
+        for corner in range(3):
+            at = points[triangle, corner]
+            to_next = points[triangle, (corner + 1) % 3] - at
+            to_previous = points[triangle, (corner + 2) % 3] - at
+            angle = np.degrees(
+                np.arctan2(
+                    abs(to_next[0] * to_previous[1] - to_next[1] * to_previous[0]),
+                    to_next @ to_previous,
+                )
+            )
+            if angle <= limit:
+                continue
+            vertex = corners[corner]
+            if on_boundary[vertex] and triangle_count[vertex] == 2:
+                kinds["boundary"] += 1
+            elif fixed[vertex]:
+                kinds["fixed"] += 1
+            else:
+                kinds["free"] += 1
+    return kinds
+
+
+def improve_figure(refined, improved, traded, windows):
+    """Triangles over the improving angle before and after improving, keeping
+    the smallest angle and with a lower one."""
+    with styles.USGSMap():
+        fig, axd = plt.subplot_mosaic(
+            [["A", "B", "C"]], figsize=(6.7, 4.6), layout="constrained"
+        )
+        panels = (
+            ("A", refined, "Refined"),
+            ("B", improved, "Improved"),
+            ("C", traded, f"Improved, {TRADED_ANGLE:g}\u00b0 minimum"),
+        )
+        for letter, item, heading in panels:
+            draw_mesh(
+                axd[letter], item, highlight=item.largest_angles() > IMPROVE_ANGLE
+            )
+            for window_letter in ("B", "C"):
+                show_window(axd[letter], windows[window_letter], window_letter)
+            styles.heading(ax=axd[letter], letter=letter, heading=heading)
+            styles.xlabel(ax=axd[letter], label="x, in meters")
+        styles.ylabel(ax=axd["A"], label="y, in meters")
+        explanation(fig, over_handles(IMPROVE_ANGLE, LAKE_REGION))
+        save(fig, "improved_mesh.pdf")
+        plt.close(fig)
+
+
+def close_up_figure(before, after, windows, limit, steps, name):
+    """The close-up windows before and after a step, with the triangles over
+    an angle."""
     with styles.USGSMap():
         fig, axd = plt.subplot_mosaic(
             [["A", "B"], ["C", "D"]], figsize=(6.7, 6.9), layout="constrained"
         )
         panels = (
-            ("A", mesh, "B", "Around a well, generated"),
-            ("B", refined, "B", "Around a well, refined"),
-            ("C", mesh, "C", "Along the river, generated"),
-            ("D", refined, "C", "Along the river, refined"),
+            ("A", before, "B", f"Around a well, {steps[0]}"),
+            ("B", after, "B", f"Around a well, {steps[1]}"),
+            ("C", before, "C", f"Along the river, {steps[0]}"),
+            ("D", after, "C", f"Along the river, {steps[1]}"),
         )
         for letter, item, window, heading in panels:
-            draw_mesh(
-                axd[letter], item, highlight=item.largest_angles() > MAXIMUM_ANGLE
-            )
+            draw_mesh(axd[letter], item, highlight=item.largest_angles() > limit)
             zoom(axd[letter], windows[window])
             styles.heading(ax=axd[letter], letter=letter, heading=heading)
         for letter in ("A", "C"):
             styles.ylabel(ax=axd[letter], label="y, in meters")
         for letter in ("C", "D"):
             styles.xlabel(ax=axd[letter], label="x, in meters")
-        fig.savefig(FIGURES / "close_ups.pdf")
+        explanation(fig, over_handles(limit, WELL_REGION))
+        save(fig, name)
         plt.close(fig)
 
 
@@ -342,7 +451,22 @@ def main():
     windows = choose_windows(mesh)
     mesh_figure(mesh, windows)
     refine_figure(mesh, refined, windows)
-    close_up_figure(mesh, refined, windows)
+    close_up_figure(
+        mesh, refined, windows, MAXIMUM_ANGLE, ("generated", "refined"), "close_ups.pdf"
+    )
+    improved = tu.improve(refined, maximum_angle=IMPROVE_ANGLE)
+    traded = tu.improve(
+        refined, maximum_angle=IMPROVE_ANGLE, minimum_angle=TRADED_ANGLE
+    )
+    improve_figure(refined, improved, traded, windows)
+    close_up_figure(
+        refined,
+        improved,
+        windows,
+        IMPROVE_ANGLE,
+        ("refined", "improved"),
+        "improved_close_ups.pdf",
+    )
     cover_figure(refined)
     # the class puts this page in place of the agency logo on the cover
     blank = plt.figure(figsize=(1, 1))
@@ -358,6 +482,20 @@ def main():
         "refinedtriangles": len(refined.triangles),
         "refinedover": int((refined.largest_angles() > MAXIMUM_ANGLE).sum()),
         "refinedlargest": f"{refined.largest_angles().max():.1f}",
+        "improveangle": f"{IMPROVE_ANGLE:g}",
+        "refinedoverninety": int((refined.largest_angles() > IMPROVE_ANGLE).sum()),
+        "improvedoverninety": int((improved.largest_angles() > IMPROVE_ANGLE).sum()),
+        "improvedboundaryover": obtuse_kinds(improved, IMPROVE_ANGLE)["boundary"],
+        "improvedfixedover": obtuse_kinds(improved, IMPROVE_ANGLE)["fixed"],
+        "improvedfreeover": obtuse_kinds(improved, IMPROVE_ANGLE)["free"],
+        "refinedsmallest": f"{smallest_angle(refined):.1f}",
+        "improvedsmallest": f"{smallest_angle(improved):.1f}",
+        "tradedangle": f"{TRADED_ANGLE:g}",
+        "tradedoverninety": int((traded.largest_angles() > IMPROVE_ANGLE).sum()),
+        "tradedboundaryover": obtuse_kinds(traded, IMPROVE_ANGLE)["boundary"],
+        "tradedfixedover": obtuse_kinds(traded, IMPROVE_ANGLE)["fixed"],
+        "tradedfreeover": obtuse_kinds(traded, IMPROVE_ANGLE)["free"],
+        "tradedsmallest": f"{smallest_angle(traded):.1f}",
         "valleyarea": f"{mesh.triangle_areas().sum() / 1e6:.2f}",
         # the merge tolerance, 1e-12 of the largest coordinate, in micrometers
         "valleytolerance": f"{1e-12 * np.abs(np.array(BOUNDARY)).max() * 1e6:.3f}",
@@ -375,6 +513,30 @@ def main():
         "welly": f"{windows['B'][1]:,.0f}",
         "wellwindow": f"{WELL_WINDOW:,.0f}",
         "riverwindow": f"{RIVER_WINDOW:,.0f}",
+        "wellwindowrefinedoverninety": int(
+            in_window(
+                centroids(refined)[refined.largest_angles() > IMPROVE_ANGLE],
+                windows["B"],
+            ).sum()
+        ),
+        "riverwindowrefinedoverninety": int(
+            in_window(
+                centroids(refined)[refined.largest_angles() > IMPROVE_ANGLE],
+                windows["C"],
+            ).sum()
+        ),
+        "wellwindowimprovedover": int(
+            in_window(
+                centroids(improved)[improved.largest_angles() > IMPROVE_ANGLE],
+                windows["B"],
+            ).sum()
+        ),
+        "riverwindowimprovedover": int(
+            in_window(
+                centroids(improved)[improved.largest_angles() > IMPROVE_ANGLE],
+                windows["C"],
+            ).sum()
+        ),
         "wellwindowover": int(
             in_window(
                 centroids(mesh)[mesh.largest_angles() > MAXIMUM_ANGLE], windows["B"]

@@ -45,9 +45,13 @@ so a set number of splits stops it, and
 boundary segments with marker 0 the marker 1, as generating does. Refining
 keeps triangle attributes and per-triangle area limits exact only where
 segments bound them, since Triangle averages them across the edges it flips.
-The API also returns the versions of triangle-utils and Triangle, the license,
-and Triangle's copyright notice. Calls must not run concurrently, since
-Triangle keeps global state.
+`triangle_utils_mesh_improve()` moves the vertices that are not fixed and flips
+edges, toward a maximum angle such as 90 degrees, without making the smallest
+angle smaller unless a smaller minimum angle is given; a mesh's fixed vertices,
+which `generate` sets to its point features and ring centers, do not move. The
+API also returns the versions of triangle-utils and Triangle, the license, and
+Triangle's copyright notice. Calls must not run concurrently, since Triangle
+keeps global state.
 
 ## User guide
 
@@ -62,6 +66,7 @@ arrays.
 ```shell
 triangle-utils generate [options] <base>  # mesh <base>.poly to <base>.1.*
 triangle-utils refine [options] <base>    # refine <base>.node and .ele
+triangle-utils improve [options] <base>   # move its vertices
 triangle-utils check <base>   # check <base>.node, .ele, and .neigh
 triangle-utils --version      # the versions of triangle-utils and Triangle,
                               # and the MODFLOW-ORG/triangle release
@@ -77,11 +82,13 @@ an output base name (`-o`); `triangle-utils generate -h` describes them.
 triangle-utils generate -a 0.5 -q 30 -s 1 domain   # writes domain.1.*
 ```
 
-`generate` and `refine` write `x.1` for input `x`, and `x.2` for `x.1`, as
-Triangle names its output, unless `-o` names it; `refine` also reads
-`<base>.poly` and `<base>.area` if they exist. Neither writes vertex
-attributes or markers. The program exits with 0 on success,
-1 on an error, and 2 on a usage error.
+`generate`, `refine`, and `improve` write `x.1` for input `x`, and `x.2` for
+`x.1`, as Triangle names its output, unless `-o` names it; `refine` and
+`improve` also read `<base>.poly` and `<base>.area` if they exist. A vertex
+that improving must not move, such as a well, has marker 1 in the `.node`
+files they write, and a vertex with any nonzero marker in a `.node` file they
+read is kept in place; no vertex attributes are written. The program exits
+with 0 on success, 1 on an error, and 2 on a usage error.
 
 ## License
 
