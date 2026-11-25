@@ -7,11 +7,15 @@ package is imported rather than the module in the repository.
 Cases:
   - test_triangle_license : LICENSE-Triangle is the license of the Triangle
                             subproject that triangle.wrap names (skipped
-                            before the subproject is downloaded).
-  - test_installed        : the installed package has both licenses beside
-                            the module, loads the library beside it, and
-                            reports the package's version
-                            (skipped unless testing the installed package).
+                            before the subproject is downloaded, a failure
+                            when testing the installed package).
+  - test_notice           : NOTICE gives the source of the Triangle that
+                            triangle.wrap names.
+  - test_installed        : the installed package has the licenses, the
+                            notice, and every module file beside the module,
+                            loads the library beside it, and reports the
+                            package's version (skipped unless testing the
+                            installed package).
 """
 
 import os
@@ -25,17 +29,28 @@ import triangle_utils
 REPOSITORY = Path(__file__).resolve().parents[2]
 
 
-def test_triangle_license():
+def wrap_value(key):
+    """A value of the Triangle subproject's wrap file."""
     wrap = (REPOSITORY / "subprojects" / "triangle.wrap").read_text()
-    directory = next(
+    return next(
         line.split("=", 1)[1].strip()
         for line in wrap.splitlines()
-        if line.startswith("directory")
+        if line.split("=")[0].strip() == key
     )
-    license_file = REPOSITORY / "subprojects" / directory / "LICENSE"
+
+
+def test_triangle_license():
+    license_file = REPOSITORY / "subprojects" / wrap_value("directory") / "LICENSE"
     if not license_file.exists():
+        # the wheel is built from the subproject, so it must be there
+        if os.environ.get("TRIANGLE_UTILS_TEST_INSTALLED"):
+            pytest.fail("the Triangle subproject the wheel was built from is missing")
         pytest.skip("the Triangle subproject has not been downloaded")
     assert (REPOSITORY / "LICENSE-Triangle").read_text() == license_file.read_text()
+
+
+def test_notice():
+    assert wrap_value("source_url") in (REPOSITORY / "NOTICE").read_text()
 
 
 @pytest.mark.skipif(
@@ -47,6 +62,11 @@ def test_installed():
     assert REPOSITORY not in package.parents
     assert "CC0 1.0" in (package / "LICENSE").read_text()
     assert "Shewchuk" in (package / "LICENSE-Triangle").read_text()
+    assert (package / "NOTICE").read_text() == (REPOSITORY / "NOTICE").read_text()
+    modules = sorted(
+        p.name for p in (REPOSITORY / "python" / "triangle_utils").glob("*.py")
+    )
+    assert sorted(p.name for p in package.glob("*.py")) == modules
     loaded = sys.modules["triangle_utils._library"].library_path()
     assert loaded.parent == package
     assert triangle_utils.version()[0] == metadata.version("triangle-utils")

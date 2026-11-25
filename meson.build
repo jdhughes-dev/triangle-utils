@@ -44,7 +44,8 @@ subdir('src')
 
 if python_package
   # the module, beside the library src/meson.build installs, with the
-  # licenses of triangle-utils and Triangle
+  # licenses of triangle-utils and Triangle and the notice of Triangle's
+  # source
   python = import('python').find_installation()
   python.install_sources(
     'python/triangle_utils/__init__.py',
@@ -55,6 +56,7 @@ if python_package
   install_data(
     'LICENSE',
     'LICENSE-Triangle',
+    'NOTICE',
     install_dir: python.get_install_dir(pure: false) / 'triangle_utils',
     install_tag: 'runtime',
   )

@@ -16,7 +16,7 @@ clang-format = "23.1.*"
 # get-modflow, for MODFLOW 6, which runs the grids
 flopy = "*"
 # the Python package's wheel (pyproject.toml)
-meson-python = ">=0.17"
+meson-python = ">=0.18"
 python-build = "*"
 
 [tasks]

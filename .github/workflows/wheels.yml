@@ -42,9 +42,10 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # Linux x86_64 and aarch64, macOS arm64 and x86_64, and Windows
-        # AMD64, each on a runner of its own architecture
-        os: [ubuntu-24.04, ubuntu-24.04-arm, macos-15, macos-15-intel, windows-2022]
+        # Linux x86_64 and aarch64, macOS arm64, and Windows AMD64, each on a
+        # runner of its own architecture; not macOS x86_64, which Triangle's
+        # CI does not test
+        os: [ubuntu-24.04, ubuntu-24.04-arm, macos-15, windows-2022]
     steps:
       - name: Checkout triangle-utils
         uses: actions/checkout@v7
@@ -55,9 +56,57 @@ jobs:
           # the oldest macOS the wheel runs on
           MACOSX_DEPLOYMENT_TARGET: '11.0'
 
+      # the library links no compiler runtime and, on macOS, runs on the
+      # deployment target
+      - name: Check the wheel's library
+        shell: bash
+        env:
+          MACOSX_DEPLOYMENT_TARGET: '11.0'
+        run: python scripts/check_wheel.py wheelhouse/*.whl
+
       - name: Upload the wheel
         uses: actions/upload-artifact@v7
         with:
           name: wheel-${{ matrix.os }}
           path: wheelhouse/*.whl
           retention-days: 7
+
+  # the abi3 wheel built for Python 3.11, installed on the newest Python
+  newest-python:
+    name: ${{ matrix.os }} wheel on Python 3.15
+    needs: wheel
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, ubuntu-24.04-arm, macos-15, windows-2022]
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Checkout triangle-utils
+        uses: actions/checkout@v7
+
+      - name: Setup Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: '3.15'
+
+      - name: Download the wheel
+        uses: actions/download-artifact@v8
+        with:
+          name: wheel-${{ matrix.os }}
+          path: wheelhouse
+
+      # the subproject the license test compares with is not downloaded here;
+      # the wheel job runs that test
+      - name: Install and test the wheel
+        env:
+          TRIANGLE_UTILS_TEST_INSTALLED: '1'
+        run: |
+          python -m venv venv
+          venv_python=$(ls venv/bin/python venv/Scripts/python.exe 2>/dev/null | head -1)
+          "$venv_python" -m pip install wheelhouse/*.whl pytest
+          cd venv
+          "$venv_python" -m pytest -p no:cacheprovider ../test/python --ignore=../test/python/test_command_line.py --ignore=../test/python/test_modflow.py --deselect=../test/python/test_package.py::test_triangle_license

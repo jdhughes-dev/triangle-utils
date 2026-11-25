@@ -45,7 +45,8 @@ MODFLOW-ORG/triangle and MODFLOW-ORG/gridgen.
 - `README.md` — what the utilities do, the design, and the license terms.
 - `LICENSE` — CC0 1.0 for the code in this repository; Triangle has its own
   terms (see Licenses below), copied in `LICENSE-Triangle`, which
-  `test_package.py` checks against the subproject's.
+  `test_package.py` checks against the subproject's; `NOTICE` gives the
+  source of the modified Triangle that is built, the wrap's archive.
 - `pyproject.toml` — the Python package, built by meson-python with the
   `python` option (`meson.options`), which installs the module and the C API
   library beside it, without the program, headers, or tests, and the
@@ -93,6 +94,9 @@ MODFLOW-ORG/triangle and MODFLOW-ORG/gridgen.
   `meson test` runs except under the sanitizers.
 - `scripts/clang_format.py` — runs clang-format on the tracked C and C++
   files, for `pixi run check-format` and `fix-format`.
+- `scripts/check_wheel.py` — checks, with readelf, otool, or dumpbin, that
+  the library in a wheel links no compiler runtime and, on macOS, runs on the
+  deployment target; `wheels.yml` runs it.
 - `.github/workflows/ci.yml` — builds and tests on Linux, macOS, and
   Windows with the compilers of MODFLOW-ORG/triangle and gridgen, and
   runs the tests under the sanitizers on Linux, on every push and pull
@@ -100,9 +104,12 @@ MODFLOW-ORG/triangle and MODFLOW-ORG/gridgen.
   `.github/workflows/lint.yml` runs `pixi run check-format`;
   `.github/workflows/guide.yml` builds the user guide when it, the library,
   or the Python module changes, and uploads the PDF as an artifact;
-  `.github/workflows/wheels.yml` builds the wheels with cibuildwheel and
-  tests each in a clean environment, and uploads them as artifacts; it does
-  not publish them, which waits for the release (#10). Dependabot
+  `.github/workflows/wheels.yml` builds the wheels with cibuildwheel (Linux
+  x86_64 and aarch64, macOS arm64, and Windows AMD64; not macOS x86_64), tests
+  each in a clean environment on Python 3.11 and again on 3.15, checks with
+  `scripts/check_wheel.py` that its library links no compiler runtime, and
+  uploads them as artifacts; it does not publish them, which waits for the
+  release (#10). Dependabot
   opens the pull requests that bump action versions
   (`.github/dependabot.yml`).
 - `bin/`, `lib/`, `include/`, `builddir/`, `.pixi/`, and the downloads in
@@ -160,8 +167,10 @@ MODFLOW-ORG/triangle and MODFLOW-ORG/gridgen.
   commercial system needs an arrangement with Triangle's author. The
   command-line program prints Triangle's copyright notice and terms with
   `--license` (see Command line), since the library has no `triangle -h` to
-  print it; the Python package installs `LICENSE` and `LICENSE-Triangle`
-  beside the module.
+  print it; the Python package installs `LICENSE`, `LICENSE-Triangle`, and
+  `NOTICE` beside the module and in its metadata. Update `NOTICE` with
+  `subprojects/triangle.wrap`; `test_package.py` checks that it names the
+  wrap's archive.
 
 ## Versioning
 

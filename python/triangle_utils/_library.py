@@ -174,10 +174,14 @@ def library_path():
     if os.environ.get("TRIANGLE_UTILS_LIBRARY"):
         return Path(os.environ["TRIANGLE_UTILS_LIBRARY"])
     # the library installed with the package, beside the module
-    for pattern in ("libtriangle_utils.so", "libtriangle_utils.dylib", "*.dll"):
-        found = sorted(Path(__file__).parent.glob(pattern))
-        if found:
-            return found[0]
+    for name in (
+        "libtriangle_utils.so",
+        "libtriangle_utils.dylib",
+        "libtriangle_utils.dll",
+    ):
+        bundled = Path(__file__).parent / name
+        if bundled.exists():
+            return bundled
     # the shared library, or its DLL, which Windows installs in bin
     for pattern in (
         "lib/libtriangle_utils.so",
