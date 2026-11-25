@@ -218,7 +218,9 @@ def explanation(fig, handles):
 def save(fig, name):
     """Save a figure with the axis labels of its panels aligned."""
     fig.align_labels()
-    fig.savefig(FIGURES / name)
+    # the layout leaves no room for the panel headings, which are text above
+    # the panels, so the saved figure is cropped to everything drawn
+    fig.savefig(FIGURES / name, bbox_inches="tight", pad_inches=0.05)
 
 
 def well_handle():
