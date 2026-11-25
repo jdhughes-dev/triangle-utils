@@ -648,6 +648,10 @@ def main():
     # centered on it
     if not np.allclose(grid.centers[well_cells], WELLS):
         raise ValueError("a well's cell is not centered on the well")
+    # the river's marked segments give its cells in the order it was digitized
+    along_segments = tu.cells_on_segments(grid, delaunay, RIVER_MARKER)
+    if not np.array_equal(along_segments.cells, river_cells.cells):
+        raise ValueError("the river's segments are not in the order it was digitized")
     features_figure(grid, delaunay, windows)
     cover_figure(refined)
     # the class puts this page in place of the agency logo on the cover

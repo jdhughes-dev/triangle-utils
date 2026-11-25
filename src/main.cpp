@@ -543,7 +543,7 @@ MeshHandle read_mesh(const std::string & base, triangle_utils::VertexFile & vert
             triangle_utils::read_poly(poly_file, poly_name, &vertices);
         if (!poly.vertices.vertices.empty())
             throw triangle_utils::Error(triangle_utils::message(
-                poly_name, " has vertices; for refining, its segments must use ", node_name));
+                poly_name, " has vertices; its segments must use those of ", node_name));
         std::vector<int> ends;
         for (const auto & segment : poly.segments)
             ends.insert(ends.end(), segment.begin(), segment.end());

@@ -7,6 +7,8 @@
 #include <cmath>
 #include <limits>
 #include <map>
+#include <set>
+#include <utility>
 #include <vector>
 
 #include "error.hpp"
@@ -328,15 +330,16 @@ std::vector<CellLength> cells_along_line(const Grid & grid, const std::vector<Po
 namespace
 {
 
-// The segments with a marker, joined end to end into chains of vertices, in
-// the order of the mesh's vertex numbers: each chain starts at its
-// lowest-numbered vertex, a closed chain runs toward its second-lowest, and
-// the chains follow their lowest vertices. A mesh triangle-utils generates
-// numbers its input vertices first, in the order given, so this is the order
-// the features were digitized.
+// The segments with a marker, joined end to end into chains of vertices,
+// each run the way most of its consecutive vertex numbers rise, from an end,
+// or from its lowest vertex if closed, in the order of the chains' lowest
+// vertices. triangle-utils numbers a feature's points in the order they were
+// digitized, and Triangle's added vertices after them, so this is the
+// digitized order and direction.
 std::vector<std::vector<int>> chains_of(const Mesh & mesh, int marker)
 {
     std::vector<std::array<int, 2>> segments;
+    std::set<std::pair<int, int>> seen;
     for (std::size_t segment = 0; segment < mesh.segments.size(); segment++)
     {
         if (mesh.segment_markers.empty() || mesh.segment_markers[segment] != marker) continue;
@@ -344,6 +347,9 @@ std::vector<std::vector<int>> chains_of(const Mesh & mesh, int marker)
             if (end < 0 || static_cast<std::size_t>(end) >= mesh.vertices.size())
                 throw Error(message("segment ", segment, " refers to vertex ", end,
                                     ", but the mesh has ", mesh.vertices.size(), " vertices"));
+        // a repeated segment is one
+        const auto ends = std::minmax(mesh.segments[segment][0], mesh.segments[segment][1]);
+        if (!seen.insert(ends).second) continue;
         segments.push_back(mesh.segments[segment]);
     }
     if (segments.empty()) throw Error(message("no segment of the mesh has marker ", marker));
@@ -400,30 +406,26 @@ std::vector<std::vector<int>> chains_of(const Mesh & mesh, int marker)
             }
         }
         auto choices = unused_at(start);
-        std::pair<std::vector<int>, std::vector<int>> chosen;
-        if (choices.size() == 2 && at[start].size() == 2)
+        // from an end or a branch, toward the lowest neighbor, or around a loop
+        const int first = *std::min_element(choices.begin(), choices.end(), [&](int a, int b)
+                                            { return other_end(a, start) < other_end(b, start); });
+        auto [vertices, taken] = walk(start, first);
+        for (const int segment : taken) used[segment] = true;
+        // the way most consecutive vertex numbers rise, which a shared end
+        // or Triangle's added vertices change by little
+        int rises = 0;
+        for (std::size_t i = 0; i + 1 < vertices.size(); i++)
+            rises += vertices[i + 1] > vertices[i] ? 1 : -1;
+        if (rises < 0) std::reverse(vertices.begin(), vertices.end());
+        if (vertices.front() == vertices.back() && rises < 0)
         {
-            // a loop: toward its second-lowest vertex, the nearer way
-            auto one = walk(start, choices[0]);
-            auto other = walk(start, choices[1]);
-            // the lowest vertex but the start, which the loop ends at too
-            int second = -1;
-            for (const int vertex : one.first)
-                if (vertex != start && (second < 0 || vertex < second)) second = vertex;
-            const auto steps = [&](const std::vector<int> & vertices)
-            { return std::find(vertices.begin(), vertices.end(), second) - vertices.begin(); };
-            chosen = steps(one.first) <= steps(other.first) ? one : other;
+            // a reversed loop still starts at its lowest vertex
+            vertices.pop_back();
+            std::rotate(vertices.begin(), std::min_element(vertices.begin(), vertices.end()),
+                        vertices.end());
+            vertices.push_back(vertices.front());
         }
-        else
-        {
-            // from an end or a branch, toward the lowest neighbor
-            const int first =
-                *std::min_element(choices.begin(), choices.end(), [&](int a, int b)
-                                  { return other_end(a, start) < other_end(b, start); });
-            chosen = walk(start, first);
-        }
-        for (const int segment : chosen.second) used[segment] = true;
-        chains.push_back(chosen.first);
+        chains.push_back(vertices);
     }
     // ends and branches were taken first; the chains follow their lowest
     // vertices

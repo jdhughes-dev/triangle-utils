@@ -1,6 +1,7 @@
 // Tests mapping lines and marked segments to cells: the lengths sum to the
 // line's or segments' length, and the cells are in order along the line.
 
+#include <array>
 #include <cmath>
 #include <set>
 #include <string>
@@ -355,6 +356,47 @@ TEST(Features, PointsAreInTheCellsThatContainThem)
     const auto at_vertices = cells_at_points(voronoi, mesh.vertices);
     for (std::size_t vertex = 0; vertex < mesh.vertices.size(); vertex++)
         EXPECT_EQ(voronoi.sources[at_vertices[vertex]], static_cast<int>(vertex));
+}
+
+// A mesh of segments alone, with marker 1, for the chaining.
+Mesh segments_mesh(const std::vector<Point> & vertices,
+                   const std::vector<std::array<int, 2>> & segments)
+{
+    Mesh mesh;
+    mesh.vertices = vertices;
+    mesh.segments = segments;
+    mesh.segment_markers.assign(segments.size(), 1);
+    return mesh;
+}
+
+TEST(Features, LineDigitizedTowardAnEarlierFeatureKeepsItsDirection)
+{
+    // a line digitized from (3.5, 3.5) to (0, 0), a corner numbered first, as
+    // a river may end where it meets the boundary
+    const Grid grid = squares(4);
+    const Mesh mesh =
+        segments_mesh({{0.0, 0.0}, {3.5, 3.5}, {2.5, 2.5}, {1.5, 1.5}}, {{1, 2}, {2, 3}, {3, 0}});
+    EXPECT_EQ(cells_of(cells_on_segments(grid, mesh, 1)),
+              cells_of(cells_along_line(grid, {{3.5, 3.5}, {0.0, 0.0}})));
+}
+
+TEST(Features, MarkedSegmentsJoinIntoChains)
+{
+    const Grid grid = squares(4);
+    // two lines, given second first, across rows 0 and 2, in the order of
+    // their lowest vertices
+    const Mesh lines =
+        segments_mesh({{0.5, 0.5}, {2.5, 0.5}, {0.5, 2.5}, {2.5, 2.5}}, {{2, 3}, {0, 1}});
+    EXPECT_EQ(cells_of(cells_on_segments(grid, lines, 1)), (std::vector<int>{0, 1, 2, 8, 9, 10}));
+    // three arms from a branch at (1.5, 1.5), each from the branch, and a
+    // repeated segment counted once
+    const Mesh branch = segments_mesh({{1.5, 1.5}, {0.5, 1.5}, {3.5, 1.5}, {1.5, 3.5}},
+                                      {{0, 1}, {0, 2}, {3, 0}, {1, 0}});
+    const auto cells = cells_on_segments(grid, branch, 1);
+    EXPECT_EQ(cells_of(cells), (std::vector<int>{5, 4, 6, 7, 9, 13}));
+    double sum = 0.0;
+    for (const CellLength & cell : cells) sum += cell.length;
+    EXPECT_NEAR(sum, 5.0, TOLERANCE);
 }
 
 TEST(Features, ErrorsGiveTheReason)
