@@ -599,10 +599,10 @@ DISTANCE_COLOR = "#2171b5"
 CONNECTED_CELL_COLOR = "#c6dbef"
 
 
-def draw_connections(ax, grid, connections, cell):
-    """Draw the grid around a cell, with each face the cell shares, the
-    distance from its center to the face, the face's normal, and the line to
-    the other cell's center."""
+def draw_connections(ax, grid, connections, cell, window):
+    """Draw the grid in a window around a cell, with each face the cell
+    shares, the distance from its center to the face, the face's normal, and
+    the line to the other cell's center."""
     colors = ["#f0ece0"] * len(grid.cells)
     colors[cell] = CONNECTED_CELL_COLOR
     ax.add_collection(
@@ -616,8 +616,6 @@ def draw_connections(ax, grid, connections, cell):
     corners = grid.cells[cell].tolist()
     center = grid.centers[cell]
     start, end = connections.offsets[cell : cell + 2]
-    # the window is twice the cell's largest extent
-    extent = np.ptp(grid.vertices[corners], axis=0).max()
     for k in range(start, end):
         other = connections.cells[k]
         shared = set(grid.cells[other].tolist())
@@ -630,7 +628,7 @@ def draw_connections(ax, grid, connections, cell):
         ax.plot(*np.array([center, foot]).T, color=DISTANCE_COLOR, lw=1.0)
         ax.annotate(
             "",
-            xy=foot + 0.25 * extent * normal,
+            xy=foot + 0.12 * window[2] * normal,
             xytext=foot,
             arrowprops={"arrowstyle": "-|>", "color": "black", "lw": 0.6},
         )
@@ -640,23 +638,31 @@ def draw_connections(ax, grid, connections, cell):
     ax.xaxis.set_major_formatter(THOUSANDS)
     ax.yaxis.set_major_formatter(THOUSANDS)
     ax.set_aspect("equal")
-    zoom(ax, (*center, 2.0 * extent))
+    zoom(ax, window)
 
 
 def connections_figure(grid, triangles):
-    """A cell of the Voronoi grid and of the triangle grid, with its
+    """A cell of the triangle grid of a mesh and of its Voronoi grid, with its
     connections to the cells beside it."""
     with styles.USGSMap():
         fig, axd = plt.subplot_mosaic(
             [["A", "B"]], figsize=(6.7, 3.9), layout="constrained"
         )
+        # both panels show the window twice the size of the Voronoi cell
+        # nearest the point, so the triangles' corners are the cells' centers
+        voronoi_cell = int(np.argmin(np.hypot(*(grid.centers - CONNECTION_POINT).T)))
+        center = grid.centers[voronoi_cell]
+        extent = np.ptp(grid.vertices[grid.cells[voronoi_cell]], axis=0).max()
+        window = (*center, 2.0 * extent)
         for letter, g, heading in (
-            ("A", grid, "Voronoi grid"),
-            ("B", triangles, "Triangle grid, centered on centroids"),
+            ("A", triangles, "Triangle grid, centered on centroids"),
+            ("B", grid, "Voronoi grid"),
         ):
             g_connections = connections if g is grid else tu.connect_cells(g)
-            cell = int(np.argmin(np.hypot(*(g.centers - CONNECTION_POINT).T)))
-            draw_connections(axd[letter], g, g_connections, cell)
+            # the triangle whose centroid is nearest the Voronoi cell's center,
+            # one of its corners
+            cell = int(np.argmin(np.hypot(*(g.centers - center).T)))
+            draw_connections(axd[letter], g, g_connections, cell, window)
             styles.heading(ax=axd[letter], letter=letter, heading=heading)
             styles.xlabel(ax=axd[letter], label="x, in meters")
         styles.ylabel(ax=axd["A"], label="y, in meters")
@@ -748,8 +754,7 @@ def main():
     if not np.array_equal(along_segments.cells, river_cells.cells):
         raise ValueError("the river's segments are not in the order it was digitized")
     features_figure(grid, delaunay, windows)
-    triangles = tu.triangle_grid(improved)
-    connections_figure(grid, triangles)
+    connections_figure(grid, tu.triangle_grid(delaunay))
     cover_figure(refined)
     # the class puts this page in place of the agency logo on the cover
     blank = plt.figure(figsize=(1, 1))
