@@ -116,7 +116,8 @@ def check(wheel):
     platform = "linux" if sys.platform.startswith("linux") else sys.platform
     with tempfile.TemporaryDirectory() as directory:
         with zipfile.ZipFile(wheel) as archive:
-            names = set(archive.namelist())
+            # files only; a repaired wheel also lists its directories
+            names = {name for name in archive.namelist() if not name.endswith("/")}
             archive.extractall(directory)
         dist_info = next(name.split("/")[0] for name in names if ".dist-info/" in name)
         libraries = [
