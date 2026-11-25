@@ -141,8 +141,17 @@ Figure~\ref{fig:improved} shows the refined mesh of Figure~\ref{fig:refined} imp
 \begin{figure}[htbp]
   \centering
   \includegraphics{improved_mesh.pdf}
-  \caption{Triangles with an angle over \improveangle\ degrees (red) in the mesh of the example valley. \textit{A}, the mesh refined to a maximum angle of \maximumangle\ degrees (fig.~\ref{fig:refined}\textit{B}). \textit{B}, the same mesh improved toward a maximum angle of \improveangle\ degrees, keeping its smallest angle. \textit{C}, the same mesh improved with a minimum angle of \tradedangle\ degrees}
+  \caption{Triangles with an angle over \improveangle\ degrees (red) in the mesh of the example valley. \textit{A}, the mesh refined to a maximum angle of \maximumangle\ degrees (fig.~\ref{fig:refined}\textit{B}). \textit{B}, the same mesh improved toward a maximum angle of \improveangle\ degrees, keeping its smallest angle. \textit{C}, the same mesh improved with a minimum angle of \tradedangle\ degrees. Boxes are the windows of figure~\ref{fig:improvedcloseups}}
   \label{fig:improved}
+\end{figure}
+
+Figure~\ref{fig:improvedcloseups} shows the windows of Figure~\ref{fig:generated} before and after improving. In the refined mesh, \wellwindowrefinedoverninety\ triangles around the well and \riverwindowrefinedoverninety\ along the river have an angle over \improveangle\ degrees; in the improved mesh, \wellwindowimprovedover\ and \riverwindowimprovedover.
+
+\begin{figure}[htbp]
+  \centering
+  \includegraphics{improved_close_ups.pdf}
+  \caption{Triangles with an angle over \improveangle\ degrees (red) in the windows of figures~\ref{fig:generated}\textit{B} and~\ref{fig:generated}\textit{C}. \textit{A}, around the well, refined. \textit{B}, around the well, improved. \textit{C}, along the river, refined. \textit{D}, along the river, improved}
+  \label{fig:improvedcloseups}
 \end{figure}
 
 \section{Using triangle-utils}
