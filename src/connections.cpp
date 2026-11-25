@@ -155,6 +155,9 @@ Connections connect_cells(const Grid & grid)
         }
         first = last;
         const double length = std::hypot(face.normal_x, face.normal_y);
+        if (!(length > 0.0))
+            throw Error(message("the faces cell ", face.cell, " shares with cell ", face.other,
+                                " point opposite ways, so they have no one direction"));
         const double nx = face.normal_x / length, ny = face.normal_y / length;
         const Point & center = grid.centers[face.cell];
         const double distance = (face.middle_x / face.width - center.x) * nx +
@@ -165,7 +168,7 @@ Connections connect_cells(const Grid & grid)
                         " is not on its side of the face it shares "
                         "with cell ",
                         face.other, ", so the distance from the center to the face is ", distance,
-                        "; center the cells of a triangle grid on their centroids, or use a "
+                        "; for a triangle grid, center the cells on their centroids, or use a "
                         "mesh with no angle of 90 degrees or more"));
         double angle = std::atan2(ny, nx) * 180.0 / std::numbers::pi;
         if (angle < 0.0) angle += 360.0;

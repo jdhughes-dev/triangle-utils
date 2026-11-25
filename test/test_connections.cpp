@@ -1,6 +1,7 @@
 // Tests the connections of grid cells: a structured grid has the cell sizes,
 // connections are symmetric and normal to their faces, cell areas follow from
-// them, and grids whose centers are not between their faces are errors.
+// them, and grids whose centers are not between their faces, or whose faces
+// between two cells point opposite ways, are errors.
 
 #include <algorithm>
 #include <cmath>
@@ -252,10 +253,38 @@ TEST(Connections, FaceSplitInTwoIsOneConnection)
         EXPECT_NEAR(connections.distances[1], 0.5, TOLERANCE);
         EXPECT_NEAR(connections.widths[0], 1.0, TOLERANCE);
         EXPECT_EQ(connections.angles[0], 0.0);
+        EXPECT_FALSE(std::signbit(connections.angles[0]));
         EXPECT_EQ(connections.angles[1], 180.0);
         // the same counterclockwise
         for (auto & cell : grid.cells) std::reverse(cell.begin(), cell.end());
     }
+}
+
+TEST(Connections, ZeroWidthEdgeIsNotAFace)
+{
+    // vertex 3 is at vertex 2, so the edge between them has no width
+    Grid grid = split_face_grid();
+    grid.vertices[3] = grid.vertices[2];
+    const Connections connections = connect_cells(grid);
+    EXPECT_EQ(connections.cells, (std::vector<int>{1, 0}));
+    EXPECT_NEAR(connections.widths[0], 1.0, TOLERANCE);
+    EXPECT_NEAR(connections.distances[0], 0.5, TOLERANCE);
+}
+
+TEST(Connections, DirectionJustBelowTheXAxisIsZero)
+{
+    // the shared face leans right by one unit in the last place of 1, so
+    // its normal out of cell 0 points just below the x axis
+    Grid grid;
+    grid.vertices = {{0.0, 0.0}, {0.0, 1.0}, {std::nextafter(1.0, 2.0), 1.0},
+                     {1.0, 0.0}, {2.0, 1.0}, {2.0, 0.0}};
+    grid.cells = {{0, 1, 2, 3}, {3, 2, 4, 5}};
+    grid.centers = {{0.5, 0.5}, {1.5, 0.5}};
+    grid.sources = {-1, -1};
+    const Connections connections = connect_cells(grid);
+    EXPECT_EQ(connections.angles[0], 0.0);
+    EXPECT_FALSE(std::signbit(connections.angles[0]));
+    EXPECT_NEAR(connections.angles[1], 180.0, 1e-9);
 }
 
 TEST(Connections, CircumcenterOutsideItsTriangleIsAnError)
@@ -273,7 +302,12 @@ TEST(Connections, CircumcenterOutsideItsTriangleIsAnError)
     EXPECT_EQ(reason(voronoi_grid(obtuse)), "");
     // a right angle puts the circumcenter on the face
     const Mesh right = two_triangles(2.0);
-    EXPECT_NE(reason(triangle_grid(right, TriangleCenter::CIRCUMCENTER)), "");
+    const std::string on_face = reason(triangle_grid(right, TriangleCenter::CIRCUMCENTER));
+    EXPECT_EQ(on_face.rfind("the center of cell 0 is not on its side of the face it shares with "
+                            "cell 1",
+                            0),
+              0u)
+        << on_face;
     EXPECT_EQ(reason(triangle_grid(two_triangles(3.0), TriangleCenter::CIRCUMCENTER)), "");
 }
 
@@ -303,6 +337,17 @@ TEST(Connections, ErrorsGiveTheReason)
     twice.cells[0] = {0, 1, 2, 1, 4};
     twice.centers[0] = {0.3, 0.6};
     EXPECT_EQ(reason(twice), "the edge from vertex 1 to vertex 2 is a side of cell 0 twice");
+
+    // cell 1 fills a slot in cell 0, whose faces with it face opposite ways
+    Grid slot;
+    slot.vertices = {{0.0, 0.0}, {0.0, 2.0}, {1.0, 2.0}, {1.0, 1.5}, {1.0, 1.0},
+                     {2.0, 1.0}, {2.0, 1.5}, {2.0, 2.0}, {3.0, 2.0}, {3.0, 0.0}};
+    slot.cells = {{0, 1, 2, 3, 4, 5, 6, 7, 8, 9}, {3, 2, 7, 6}};
+    slot.centers = {{0.5, 0.5}, {1.5, 1.75}};
+    slot.sources = {-1, -1};
+    EXPECT_EQ(reason(slot),
+              "the faces cell 0 shares with cell 1 point opposite ways, so they have no one "
+              "direction");
 
     Grid empty = split_face_grid();
     empty.centers.pop_back();

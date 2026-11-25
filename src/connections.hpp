@@ -30,8 +30,8 @@ struct Connections
 
 // The connections of a grid's cells; cells that share a face share its two
 // corners. Throws Error if the grid is not valid, an edge is a side of more
-// than two cells, two cells overlap, or a center is not on its cell's side
-// of a face, as an obtuse triangle's circumcenter is not.
+// than two cells, two cells overlap, or a center is on a face or beyond it,
+// as an obtuse triangle's circumcenter is.
 Connections connect_cells(const Grid & grid);
 
 } // namespace triangle_utils
