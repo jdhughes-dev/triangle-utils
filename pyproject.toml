@@ -34,6 +34,8 @@ install = ["--tags=runtime,python-runtime"]
 # tests that use only the library
 build = "cp311-*"
 skip = "*-musllinux_*"
+# 64-bit only, on each runner's own architecture
+archs = ["auto64"]
 test-requires = ["pytest"]
 test-command = "pytest -p no:cacheprovider {project}/test/python/test_c_api.py {project}/test/python/test_generate.py {project}/test/python/test_refine.py {project}/test/python/test_python_module.py {project}/test/python/test_package.py"
 
