@@ -102,9 +102,10 @@ triangle grids for DISV), #12 (the cells of points, lines, and boundaries),
 - **PyPI:** #46 builds and tests the wheels in CI but publishes nothing. The
   wheels go to PyPI, as `triangle-utils`, only with the first release
   (#10), from the same tag as the release archives and the conda-forge
-  package.
-- **Wheel platforms:** Linux x86_64 and aarch64, macOS arm64, and Windows
-  x86_64, each an abi3 wheel for CPython 3.11 and later. macOS on Intel is
+  package. #10 also decides how a wheel's Triangle source is made available:
+  `NOTICE` gives the wrap's archive URL, and there is no sdist yet.
+- **Wheel platforms:** Linux (manylinux) x86_64 and aarch64, macOS arm64,
+  and Windows x86_64, each an abi3 wheel for CPython 3.11 and later. macOS on Intel is
   not supported (decided in #46): Triangle's CI does not test it.
 
 ## User guide

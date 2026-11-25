@@ -4,6 +4,7 @@
 /lib/
 builddir*/
 /dist/
+/wheelhouse/
 .mesonpy-*/
 subprojects/*/
 subprojects/packagecache/

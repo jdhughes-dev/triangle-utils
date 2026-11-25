@@ -94,9 +94,10 @@ MODFLOW-ORG/triangle and MODFLOW-ORG/gridgen.
   `meson test` runs except under the sanitizers.
 - `scripts/clang_format.py` — runs clang-format on the tracked C and C++
   files, for `pixi run check-format` and `fix-format`.
-- `scripts/check_wheel.py` — checks, with readelf, otool, or dumpbin, that
-  the library in a wheel links no compiler runtime and, on macOS, runs on the
-  deployment target; `wheels.yml` runs it.
+- `scripts/check_wheel.py` — checks that a wheel holds only the package's
+  files and metadata, that its library links only the system libraries
+  (read with readelf, otool, or dumpbin), and, on macOS, that it runs on
+  `MACOSX_DEPLOYMENT_TARGET`; `wheels.yml` runs it.
 - `.github/workflows/ci.yml` — builds and tests on Linux, macOS, and
   Windows with the compilers of MODFLOW-ORG/triangle and gridgen, and
   runs the tests under the sanitizers on Linux, on every push and pull
@@ -104,13 +105,12 @@ MODFLOW-ORG/triangle and MODFLOW-ORG/gridgen.
   `.github/workflows/lint.yml` runs `pixi run check-format`;
   `.github/workflows/guide.yml` builds the user guide when it, the library,
   or the Python module changes, and uploads the PDF as an artifact;
-  `.github/workflows/wheels.yml` builds the wheels with cibuildwheel (Linux
-  x86_64 and aarch64, macOS arm64, and Windows AMD64; not macOS x86_64), tests
-  each in a clean environment on Python 3.11 and again on 3.15, checks with
-  `scripts/check_wheel.py` that its library links no compiler runtime, and
-  uploads them as artifacts; it does not publish them, which waits for the
-  release (#10). Dependabot
-  opens the pull requests that bump action versions
+  `.github/workflows/wheels.yml` builds the wheels with cibuildwheel
+  (manylinux x86_64 and aarch64, macOS arm64, and Windows AMD64; not macOS
+  x86_64), tests each in a clean environment on Python 3.11 and again on
+  3.15, checks each with `scripts/check_wheel.py`, and uploads them as
+  artifacts; it does not publish them, which waits for the release (#10).
+  Dependabot opens the pull requests that bump action versions
   (`.github/dependabot.yml`).
 - `bin/`, `lib/`, `include/`, `builddir/`, `.pixi/`, and the downloads in
   `subprojects/` — disposable build output, installed files, and

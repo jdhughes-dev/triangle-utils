@@ -20,14 +20,11 @@ dependencies = ["numpy"]
 Source = "https://github.com/jdhughes-dev/triangle-utils"
 
 [tool.meson-python]
-# the module calls the library through ctypes and uses no Python C API, so a
-# wheel built for one Python version serves every later one (abi3)
+# ctypes uses no Python C API, so one wheel serves later Pythons (abi3)
 limited-api = true
 
 [tool.meson-python.args]
-# MSVC on Windows even where gcc is on the PATH, as on GitHub's runners,
-# whose MinGW gcc builds a DLL that needs MinGW's runtime, and the static
-# MSVC runtime, so the DLL needs nothing beside it
+# MSVC on Windows even with gcc on the PATH, with its static runtime
 setup = ["-Dpython=true", "-Db_vscrt=mt", "--vsenv"]
 install = ["--tags=runtime,python-runtime"]
 
@@ -35,6 +32,7 @@ install = ["--tags=runtime,python-runtime"]
 # one wheel for each platform, built for the oldest Python supported, so it
 # serves every later one; it is tested in a clean environment
 build = "cp311-*"
+# manylinux only: no musllinux (Alpine) wheels until someone needs them
 skip = "*-musllinux_*"
 # 64-bit only, on each runner's own architecture
 archs = ["auto64"]

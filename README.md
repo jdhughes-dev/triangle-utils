@@ -90,10 +90,10 @@ beside it (`pyproject.toml`, built with meson-python); Triangle is linked
 into the library, and the package needs only NumPy. `pixi run wheel` builds
 the wheel for this platform and the pixi environment's Python in `dist/`, to
 install with `pip install`. CI builds and tests a wheel for each of Linux
-(x86_64 and aarch64), macOS (arm64), and Windows (x86_64), built for Python
-3.11 and installable on CPython 3.11 and later, but not on free-threaded
-builds; macOS on Intel is not supported. The wheels will be published to
-PyPI as `triangle-utils` with the first release.
+(manylinux, x86_64 and aarch64), macOS (arm64), and Windows (x86_64), built
+for Python 3.11 and installable on CPython 3.11 and later, but not on
+free-threaded builds; macOS on Intel is not supported. The wheels will be
+published to PyPI as `triangle-utils` with the first release.
 
 ## Command line
 

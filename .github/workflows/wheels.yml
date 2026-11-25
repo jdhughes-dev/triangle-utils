@@ -13,6 +13,10 @@ on:
       - 'pyproject.toml'
       - 'LICENSE'
       - 'LICENSE-Triangle'
+      - 'NOTICE'
+      - 'README.md'
+      - 'scripts/check_wheel.py'
+      - 'doc/UserGuide/valley.py'
       - '.github/workflows/wheels.yml'
   pull_request:
     branches:
@@ -27,6 +31,10 @@ on:
       - 'pyproject.toml'
       - 'LICENSE'
       - 'LICENSE-Triangle'
+      - 'NOTICE'
+      - 'README.md'
+      - 'scripts/check_wheel.py'
+      - 'doc/UserGuide/valley.py'
       - '.github/workflows/wheels.yml'
   workflow_dispatch:
 concurrency:
@@ -34,6 +42,9 @@ concurrency:
   cancel-in-progress: true
 permissions:
   contents: read
+env:
+  # the oldest macOS the wheel runs on, for the build and its check
+  MACOSX_DEPLOYMENT_TARGET: '11.0'
 jobs:
   wheel:
     name: ${{ matrix.os }} wheel
@@ -52,16 +63,9 @@ jobs:
 
       - name: Build and test the wheel
         uses: pypa/cibuildwheel@v4.3.5
-        env:
-          # the oldest macOS the wheel runs on
-          MACOSX_DEPLOYMENT_TARGET: '11.0'
 
-      # the library links no compiler runtime and, on macOS, runs on the
-      # deployment target
-      - name: Check the wheel's library
+      - name: Check the wheel's files and library
         shell: bash
-        env:
-          MACOSX_DEPLOYMENT_TARGET: '11.0'
         run: python scripts/check_wheel.py wheelhouse/*.whl
 
       - name: Upload the wheel

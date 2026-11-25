@@ -1,11 +1,12 @@
 """
-Check that the library in a wheel needs nothing beside it.
+Check that a wheel holds only the package and needs nothing beside it.
 
-Reads the libraries it links with the platform's own tool (readelf on
-Linux, otool on macOS, dumpbin on Windows) and fails if one is a compiler
-runtime, which a wheel would need installed beside it; on macOS it also
-fails if the oldest macOS the library runs on is later than the deployment
-target. Run by .github/workflows/wheels.yml on each wheel it builds.
+Fails if the wheel holds a file other than the module files, the library,
+the licenses, the notice, and the metadata; if its library links anything
+but the system libraries every machine has, read with the platform's own
+tool (readelf on Linux, otool on macOS, dumpbin on Windows); or, on macOS,
+if the library needs a macOS later than MACOSX_DEPLOYMENT_TARGET. Run by
+.github/workflows/wheels.yml on each wheel it builds.
 """
 
 import argparse
@@ -17,13 +18,22 @@ import tempfile
 import zipfile
 from pathlib import Path
 
-# libraries a wheel cannot assume: the C++ and gcc runtimes, MinGW's, and
-# the MSVC runtime, which -static-libstdc++, -static-libgcc, and b_vscrt=mt
-# link in
-RUNTIMES = re.compile(
-    r"libstdc\+\+|libgcc|libwinpthread|msvcp\d|vcruntime\d|api-ms-win-crt|ucrtbase",
-    re.IGNORECASE,
-)
+REPOSITORY = Path(__file__).resolve().parents[1]
+LICENSES = ("LICENSE", "LICENSE-Triangle", "NOTICE")
+# the libraries a library in a wheel may link: the C library and the
+# loader on Linux, the system and C++ libraries and its own name on macOS,
+# and the kernel on Windows
+ALLOWED = {
+    "linux": re.compile(
+        r"(libc\.so\.6|libm\.so\.6|libdl\.so\.2|libpthread\.so\.0|librt\.so\.1"
+        r"|ld-linux[\w.-]*\.so\.\d)"
+    ),
+    "darwin": re.compile(
+        r"(/usr/lib/libSystem\.B\.dylib|/usr/lib/libc\+\+\.1\.dylib"
+        r"|@rpath/libtriangle_utils\.dylib)"
+    ),
+    "win32": re.compile(r"kernel32\.dll", re.IGNORECASE),
+}
 
 
 def dumpbin():
@@ -85,43 +95,73 @@ def minimum_macos(library):
 
 
 def version(text):
-    return tuple(int(part) for part in text.split("."))
+    """A version as three numbers, so 11 and 11.0 compare equal."""
+    parts = [int(part) for part in text.split(".")]
+    return tuple([*parts, 0, 0, 0][:3])
+
+
+def expected_files(dist_info, library):
+    """The files a wheel should hold."""
+    modules = sorted((REPOSITORY / "python" / "triangle_utils").glob("*.py"))
+    package = [f"triangle_utils/{path.name}" for path in modules]
+    package += [f"triangle_utils/{name}" for name in (*LICENSES, library)]
+    metadata = [f"{dist_info}/{name}" for name in ("METADATA", "WHEEL", "RECORD")]
+    metadata += [f"{dist_info}/licenses/{name}" for name in LICENSES]
+    return set(package + metadata)
+
+
+def check(wheel):
+    """The failures of a wheel."""
+    failures = []
+    platform = "linux" if sys.platform.startswith("linux") else sys.platform
+    with tempfile.TemporaryDirectory() as directory:
+        with zipfile.ZipFile(wheel) as archive:
+            names = set(archive.namelist())
+            archive.extractall(directory)
+        dist_info = next(name.split("/")[0] for name in names if ".dist-info/" in name)
+        libraries = [
+            Path(directory) / name
+            for name in names
+            if name.startswith("triangle_utils/libtriangle_utils.")
+        ]
+        if len(libraries) != 1:
+            return [f"{wheel.name} holds {len(libraries)} libraries, not 1"]
+        library = libraries[0]
+        expected = expected_files(dist_info, library.name)
+        failures += [f"{wheel.name} holds {name}" for name in sorted(names - expected)]
+        failures += [f"{wheel.name} lacks {name}" for name in sorted(expected - names)]
+        metadata = (Path(directory) / dist_info / "METADATA").read_text()
+        if "License-Expression: CC0-1.0 AND LicenseRef-Triangle" not in metadata:
+            failures.append(f"{wheel.name} has no license expression in its metadata")
+
+        links = linked(library)
+        print(f"{wheel.name}: {library.name} links {', '.join(links)}")
+        if not links:
+            failures.append(f"{library.name} links nothing, so its links were not read")
+        failures += [
+            f"{library.name} links {name}, which a machine may not have"
+            for name in links
+            if not ALLOWED[platform].fullmatch(name)
+        ]
+        if platform == "darwin":
+            target = os.environ.get("MACOSX_DEPLOYMENT_TARGET")
+            if not target:
+                return [*failures, "MACOSX_DEPLOYMENT_TARGET is not set"]
+            oldest = minimum_macos(library)
+            print(f"{wheel.name}: {library.name} runs on macOS {oldest} and later")
+            if version(oldest) > version(target):
+                failures.append(
+                    f"{library.name} needs macOS {oldest}, later than {target}"
+                )
+    return failures
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[1])
     parser.add_argument("wheels", nargs="+", type=Path)
-    wheels = parser.parse_args().wheels
     failures = []
-    for wheel in wheels:
-        with tempfile.TemporaryDirectory() as directory:
-            with zipfile.ZipFile(wheel) as archive:
-                archive.extractall(directory)
-            libraries = [
-                path
-                for path in Path(directory).rglob("*triangle_utils*")
-                if path.suffix in (".so", ".dylib", ".dll")
-            ]
-            if not libraries:
-                failures.append(f"{wheel.name} has no library")
-            for library in libraries:
-                links = linked(library)
-                print(f"{wheel.name}: {library.name} links {', '.join(links)}")
-                failures += [
-                    f"{library.name} links the runtime {name}"
-                    for name in links
-                    if RUNTIMES.search(name)
-                ]
-                if sys.platform == "darwin":
-                    target = os.environ.get("MACOSX_DEPLOYMENT_TARGET", "11.0")
-                    oldest = minimum_macos(library)
-                    print(
-                        f"{wheel.name}: {library.name} runs on macOS {oldest} and later"
-                    )
-                    if version(oldest) > version(target):
-                        failures.append(
-                            f"{library.name} needs macOS {oldest}, later than {target}"
-                        )
+    for wheel in parser.parse_args().wheels:
+        failures += check(wheel)
     if failures:
         sys.exit("\n".join(failures))
 
