@@ -1,9 +1,10 @@
 """
 Make the user guide's figures and the values its text quotes.
 
-Meshes an example valley with triangle-utils (the library `pixi run build`
-installs) and writes the figures to Figures/ and the quoted values to
-values.tex, so the guide rebuilds from the repository alone.
+Takes the example valley's meshes and grid from valley.py, which the guide
+prints, so its example is the code that made the figures; uses the library
+`pixi run build` installs, and writes the figures to Figures/ and the quoted
+values to values.tex, so the guide rebuilds from the repository alone.
 """
 
 import sys
@@ -22,48 +23,35 @@ HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE.parents[1] / "python"))
 
 import triangle_utils as tu  # noqa: E402
+from valley import (  # noqa: E402
+    AQUIFER,
+    BOUNDARY,
+    BOUNDARY_SPACING,
+    IMPROVE_ANGLE,
+    LAKE_AREA,
+    LAKE_MARKER,
+    LAKE_REGION,
+    LAKE_SPACING,
+    MAXIMUM_ANGLE,
+    MAXIMUM_AREA,
+    MINIMUM_ANGLE,
+    RIVER,
+    RIVER_MARKER,
+    RIVER_SPACING,
+    WELL_AREA,
+    WELL_POINTS,
+    WELL_RADIUS,
+    WELL_REGION,
+    WELLS,
+    delaunay_refined,
+    grid,
+    improved,
+    mesh,
+    refined,
+)
 
 FIGURES = HERE / "Figures"
 
-# the example valley, in meters: its boundary, a river that crosses it from
-# north to south, a lake, and three pumping wells
-BOUNDARY = [
-    (0, 0),
-    (4000, 0),
-    (4600, 2200),
-    (4200, 6000),
-    (2600, 8000),
-    (600, 7600),
-    (0, 4000),
-]
-# the river starts and ends on boundary edges, between their points
-RIVER = [
-    (1800, 7840),
-    (1900, 6500),
-    (2300, 5200),
-    (2100, 3800),
-    (2500, 2400),
-    (2600, 1000),
-    (2400, 0),
-]
-LAKE = [(700, 5200), (1300, 4700), (1500, 5400), (1200, 6200), (700, 6000)]
-WELLS = [(3300, 4400), (1000, 2000), (3400, 1500)]
-
-# the spacing of points along each feature, in meters
-BOUNDARY_SPACING = 200.0
-RIVER_SPACING = 50.0
-LAKE_SPACING = 60.0
-# the largest triangle area in the aquifer and the lake, in square meters
-MAXIMUM_AREA = 200.0 * 200.0
-LAKE_AREA = 60.0 * 60.0
-# each well's ring: radius (m), points, and largest triangle area (m2)
-WELL_RADIUS = 50.0
-WELL_POINTS = 16
-WELL_AREA = 300.0
-# the smallest angle of the generated mesh, and the largest angle refining
-# aims for, in degrees
-MINIMUM_ANGLE = 30.0
-MAXIMUM_ANGLE = 100.0
 
 # the axis limits of a valley panel: a margin around the boundary
 _x, _y = np.array(BOUNDARY, dtype=float).T
@@ -77,33 +65,11 @@ WELL_WINDOW = 600.0
 LAKE_WINDOW = (1500.0, 5400.0, 600.0)
 RIVER_WINDOW = 800.0
 
-# region attributes
-AQUIFER, LAKE_REGION, WELL_REGION = 1, 2, 3
 REGION_NAMES = {AQUIFER: "Aquifer", LAKE_REGION: "Lake", WELL_REGION: "Well ring"}
 REGION_COLORS = {AQUIFER: "#e8e3d3", LAKE_REGION: "#a6cee3", WELL_REGION: "#fdbf6f"}
 
 # tick labels with thousands separators, as the text writes numbers
 THOUSANDS = FuncFormatter(lambda value, _: f"{value:,.0f}")
-
-# segment markers
-BOUNDARY_MARKER, RIVER_MARKER, LAKE_MARKER, WELL_MARKER = 1, 2, 3, 4
-
-
-def valley_geometry():
-    """The example valley's geometry."""
-    geometry = tu.Geometry()
-    geometry.add_polygon(BOUNDARY, spacing=BOUNDARY_SPACING, marker=BOUNDARY_MARKER)
-    geometry.add_line(RIVER, spacing=RIVER_SPACING, marker=RIVER_MARKER)
-    geometry.add_polygon(LAKE, spacing=LAKE_SPACING, marker=LAKE_MARKER)
-    # the river divides the aquifer, so it needs a region on each side
-    geometry.add_region(500, 1000, attribute=AQUIFER)
-    geometry.add_region(4000, 1000, attribute=AQUIFER)
-    geometry.add_region(1100, 5400, attribute=LAKE_REGION, area_limit=LAKE_AREA)
-    for x, y in WELLS:
-        geometry.add_ring(
-            x, y, WELL_RADIUS, WELL_POINTS, WELL_REGION, WELL_AREA, WELL_MARKER
-        )
-    return geometry
 
 
 def draw_mesh(ax, mesh, highlight=None):
@@ -301,9 +267,6 @@ def refine_figure(mesh, refined, windows):
         plt.close(fig)
 
 
-# the largest angle improving aims for, in degrees; 90 puts every
-# circumcenter inside its triangle
-IMPROVE_ANGLE = 90.0
 # a smallest angle below the generated mesh's, which improving may trade for
 # fewer triangles over the improving angle, in degrees
 TRADED_ANGLE = 25.0
@@ -524,17 +487,12 @@ def cover_figure(mesh):
 
 def main():
     FIGURES.mkdir(exist_ok=True)
-    mesh = tu.generate(
-        valley_geometry(), maximum_area=MAXIMUM_AREA, minimum_angle=MINIMUM_ANGLE
-    )
-    refined = tu.refine(mesh, minimum_angle=MINIMUM_ANGLE, maximum_angle=MAXIMUM_ANGLE)
     windows = choose_windows(mesh)
     mesh_figure(mesh, windows)
     refine_figure(mesh, refined, windows)
     close_up_figure(
         mesh, refined, windows, MAXIMUM_ANGLE, ("generated", "refined"), "close_ups.pdf"
     )
-    improved = tu.improve(refined, maximum_angle=IMPROVE_ANGLE)
     traded = tu.improve(
         refined, maximum_angle=IMPROVE_ANGLE, minimum_angle=TRADED_ANGLE
     )
@@ -547,19 +505,7 @@ def main():
         ("refined", "improved"),
         "improved_close_ups.pdf",
     )
-    # the Voronoi grid needs conforming Delaunay triangles
-    delaunay = tu.refine(
-        tu.generate(
-            valley_geometry(),
-            maximum_area=MAXIMUM_AREA,
-            minimum_angle=MINIMUM_ANGLE,
-            conforming_delaunay=True,
-        ),
-        minimum_angle=MINIMUM_ANGLE,
-        maximum_angle=MAXIMUM_ANGLE,
-        conforming_delaunay=True,
-    )
-    grid = tu.voronoi(delaunay)
+    delaunay = delaunay_refined
     # the cells of the vertices on the lake's shore, which span both sides
     shore = np.unique(delaunay.segments[delaunay.segment_markers == LAKE_MARKER])
     voronoi_figure(grid, delaunay, windows)

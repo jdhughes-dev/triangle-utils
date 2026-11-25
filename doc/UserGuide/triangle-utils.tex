@@ -185,36 +185,9 @@ triangle-utils disv valley.3
 
 \noindent Each command writes its mesh to files named as Triangle names them, valley.1 for valley and valley.2 for valley.1, and \texttt{disv} writes valley.3.disv; \texttt{triangle-utils generate -h}, \texttt{refine -h}, \texttt{improve -h}, and \texttt{disv -h} list the options of each.
 
-From Python, the triangle-utils module in the python folder of the repository calls the library directly, and meshes are returned as NumPy arrays. The example valley is generated and refined as follows, with the values given above; the script make\_figures.py in the doc/UserGuide folder, from which this is taken and which gives the coordinates of the boundary, river, lake, and wells, makes the figures of this guide:
+From Python, the triangle-utils module in the python folder of the repository calls the library directly, and meshes and grids are returned as NumPy arrays. The script valley.py in the doc/UserGuide folder, which follows, meshes the example valley, refines and improves the mesh, and builds the Voronoi grid of Figure~\ref{fig:voronoi}; the script make\_figures.py beside it uses the meshes and the grid to make the figures of this guide:
 
-\begin{Verbatim}[fontsize=\small]
-import triangle_utils as tu
-
-geometry = tu.Geometry()
-geometry.add_polygon(BOUNDARY, spacing=BOUNDARY_SPACING, marker=BOUNDARY_MARKER)
-geometry.add_line(RIVER, spacing=RIVER_SPACING, marker=RIVER_MARKER)
-geometry.add_polygon(LAKE, spacing=LAKE_SPACING, marker=LAKE_MARKER)
-# the river divides the aquifer, so it needs a region on each side
-geometry.add_region(500, 1000, attribute=AQUIFER)
-geometry.add_region(4000, 1000, attribute=AQUIFER)
-geometry.add_region(1100, 5400, attribute=LAKE_REGION, area_limit=LAKE_AREA)
-for x, y in WELLS:
-    geometry.add_ring(x, y, WELL_RADIUS, WELL_POINTS, WELL_REGION, WELL_AREA, WELL_MARKER)
-mesh = tu.generate(geometry, maximum_area=MAXIMUM_AREA, minimum_angle=MINIMUM_ANGLE)
-refined = tu.refine(mesh, minimum_angle=MINIMUM_ANGLE, maximum_angle=MAXIMUM_ANGLE)
-improved = tu.improve(refined, maximum_angle=IMPROVE_ANGLE)
-\end{Verbatim}
-
-\noindent The Voronoi grid of Figure~\ref{fig:voronoi} is built from the same geometry meshed with conforming Delaunay triangles, and its vertices and cells are returned in the form FloPy's DISV package takes:
-
-\begin{Verbatim}[fontsize=\small]
-mesh = tu.generate(geometry, maximum_area=MAXIMUM_AREA, minimum_angle=MINIMUM_ANGLE,
-                   conforming_delaunay=True)
-refined = tu.refine(mesh, minimum_angle=MINIMUM_ANGLE, maximum_angle=MAXIMUM_ANGLE,
-                    conforming_delaunay=True)
-grid = tu.voronoi(refined)
-vertices, cell2d = grid.disv_vertices(), grid.disv_cell2d()
-\end{Verbatim}
+\VerbatimInput[fontsize=\small]{valley.py}
 
 \noindent The same functions are available to C, C++, and Fortran programs through the C interface declared in triangle\_utils.h.
 
