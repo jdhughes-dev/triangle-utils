@@ -17,10 +17,11 @@ import tempfile
 import zipfile
 from pathlib import Path
 
-# libraries a wheel cannot assume: the C++ and gcc runtimes, and the MSVC
-# runtime, which -static-libstdc++, -static-libgcc, and b_vscrt=mt link in
+# libraries a wheel cannot assume: the C++ and gcc runtimes, MinGW's, and
+# the MSVC runtime, which -static-libstdc++, -static-libgcc, and b_vscrt=mt
+# link in
 RUNTIMES = re.compile(
-    r"libstdc\+\+|libgcc_s|msvcp\d|vcruntime\d|api-ms-win-crt|ucrtbase",
+    r"libstdc\+\+|libgcc|libwinpthread|msvcp\d|vcruntime\d|api-ms-win-crt|ucrtbase",
     re.IGNORECASE,
 )
 

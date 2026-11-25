@@ -25,8 +25,10 @@ Source = "https://github.com/jdhughes-dev/triangle-utils"
 limited-api = true
 
 [tool.meson-python.args]
-# the static C++ runtime on Windows, so the DLL needs nothing beside it
-setup = ["-Dpython=true", "-Db_vscrt=mt"]
+# MSVC on Windows even where gcc is on the PATH, as on GitHub's runners,
+# whose MinGW gcc builds a DLL that needs MinGW's runtime, and the static
+# MSVC runtime, so the DLL needs nothing beside it
+setup = ["-Dpython=true", "-Db_vscrt=mt", "--vsenv"]
 install = ["--tags=runtime,python-runtime"]
 
 [tool.cibuildwheel]
