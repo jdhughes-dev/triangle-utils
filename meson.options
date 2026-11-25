@@ -1,0 +1,3 @@
+# the Python package (pyproject.toml sets it): the module with the C API
+# library beside it, without the program, the headers, or the tests
+option('python', type: 'boolean', value: false, description: 'Build the Python package')

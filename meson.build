@@ -38,13 +38,35 @@ triangle_dep = dependency(
   default_options: ['default_library=static'],
 )
 
+python_package = get_option('python')
+
 subdir('src')
 
-# GoogleTest is built as a static library, as in gridgen
-gtest_dep = dependency(
-  'gtest_main',
-  version: '>=1.17',
-  default_options: ['default_library=static'],
-)
+if python_package
+  # the module, beside the library src/meson.build installs, with the
+  # licenses of triangle-utils and Triangle and the notice of Triangle's
+  # source
+  python = import('python').find_installation()
+  python.install_sources(
+    'python/triangle_utils/__init__.py',
+    'python/triangle_utils/_library.py',
+    pure: false,
+    subdir: 'triangle_utils',
+  )
+  install_data(
+    'LICENSE',
+    'LICENSE-Triangle',
+    'NOTICE',
+    install_dir: python.get_install_dir(pure: false) / 'triangle_utils',
+    install_tag: 'runtime',
+  )
+else
+  # GoogleTest is built as a static library, as in gridgen
+  gtest_dep = dependency(
+    'gtest_main',
+    version: '>=1.17',
+    default_options: ['default_library=static'],
+  )
 
-subdir('test')
+  subdir('test')
+endif

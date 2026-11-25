@@ -30,6 +30,8 @@ MODFLOW-ORG/triangle and MODFLOW-ORG/gridgen.
 - **Build the user guide** (its figures and `doc/UserGuide/triangle-utils.pdf`;
   needs `pixi run build` first, TeX Live, and the usgslatex class from
   MODFLOW-ORG/usgslatex): `pixi run -e doc build-guide`
+- **Build the Python package's wheel** (in `dist/`, from the packages in the
+  pixi environment): `pixi run wheel`
 - **Get MODFLOW 6** (6.7.0, into the pixi environment's `bin`, with flopy's
   `get-modflow`; `test_modflow.py` runs it on the grids, and skips without
   it, as in CI until #18): `pixi run get-mf6`
@@ -42,7 +44,13 @@ MODFLOW-ORG/triangle and MODFLOW-ORG/gridgen.
   pull request that changes the plan.
 - `README.md` — what the utilities do, the design, and the license terms.
 - `LICENSE` — CC0 1.0 for the code in this repository; Triangle has its own
-  terms (see Licenses below).
+  terms (see Licenses below), copied in `LICENSE-Triangle`, which
+  `test_package.py` checks against the subproject's; `NOTICE` gives the
+  source of the modified Triangle that is built, the wrap's archive.
+- `pyproject.toml` — the Python package, built by meson-python with the
+  `python` option (`meson.options`), which installs the module and the C API
+  library beside it, without the program, headers, or tests, and the
+  cibuildwheel settings that build and test the wheels.
 - `meson.build` — the project, its version, the floating-point options,
   and the dependencies; `src/meson.build` generates
   `triangle_utils_version.h`, the version as macros, builds the core as a
@@ -82,21 +90,32 @@ MODFLOW-ORG/triangle and MODFLOW-ORG/gridgen.
 - `test/` — the GoogleTest tests; `test_c_header.c`, which builds the API
   header as C; and `python/`, the pytest tests of the C API through
   `ctypes` (declared in `python/triangle_utils/_library.py`), of the Python
-  module, and of the program, which
-  `meson test` runs except under the sanitizers.
+  module, of the installed package (`test_package.py`), of the user guide's
+  example (`test_example.py`, which runs `doc/UserGuide/valley.py`), and of
+  the program, which `meson test` runs except under the sanitizers; the
+  wheels run all but the program's and MODFLOW 6's.
 - `scripts/clang_format.py` — runs clang-format on the tracked C and C++
   files, for `pixi run check-format` and `fix-format`.
+- `scripts/check_wheel.py` — checks that a wheel holds only the package's
+  files and metadata, that its library links only the system libraries
+  (read with readelf, otool, or dumpbin), and, on macOS, that it runs on
+  `MACOSX_DEPLOYMENT_TARGET`; `wheels.yml` runs it.
 - `.github/workflows/ci.yml` — builds and tests on Linux, macOS, and
   Windows with the compilers of MODFLOW-ORG/triangle and gridgen, and
   runs the tests under the sanitizers on Linux, on every push and pull
   request to `main` that can affect the build or tests, and daily;
   `.github/workflows/lint.yml` runs `pixi run check-format`;
   `.github/workflows/guide.yml` builds the user guide when it, the library,
-  or the Python module changes, and uploads the PDF as an artifact. Dependabot
-  opens the pull requests that bump action versions
+  or the Python module changes, and uploads the PDF as an artifact;
+  `.github/workflows/wheels.yml` builds the wheels with cibuildwheel
+  (manylinux x86_64 and aarch64, macOS arm64, and Windows AMD64; not macOS
+  x86_64), tests each in a clean environment on Python 3.11 and again on
+  3.15, checks each with `scripts/check_wheel.py`, and uploads them as
+  artifacts; it does not publish them, which waits for the release (#10).
+  Dependabot opens the pull requests that bump action versions
   (`.github/dependabot.yml`).
-- `bin/`, `lib/`, `include/`, `builddir/`, `.pixi/`, and the downloads in
-  `subprojects/` — disposable build output, installed files, and
+- `bin/`, `lib/`, `include/`, `builddir/`, `dist/`, `wheelhouse/`, `.pixi/`,
+  and the downloads in `subprojects/` — disposable build output, installed files, and
   environment; never edit by hand or commit.
 
 ## Design
@@ -150,7 +169,10 @@ MODFLOW-ORG/triangle and MODFLOW-ORG/gridgen.
   commercial system needs an arrangement with Triangle's author. The
   command-line program prints Triangle's copyright notice and terms with
   `--license` (see Command line), since the library has no `triangle -h` to
-  print it.
+  print it; the Python package installs `LICENSE`, `LICENSE-Triangle`, and
+  `NOTICE` beside the module and in its metadata. Update `NOTICE` with
+  `subprojects/triangle.wrap`; `test_package.py` checks that it names the
+  wrap's archive.
 
 ## Versioning
 
@@ -296,12 +318,17 @@ MODFLOW-ORG/triangle and MODFLOW-ORG/gridgen.
     Downloads are expected only through the pixi environments (conda-forge),
     the Meson wraps for Triangle and GoogleTest, and the CI workflows
     (including TeX Live, through `zauguin/install-texlive`, and
-    MODFLOW-ORG/usgslatex at a pinned commit, for the user guide), and
-    MODFLOW 6 from MODFLOW-ORG/executables through `pixi run get-mf6`;
+    MODFLOW-ORG/usgslatex at a pinned commit, for the user guide, and
+    cibuildwheel, its manylinux images, and the Python packages it and the
+    wheel tests install with pip, for the wheels), and MODFLOW 6 from
+    MODFLOW-ORG/executables through `pixi run get-mf6`;
   - programs run other than git, Meson, Ninja, the compilers, clang-format,
     ruff, codespell, the utilities themselves, pytest, pixi tasks, Python
     for `scripts/clang_format.py` and `doc/UserGuide/make_figures.py`,
-    latexmk and the TeX programs it runs, flopy's `get-modflow`, and mf6;
+    latexmk and the TeX programs it runs, flopy's `get-modflow`, mf6,
+    cibuildwheel and the auditwheel and delocate it runs, pip in the wheel
+    workflow, and readelf, otool, vswhere, and dumpbin from
+    `scripts/check_wheel.py`;
   - in Python, `eval`, `exec`, `compile`, `pickle` loads of untrusted
     files, or code that is encoded or obscured (base64 or hex strings that
     are decoded and run);

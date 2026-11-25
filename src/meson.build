@@ -10,7 +10,9 @@ version_header = configure_file(
   output: 'triangle_utils_version.h',
   configuration: version_data,
 )
-install_headers(version_header)
+if not python_package
+  install_headers(version_header)
+endif
 
 version_dep = declare_dependency(
   include_directories: include_directories('.'),
@@ -48,19 +50,40 @@ elif host_machine.system() != 'windows'
   export_args = ['-Wl,--version-script=' + meson.current_source_dir() / 'triangle_utils.map']
   export_files = ['triangle_utils.map']
 endif
-api_lib = shared_library(
-  'triangle_utils',
-  'triangle_utils.cpp',
-  dependencies: core_dep,
-  name_prefix: 'lib',
-  version: meson.project_version(),
-  soversion: version_parts[0],
-  vs_module_defs: 'triangle_utils.def',
-  link_args: export_args,
-  link_depends: export_files,
-  install: true,
-)
-install_headers('triangle_utils.h')
+if python_package
+  static_runtime_args = []
+  if cpp.get_id() == 'gcc'
+    static_runtime_args = ['-static-libstdc++', '-static-libgcc']
+  endif
+  # in the Python package beside the module, unversioned, since a wheel has
+  # no symbolic links, with gcc's runtime libraries linked in, so the
+  # package needs nothing beside it
+  api_lib = shared_library(
+    'triangle_utils',
+    'triangle_utils.cpp',
+    dependencies: core_dep,
+    name_prefix: 'lib',
+    vs_module_defs: 'triangle_utils.def',
+    link_args: export_args + static_runtime_args,
+    link_depends: export_files,
+    install: true,
+    install_dir: import('python').find_installation().get_install_dir(pure: false) / 'triangle_utils',
+  )
+else
+  api_lib = shared_library(
+    'triangle_utils',
+    'triangle_utils.cpp',
+    dependencies: core_dep,
+    name_prefix: 'lib',
+    version: meson.project_version(),
+    soversion: version_parts[0],
+    vs_module_defs: 'triangle_utils.def',
+    link_args: export_args,
+    link_depends: export_files,
+    install: true,
+  )
+  install_headers('triangle_utils.h')
+endif
 api_dep = declare_dependency(
   include_directories: include_directories('.'),
   link_with: api_lib,
@@ -85,6 +108,7 @@ program = executable(
   'triangle-utils',
   'main.cpp',
   dependencies: [api_dep, files_dep],
-  install: true,
+  build_by_default: not python_package,
+  install: not python_package,
   install_rpath: program_rpath,
 )

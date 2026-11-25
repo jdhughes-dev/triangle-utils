@@ -83,6 +83,18 @@ uploads the PDF with each run of its workflow. The Python module in
 `python/triangle_utils/` calls the library from Python, with meshes as NumPy
 arrays.
 
+## Python package
+
+The module in `python/triangle_utils/` is packaged with the C API library
+beside it (`pyproject.toml`, built with meson-python); Triangle is linked
+into the library, and the package needs only NumPy. `pixi run wheel` builds
+the wheel for this platform and the pixi environment's Python in `dist/`, to
+install with `pip install`. CI builds and tests a wheel for each of Linux
+(manylinux, x86_64 and aarch64), macOS (arm64), and Windows (x86_64), built
+for Python 3.11 and installable on CPython 3.11 and later, but not on
+free-threaded builds; macOS on Intel is not supported. The wheels will be
+published to PyPI as `triangle-utils` with the first release.
+
 ## Command line
 
 ```shell
@@ -134,4 +146,5 @@ Richard Shewchuk and is distributed under its own terms (see the
 it may be redistributed only free of charge, with its copyright notices, and
 distribution as part of a commercial system requires an arrangement with the
 author. These terms apply to any program or library built from this
-repository.
+repository; `LICENSE-Triangle` is a copy of them, installed with the Python
+package.

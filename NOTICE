@@ -1,0 +1,7 @@
+triangle-utils links Triangle 1.6, by Jonathan Richard Shewchuk, into its
+library, as modified by MODFLOW-ORG/triangle; the modifications are listed
+under Modifications in that repository's README.md, each marked in
+src/triangle.c. Triangle's terms are in LICENSE-Triangle. The source of the
+Triangle built here, free of charge:
+
+https://github.com/MODFLOW-ORG/triangle/archive/7890e2724586cb0c20a221afb403e9df7627a849.tar.gz

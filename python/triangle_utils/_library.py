@@ -3,7 +3,8 @@ The C API's functions, status codes, and handles for ctypes.
 
 load() opens the library and declares each function's types: the library
 named by the TRIANGLE_UTILS_LIBRARY environment variable, which meson test
-sets, or else the one `pixi run build` installs in the repository.
+sets, or else the one installed beside the module, or else the one
+`pixi run build` installs in the repository.
 """
 
 import ctypes
@@ -172,6 +173,15 @@ def library_path():
     """The library to load."""
     if os.environ.get("TRIANGLE_UTILS_LIBRARY"):
         return Path(os.environ["TRIANGLE_UTILS_LIBRARY"])
+    # the library installed with the package, beside the module
+    for name in (
+        "libtriangle_utils.so",
+        "libtriangle_utils.dylib",
+        "libtriangle_utils.dll",
+    ):
+        bundled = Path(__file__).parent / name
+        if bundled.exists():
+            return bundled
     # the shared library, or its DLL, which Windows installs in bin
     for pattern in (
         "lib/libtriangle_utils.so",
@@ -182,18 +192,21 @@ def library_path():
         if found:
             return found[0]
     raise FileNotFoundError(
-        "the triangle-utils library was not found; run `pixi run build`, or set "
+        "the triangle-utils library was not found beside the module or in the "
+        "repository; reinstall the package, run `pixi run build` in a clone, or set "
         "TRIANGLE_UTILS_LIBRARY to its path"
     )
 
 
 def load():
     """Open the library and declare its functions."""
+    path = library_path()
     # on Windows, the standard search order (winmode 0), which includes PATH,
-    # finds the compiler's runtime DLLs the library depends on; by default
-    # Python does not search PATH for them
-    winmode = 0 if os.name == "nt" else None
-    library = ctypes.CDLL(str(library_path()), winmode=winmode)
+    # finds the compiler's runtime DLLs a repository build depends on; the
+    # package's own library needs none, so it is loaded as a user's would be
+    bundled = path.parent == Path(__file__).parent
+    winmode = 0 if os.name == "nt" and not bundled else None
+    library = ctypes.CDLL(str(path), winmode=winmode)
     for name, (result, arguments) in SIGNATURES.items():
         function = getattr(library, f"triangle_utils_{name}")
         function.restype = result
