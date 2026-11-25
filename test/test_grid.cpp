@@ -124,11 +124,13 @@ std::vector<std::array<int, 4>> check_tiling(const Grid & grid, const Mesh & mes
 
     // each vertex once
     std::vector<Point> sorted = grid.vertices;
-    std::sort(sorted.begin(), sorted.end(),
-              [](const Point & a, const Point & b) { return a.x < b.x || (a.x == b.x && a.y < b.y); });
+    std::sort(sorted.begin(), sorted.end(), [](const Point & a, const Point & b)
+              { return a.x < b.x || (a.x == b.x && a.y < b.y); });
     for (std::size_t i = 0; i + 1 < sorted.size(); i++)
-        for (std::size_t j = i + 1; j < sorted.size() && sorted[j].x - sorted[i].x <= 1e-9 * scale; j++)
-            EXPECT_GT(std::hypot(sorted[j].x - sorted[i].x, sorted[j].y - sorted[i].y), 1e-9 * scale);
+        for (std::size_t j = i + 1; j < sorted.size() && sorted[j].x - sorted[i].x <= 1e-9 * scale;
+             j++)
+            EXPECT_GT(std::hypot(sorted[j].x - sorted[i].x, sorted[j].y - sorted[i].y),
+                      1e-9 * scale);
     return shared;
 }
 
@@ -255,7 +257,8 @@ TEST(Grid, TriangleCellsAreTheTriangles)
                 const Point & p = grid.vertices[start];
                 const Point & q = grid.vertices[end];
                 const double dx = b.x - a.x, dy = b.y - a.y, fx = q.x - p.x, fy = q.y - p.y;
-                EXPECT_LE(std::abs(dx * fx + dy * fy), 1e-6 * std::hypot(fx, fy) * std::hypot(fx, fy));
+                EXPECT_LE(std::abs(dx * fx + dy * fy),
+                          1e-6 * std::hypot(fx, fy) * std::hypot(fx, fy));
             }
     }
 }

@@ -27,9 +27,15 @@ constexpr double ANGLE_TOLERANCE = 1e-6;
 // triangles
 constexpr double MERGE_FRACTION = 1e-9;
 
-Point midpoint(const Point & a, const Point & b) { return {0.5 * (a.x + b.x), 0.5 * (a.y + b.y)}; }
+Point midpoint(const Point & a, const Point & b)
+{
+    return {0.5 * (a.x + b.x), 0.5 * (a.y + b.y)};
+}
 
-double distance(const Point & a, const Point & b) { return std::hypot(b.x - a.x, b.y - a.y); }
+double distance(const Point & a, const Point & b)
+{
+    return std::hypot(b.x - a.x, b.y - a.y);
+}
 
 // The angle at a between b and c, in degrees.
 double angle(const Point & a, const Point & b, const Point & c)
@@ -110,7 +116,10 @@ void check_delaunay(const Mesh & mesh, const std::vector<std::array<int, 3>> & n
 class Merged
 {
 public:
-    explicit Merged(std::size_t count) : m_parent(count) { std::iota(m_parent.begin(), m_parent.end(), 0); }
+    explicit Merged(std::size_t count) : m_parent(count)
+    {
+        std::iota(m_parent.begin(), m_parent.end(), 0);
+    }
 
     int root(int item)
     {
@@ -137,9 +146,8 @@ private:
 // Copy the attributes of a triangle to the end of a cell's.
 void add_attributes(const Mesh & mesh, std::size_t triangle, std::vector<double> & attributes)
 {
-    const auto first =
-        mesh.triangle_attributes.begin() + static_cast<std::ptrdiff_t>(triangle) *
-                                               mesh.triangle_attribute_count;
+    const auto first = mesh.triangle_attributes.begin() +
+                       static_cast<std::ptrdiff_t>(triangle) * mesh.triangle_attribute_count;
     attributes.insert(attributes.end(), first, first + mesh.triangle_attribute_count);
 }
 
@@ -246,20 +254,19 @@ Grid voronoi_grid(const Mesh & mesh)
             {
                 // the part of the cell in this triangle, which is signed
                 // when the circumcenter is outside it, so the parts sum
-                const double part = twice_area({v[here], midpoint(v[here], v[t[(corner + 1) % 3]]),
-                                                points[triangle],
-                                                midpoint(v[here], v[t[(corner + 2) % 3]])});
-                auto same = std::find_if(sides.begin(), sides.end(),
-                                         [&](const auto & side)
-                                         {
-                                             return std::equal(
-                                                 mesh.triangle_attributes.begin() +
-                                                     side.first * grid.attribute_count,
-                                                 mesh.triangle_attributes.begin() +
-                                                     (side.first + 1) * grid.attribute_count,
-                                                 mesh.triangle_attributes.begin() +
-                                                     triangle * grid.attribute_count);
-                                         });
+                const double part =
+                    twice_area({v[here], midpoint(v[here], v[t[(corner + 1) % 3]]),
+                                points[triangle], midpoint(v[here], v[t[(corner + 2) % 3]])});
+                auto same = std::find_if(
+                    sides.begin(), sides.end(),
+                    [&](const auto & side)
+                    {
+                        return std::equal(
+                            mesh.triangle_attributes.begin() + side.first * grid.attribute_count,
+                            mesh.triangle_attributes.begin() +
+                                (side.first + 1) * grid.attribute_count,
+                            mesh.triangle_attributes.begin() + triangle * grid.attribute_count);
+                    });
                 if (same == sides.end())
                     sides.push_back({static_cast<std::size_t>(triangle), part});
                 else
@@ -284,7 +291,8 @@ Grid voronoi_grid(const Mesh & mesh)
             // turns
             const double ux = first_middle.x - v[here].x, uy = first_middle.y - v[here].y;
             const double wx = last_middle.x - v[here].x, wy = last_middle.y - v[here].y;
-            if (std::abs(ux * wy - uy * wx) > MERGE_FRACTION * std::hypot(ux, uy) * std::hypot(wx, wy))
+            if (std::abs(ux * wy - uy * wx) >
+                MERGE_FRACTION * std::hypot(ux, uy) * std::hypot(wx, wy))
             {
                 cell.push_back(static_cast<int>(grid.vertices.size()));
                 grid.vertices.push_back(v[here]);
@@ -309,9 +317,9 @@ Grid voronoi_grid(const Mesh & mesh)
         if (grid.attribute_count > 0)
         {
             // the attributes of the side with the most of the cell
-            const auto largest = std::max_element(sides.begin(), sides.end(),
-                                                  [](const auto & a, const auto & b)
-                                                  { return a.second < b.second; });
+            const auto largest =
+                std::max_element(sides.begin(), sides.end(), [](const auto & a, const auto & b)
+                                 { return a.second < b.second; });
             add_attributes(mesh, largest->first, grid.attributes);
         }
     }
