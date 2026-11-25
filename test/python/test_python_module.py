@@ -35,6 +35,8 @@ Cases:
   - test_error         : the library's reason is raised as Error.
 """
 
+import itertools
+
 import numpy as np
 import pytest
 import triangle_utils as tu
@@ -186,6 +188,9 @@ def test_connections():
     np.testing.assert_allclose(
         (connections.angles[back] - connections.angles) % 360.0, 180.0
     )
+    assert ((connections.angles >= 0.0) & (connections.angles < 360.0)).all()
+    for start, end in itertools.pairwise(connections.offsets):
+        assert (np.diff(connections.cells[start:end]) > 0).all()
     gap = np.hypot(*(grid.centers[other] - grid.centers[cell]).T)
     np.testing.assert_allclose(connections.distances, 0.5 * gap)
     # a cell whose every side is a face is the triangles between its center

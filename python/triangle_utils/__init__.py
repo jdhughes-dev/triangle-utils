@@ -740,7 +740,8 @@ class Connections:
 
 
 def connect_cells(grid):
-    """The connections of a grid's cells to the cells they share a face with;
+    """The connections of a grid's cells to the cells they share a face with,
+    at two common corners;
     an error if a center is on a face or beyond it, as an obtuse triangle's
     circumcenter is."""
     api = _api()

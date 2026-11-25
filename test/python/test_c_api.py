@@ -497,9 +497,20 @@ def test_connections(library):
             b"the cell count is 3, but the result has 2"
         )
         status = library.triangle_utils_connections(
-            result, 2, offsets, 2, cells, distances, None, angles
+            result, 2, offsets, 3, cells, distances, widths, angles
         )
         assert status == INVALID_ARGUMENT
+        assert library.triangle_utils_last_error() == (
+            b"the connection count is 3, but the result has 2"
+        )
+        for missing in range(5):
+            pointers = [offsets, cells, distances, widths, angles]
+            pointers[missing] = None
+            offset_pointer, *rest = pointers
+            status = library.triangle_utils_connections(
+                result, 2, offset_pointer, 2, *rest
+            )
+            assert status == INVALID_ARGUMENT
         status = library.triangle_utils_connections_count(
             result, ctypes.byref(counts[0]), None
         )

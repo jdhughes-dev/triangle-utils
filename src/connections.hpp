@@ -29,7 +29,7 @@ struct Connections
 };
 
 // The connections of a grid's cells; cells that share a face share its two
-// corners, and the edges two cells share are one face, with their summed
+// corners, so a corner of one cell inside another's side is not a face, and the edges two cells share are one face, with their summed
 // width and mean normal. Throws Error if the grid is not valid, an edge is a
 // side of more than two cells, two cells overlap, or a center is on a face,
 // within 1e-9 of its width, or beyond it, as an obtuse triangle's
