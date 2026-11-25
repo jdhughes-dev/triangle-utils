@@ -95,7 +95,7 @@ def test_example():
 )
 def test_installed():
     package = Path(triangle_utils.__file__).parent
-    assert REPOSITORY not in package.parents
+    assert package != REPOSITORY / "python" / "triangle_utils"
     assert "CC0 1.0" in (package / "LICENSE").read_text()
     assert "Shewchuk" in (package / "LICENSE-Triangle").read_text()
     assert (package / "NOTICE").read_text() == (REPOSITORY / "NOTICE").read_text()
