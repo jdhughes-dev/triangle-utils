@@ -466,7 +466,10 @@ void write_mesh(const TriangleUtilsMesh * mesh, const std::string & base, int fi
 
 // Read the mesh in <base>.node and <base>.ele, with the segments of
 // <base>.poly and the area limits of <base>.area if they exist.
-MeshHandle read_mesh(const std::string & base, triangle_utils::VertexFile & vertices)
+// The mesh in <base>.node and <base>.ele, with the segments of <base>.poly
+// and the area limits of <base>.area if they exist and are asked for.
+MeshHandle read_mesh(const std::string & base, triangle_utils::VertexFile & vertices,
+                     bool with_segments_and_limits = true)
 {
     const std::string node_name = base + ".node";
     std::ifstream node_file = open_input(node_name);
@@ -502,6 +505,7 @@ MeshHandle read_mesh(const std::string & base, triangle_utils::VertexFile & vert
     check_status(triangle_utils_mesh_set_fixed_vertices(mesh.get(), static_cast<int>(fixed.size()),
                                                         fixed.data()));
 
+    if (!with_segments_and_limits) return mesh;
     std::error_code exists_error;
     const std::string poly_name = base + ".poly";
     if (std::filesystem::exists(poly_name, exists_error))
@@ -700,7 +704,8 @@ int disv_command(const std::vector<std::string> & arguments)
     if (output_base.empty()) output_base = base;
 
     triangle_utils::VertexFile vertices;
-    const MeshHandle mesh = read_mesh(base, vertices);
+    // the grid needs neither segments nor area limits
+    const MeshHandle mesh = read_mesh(base, vertices, false);
     TriangleUtilsGrid * built = nullptr;
     if (grid_name == "voronoi")
         check_status(triangle_utils_mesh_voronoi(mesh.get(), &built));

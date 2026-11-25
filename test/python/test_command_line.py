@@ -45,6 +45,9 @@ Cases:
   - test_disv_cells    : a mesh numbered from 0 with triangle attributes writes
                          each cell's vertex or triangle from 0 and its
                          attributes to the .cells file.
+  - test_disv_ignores_poly : disv reads only the .node and .ele files, so a
+                         .poly file with its own vertices beside them does
+                         not stop it.
   - test_disv_errors   : a mesh that is not Delaunay exits 1 with the reason.
   - test_generate_errors : a bad option value is a usage error (2), and a
                          boundary not closed and a missing file are errors
@@ -499,6 +502,15 @@ def test_disv_cells(tmp_path):
     # vertices 1 and 3 are each in one triangle
     assert rows[2] == ["2", "1", "5", "50"]
     assert rows[4] == ["4", "3", "6", "60"]
+
+
+def test_disv_ignores_poly(tmp_path):
+    base = write_mesh(tmp_path)
+    (tmp_path / "square.poly").write_text(BOX_POLY)
+    assert run("refine", base)[0] == 1
+    status, output, _ = run("disv", base)
+    assert status == 0
+    assert output.startswith(f"{base}.disv: 4 cells")
 
 
 def test_disv_errors(tmp_path):

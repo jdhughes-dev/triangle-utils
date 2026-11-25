@@ -253,13 +253,13 @@ int triangle_utils_mesh_improve(const TriangleUtilsMesh * mesh, int smoothing, d
 
 /* The Voronoi grid of a mesh: a cell around each vertex, centered on it, with
    corners at the circumcenters of the vertex's triangles, closed on the
-   boundary by the boundary's vertices and the midpoints of its edges, so a
-   boundary cell's center is on its edge and the cell is not convex where
-   the boundary turns inward, as at a hole's corner. A cell on a segment
-   inside the mesh, such as a lake's shore, spans both sides and takes the
-   attributes of the side with most of its area. The mesh must be conforming
-   Delaunay (Triangle's D switch), so each circumcenter is in the mesh.
-   *grid is NULL after a failure. */
+   boundary by the midpoints of its edges, and by its vertices where it
+   turns, so a boundary cell's center is on its edge and the cell is not
+   convex where the boundary turns inward, as at a hole's corner. A cell on
+   a segment inside the mesh, such as a lake's shore, spans both sides and
+   takes the attributes of the side with most of its area. The mesh must be
+   conforming Delaunay (Triangle's D switch), so each circumcenter is in the
+   mesh. *grid is NULL after a failure. */
 int triangle_utils_mesh_voronoi(const TriangleUtilsMesh * mesh, TriangleUtilsGrid ** grid);
 
 /* Centers for triangle_utils_mesh_triangle_grid(): each triangle's centroid,
