@@ -27,9 +27,14 @@ class Grid(ctypes.Structure):
     """The opaque grid."""
 
 
+class CellLengths(ctypes.Structure):
+    """The opaque cell lengths."""
+
+
 MESH_POINTER = ctypes.POINTER(Mesh)
 GEOMETRY_POINTER = ctypes.POINTER(Geometry)
 GRID_POINTER = ctypes.POINTER(Grid)
+CELL_LENGTHS_POINTER = ctypes.POINTER(CellLengths)
 
 INT = ctypes.c_int
 DOUBLE = ctypes.c_double
@@ -85,6 +90,33 @@ SIGNATURES = {
     "grid_sources": (INT, [GRID_POINTER, INT, INT_ARRAY]),
     "grid_attribute_count": (INT, [GRID_POINTER, INT_ARRAY]),
     "grid_attributes": (INT, [GRID_POINTER, INT, DOUBLE_ARRAY]),
+    "grid_create": (
+        INT,
+        [
+            INT,
+            DOUBLE_ARRAY,
+            INT,
+            INT_ARRAY,
+            INT,
+            INT_ARRAY,
+            DOUBLE_ARRAY,
+            ctypes.POINTER(GRID_POINTER),
+        ],
+    ),
+    "grid_line_cells": (
+        INT,
+        [GRID_POINTER, INT, DOUBLE_ARRAY, ctypes.POINTER(CELL_LENGTHS_POINTER)],
+    ),
+    "grid_segment_cells": (
+        INT,
+        [GRID_POINTER, MESH_POINTER, INT, ctypes.POINTER(CELL_LENGTHS_POINTER)],
+    ),
+    "cell_lengths_free": (None, [CELL_LENGTHS_POINTER]),
+    "cell_lengths_count": (INT, [CELL_LENGTHS_POINTER, INT_ARRAY]),
+    "cell_lengths": (
+        INT,
+        [CELL_LENGTHS_POINTER, INT, INT_ARRAY, DOUBLE_ARRAY, DOUBLE_ARRAY],
+    ),
     "geometry_create": (INT, [ctypes.POINTER(GEOMETRY_POINTER)]),
     "geometry_free": (None, [GEOMETRY_POINTER]),
     "geometry_add_polygon": (INT, [GEOMETRY_POINTER, INT, DOUBLE_ARRAY, DOUBLE, INT]),

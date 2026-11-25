@@ -12,13 +12,23 @@ from dataclasses import dataclass, field
 
 import numpy as np
 
-from ._library import GEOMETRY_POINTER, GRID_POINTER, MESH_POINTER, OK, load
+from ._library import (
+    CELL_LENGTHS_POINTER,
+    GEOMETRY_POINTER,
+    GRID_POINTER,
+    MESH_POINTER,
+    OK,
+    load,
+)
 
 __all__ = [
+    "CellLengths",
     "Error",
     "Geometry",
     "Grid",
     "Mesh",
+    "cells_along_line",
+    "cells_on_segments",
     "count_angles_over",
     "generate",
     "improve",
@@ -585,3 +595,102 @@ def triangle_grid(mesh, center="centroid"):
             handle, choices[center], grid
         ),
     )
+
+
+def _grid_handle(grid):
+    """A grid handle with the grid's vertices, cells, and centers; free it
+    with triangle_utils_grid_free."""
+    vertices = _rows(grid.vertices, 2, "vertices", np.float64)
+    centers = _rows(grid.centers, 2, "centers", np.float64)
+    cells = [_integers(cell, "cells") for cell in grid.cells]
+    offsets = np.concatenate([[0], np.cumsum([len(cell) for cell in cells])])
+    corners = np.concatenate(cells) if cells else np.zeros(0)
+    # the arrays are kept until the call that reads their pointers returns
+    vertex_array, vertex_pointer = _doubles(vertices)
+    _offset_array, offset_pointer = _ints(offsets)
+    corner_array, corner_pointer = _ints(corners)
+    _center_array, center_pointer = _doubles(centers)
+    handle = GRID_POINTER()
+    _check(
+        _api().triangle_utils_grid_create(
+            len(vertex_array),
+            vertex_pointer,
+            len(cells),
+            offset_pointer,
+            len(corner_array),
+            corner_pointer,
+            center_pointer,
+            ctypes.byref(handle),
+        )
+    )
+    return handle
+
+
+@dataclass(eq=False)
+class CellLengths:
+    """Cells a line or marked segments pass through; indices are zero based."""
+
+    # each cell
+    cells: np.ndarray
+    # where its part starts along the line or segments
+    starts: np.ndarray
+    # the length of line or segment in it
+    lengths: np.ndarray
+
+
+def _cell_lengths(build):
+    """The cell lengths a C API function returns."""
+    api = _api()
+    handle = CELL_LENGTHS_POINTER()
+    _check(build(ctypes.byref(handle)))
+    try:
+        count = ctypes.c_int()
+        _check(api.triangle_utils_cell_lengths_count(handle, ctypes.byref(count)))
+        cells, cell_pointer = _ints(np.zeros(count.value))
+        starts, start_pointer = _doubles(np.zeros(count.value))
+        lengths, length_pointer = _doubles(np.zeros(count.value))
+        _check(
+            api.triangle_utils_cell_lengths(
+                handle, count, cell_pointer, start_pointer, length_pointer
+            )
+        )
+        return CellLengths(cells, starts, lengths)
+    finally:
+        api.triangle_utils_cell_lengths_free(handle)
+
+
+def cells_along_line(grid, line):
+    """The cells along a line of (x, y) points, in order, with the length of
+    line in each; a part along a face two cells share is in the cell on the
+    line's left."""
+    points, point_pointer = _doubles(_rows(line, 2, "line", np.float64))
+    api = _api()
+    handle = _grid_handle(grid)
+    try:
+        return _cell_lengths(
+            lambda result: api.triangle_utils_grid_line_cells(
+                handle, len(points), point_pointer, result
+            )
+        )
+    finally:
+        api.triangle_utils_grid_free(handle)
+
+
+def cells_on_segments(grid, mesh, marker):
+    """The cells on the mesh's segments with a marker, such as a boundary,
+    each once, with the length of segment in each."""
+    marker = _int(marker, "marker")
+    api = _api()
+    grid_handle = _grid_handle(grid)
+    try:
+        mesh_handle = _to_handle(mesh)
+        try:
+            return _cell_lengths(
+                lambda result: api.triangle_utils_grid_segment_cells(
+                    grid_handle, mesh_handle, marker, result
+                )
+            )
+        finally:
+            api.triangle_utils_mesh_free(mesh_handle)
+    finally:
+        api.triangle_utils_grid_free(grid_handle)

@@ -375,4 +375,27 @@ Grid triangle_grid(const Mesh & mesh, TriangleCenter center)
     return grid;
 }
 
+void check_grid(const Grid & grid)
+{
+    for (std::size_t vertex = 0; vertex < grid.vertices.size(); vertex++)
+        if (!std::isfinite(grid.vertices[vertex].x) || !std::isfinite(grid.vertices[vertex].y))
+            throw Error(message("vertex ", vertex, " has a coordinate that is not finite"));
+    for (std::size_t cell = 0; cell < grid.cells.size(); cell++)
+    {
+        if (grid.cells[cell].size() < 3)
+            throw Error(message("cell ", cell, " has ", grid.cells[cell].size(),
+                                " corners, but it needs at least 3"));
+        for (const int vertex : grid.cells[cell])
+            if (vertex < 0 || static_cast<std::size_t>(vertex) >= grid.vertices.size())
+                throw Error(message("cell ", cell, " refers to vertex ", vertex,
+                                    ", but the grid has ", grid.vertices.size(), " vertices"));
+    }
+    if (grid.centers.size() != grid.cells.size())
+        throw Error(message("the grid has ", grid.cells.size(), " cells but ", grid.centers.size(),
+                            " centers"));
+    for (std::size_t cell = 0; cell < grid.centers.size(); cell++)
+        if (!std::isfinite(grid.centers[cell].x) || !std::isfinite(grid.centers[cell].y))
+            throw Error(message("the center of cell ", cell, " is not finite"));
+}
+
 } // namespace triangle_utils

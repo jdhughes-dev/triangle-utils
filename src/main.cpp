@@ -10,6 +10,7 @@
 #include <iostream>
 #include <limits>
 #include <memory>
+#include <sstream>
 #include <stdexcept>
 #include <string>
 #include <system_error>
@@ -39,6 +40,7 @@ Commands:
   refine    refine a mesh in Triangle's files by area and angle
   improve   improve a mesh in Triangle's files by moving vertices
   disv      write a MODFLOW 6 DISV grid of a mesh in Triangle's files
+  cells     find the cells a line or marked segments pass through
 
 Options:
   -h, --help    show this help
@@ -156,6 +158,26 @@ Options:
                           for the triangles centered on either
   -t, --top <top>         the top of the layer (default 1)
   -b, --bottom <bottom>   the bottom of the layer (default 0)
+)";
+
+constexpr const char * CELLS_USAGE = R"(usage: triangle-utils cells [options] <base>
+
+Find the cells of the grid of the mesh in <base>.node and <base>.ele that a
+line, or the segments of <base>.poly with a marker, pass through, and print
+each cell, numbered from 1 as in the DISV file, where its part starts along
+the line or segments, and its length. Along a line, such as a river, the
+cells are in order, and a cell the line enters twice is printed twice; a
+part along a face two cells share is in the cell on the line's left. On
+segments, such as a boundary, each cell is printed once, with its length of
+segment summed.
+
+Options:
+  -h, --help              show this help
+  -g, --grid <g>          voronoi (default), or centroid or circumcenter
+                          for the triangles, as for disv
+  -l, --line <file>       a line: x and y of a point on each line of the
+                          file, with # comments
+  -m, --marker <m>        the segments of <base>.poly with marker m
 )";
 
 // A command line that cannot be run as given.
@@ -665,6 +687,28 @@ struct GridFree
 
 using GridHandle = std::unique_ptr<TriangleUtilsGrid, GridFree>;
 
+// Throw UsageError if a grid name is not one the commands build.
+void check_grid_name(const std::string & command, const std::string & grid_name)
+{
+    if (grid_name != "voronoi" && grid_name != "centroid" && grid_name != "circumcenter")
+        throw UsageError(triangle_utils::message(
+            command, ": the grid must be voronoi, centroid, or circumcenter, not ", grid_name));
+}
+
+// The Voronoi grid of a mesh, or its triangles centered on their centroids
+// or circumcenters.
+GridHandle build_grid(const TriangleUtilsMesh * mesh, const std::string & grid_name)
+{
+    TriangleUtilsGrid * built = nullptr;
+    if (grid_name == "voronoi")
+        check_status(triangle_utils_mesh_voronoi(mesh, &built));
+    else
+        check_status(triangle_utils_mesh_triangle_grid(
+            mesh, grid_name == "centroid" ? TRIANGLE_UTILS_CENTROID : TRIANGLE_UTILS_CIRCUMCENTER,
+            &built));
+    return GridHandle(built);
+}
+
 int disv_command(const std::vector<std::string> & arguments)
 {
     std::string output_base;
@@ -694,9 +738,7 @@ int disv_command(const std::vector<std::string> & arguments)
             bases.push_back(options.argument());
     }
     if (bases.size() != 1) throw UsageError("disv: give one <base>");
-    if (grid_name != "voronoi" && grid_name != "centroid" && grid_name != "circumcenter")
-        throw UsageError(triangle_utils::message(
-            "disv: the grid must be voronoi, centroid, or circumcenter, not ", grid_name));
+    check_grid_name("disv", grid_name);
     if (!(top > bottom))
         throw UsageError(triangle_utils::message("disv: the top (", top,
                                                  ") must be above the bottom (", bottom, ")"));
@@ -706,15 +748,7 @@ int disv_command(const std::vector<std::string> & arguments)
     triangle_utils::VertexFile vertices;
     // the grid needs neither segments nor area limits
     const MeshHandle mesh = read_mesh(base, vertices, false);
-    TriangleUtilsGrid * built = nullptr;
-    if (grid_name == "voronoi")
-        check_status(triangle_utils_mesh_voronoi(mesh.get(), &built));
-    else
-        check_status(triangle_utils_mesh_triangle_grid(
-            mesh.get(),
-            grid_name == "centroid" ? TRIANGLE_UTILS_CENTROID : TRIANGLE_UTILS_CIRCUMCENTER,
-            &built));
-    const GridHandle grid(built);
+    const GridHandle grid = build_grid(mesh.get(), grid_name);
 
     int vertex_count = 0, cell_count = 0, corner_count = 0;
     check_status(triangle_utils_grid_counts(grid.get(), &vertex_count, &cell_count, &corner_count));
@@ -766,6 +800,107 @@ int disv_command(const std::vector<std::string> & arguments)
 
     std::cout << output_base << ".disv: " << cell_count << " cells and " << vertex_count
               << " vertices\n";
+    return EXIT_OK;
+}
+
+struct CellLengthsFree
+{
+    void operator()(TriangleUtilsCellLengths * cell_lengths) const
+    {
+        triangle_utils_cell_lengths_free(cell_lengths);
+    }
+};
+
+// The points of a line file: x and y on each line, with # comments.
+std::vector<double> read_line(const std::string & name)
+{
+    std::ifstream file = open_input(name);
+    std::vector<double> xy;
+    std::string text;
+    int number = 0;
+    while (std::getline(file, text))
+    {
+        number++;
+        const std::size_t comment = text.find('#');
+        if (comment != std::string::npos) text.erase(comment);
+        std::istringstream words(text);
+        double x = 0.0, y = 0.0;
+        std::string extra;
+        if (!(words >> x))
+        {
+            if (text.find_first_not_of(" \t\r") == std::string::npos) continue;
+            throw triangle_utils::Error(
+                triangle_utils::message(name, " line ", number, ": expected x and y"));
+        }
+        if (!(words >> y) || (words >> extra))
+            throw triangle_utils::Error(
+                triangle_utils::message(name, " line ", number, ": expected x and y"));
+        xy.push_back(x);
+        xy.push_back(y);
+    }
+    return xy;
+}
+
+int cells_command(const std::vector<std::string> & arguments)
+{
+    std::string grid_name = "voronoi";
+    std::string line_name;
+    bool has_marker = false;
+    int marker = 0;
+    std::vector<std::string> bases;
+    Options options("cells", arguments);
+    while (options.next())
+    {
+        if (options.is_flag("-h", "--help"))
+        {
+            std::cout << CELLS_USAGE;
+            return EXIT_OK;
+        }
+        if (options.is("-g", "--grid"))
+            grid_name = options.value();
+        else if (options.is("-l", "--line"))
+            line_name = options.value();
+        else if (options.is("-m", "--marker"))
+        {
+            marker = options.integer();
+            has_marker = true;
+        }
+        else if (options.is_option())
+            options.unknown();
+        else
+            bases.push_back(options.argument());
+    }
+    if (bases.size() != 1) throw UsageError("cells: give one <base>");
+    check_grid_name("cells", grid_name);
+    if (line_name.empty() == !has_marker) throw UsageError("cells: give one of -l and -m");
+    const std::string & base = bases[0];
+
+    triangle_utils::VertexFile vertices;
+    // a marker needs the segments of <base>.poly
+    const MeshHandle mesh = read_mesh(base, vertices, has_marker);
+    const GridHandle grid = build_grid(mesh.get(), grid_name);
+    TriangleUtilsCellLengths * found = nullptr;
+    if (has_marker)
+        check_status(triangle_utils_grid_segment_cells(grid.get(), mesh.get(), marker, &found));
+    else
+    {
+        const std::vector<double> xy = read_line(line_name);
+        check_status(triangle_utils_grid_line_cells(grid.get(), static_cast<int>(xy.size() / 2),
+                                                    xy.data(), &found));
+    }
+    const std::unique_ptr<TriangleUtilsCellLengths, CellLengthsFree> result(found);
+    int count = 0;
+    check_status(triangle_utils_cell_lengths_count(result.get(), &count));
+    std::vector<int> cells(static_cast<std::size_t>(count));
+    std::vector<double> starts(cells.size()), lengths(cells.size());
+    check_status(triangle_utils_cell_lengths(result.get(), count, cells.data(), starts.data(),
+                                             lengths.data()));
+    std::cout.precision(std::numeric_limits<double>::max_digits10);
+    std::cout << "# cell, start, and length along "
+              << (has_marker ? "the segments with marker " + std::to_string(marker) : line_name)
+              << "\n";
+    for (std::size_t i = 0; i < cells.size(); i++)
+        std::cout << cells[i] + 1 << " " << starts[i] << " " << lengths[i] << "\n";
     return EXIT_OK;
 }
 
@@ -899,6 +1034,7 @@ int run(const std::vector<std::string> & arguments)
     if (first == "refine") return refine_command(rest);
     if (first == "improve") return improve_command(rest);
     if (first == "disv") return disv_command(rest);
+    if (first == "cells") return cells_command(rest);
     if (!first.empty() && first[0] == '-')
         throw UsageError(triangle_utils::message("unknown option ", first));
     throw UsageError(triangle_utils::message("unknown command ", first));

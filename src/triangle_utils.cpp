@@ -15,6 +15,7 @@
 #include <vector>
 
 #include "error.hpp"
+#include "features.hpp"
 #include "geometry.hpp"
 #include "grid.hpp"
 #include "improve.hpp"
@@ -29,6 +30,11 @@ struct TriangleUtilsMesh
 struct TriangleUtilsGrid
 {
     triangle_utils::Grid grid;
+};
+
+struct TriangleUtilsCellLengths
+{
+    std::vector<triangle_utils::CellLength> cell_lengths;
 };
 
 struct TriangleUtilsGeometry
@@ -848,5 +854,125 @@ int triangle_utils_grid_attributes(const TriangleUtilsGrid * grid, int value_cou
             check_matches(value_count, grid->grid.attributes.size(), "attribute value", "grid");
             if (value_count > 0) check_pointer(attributes, "attribute");
             std::copy(grid->grid.attributes.begin(), grid->grid.attributes.end(), attributes);
+        });
+}
+
+int triangle_utils_grid_create(int vertex_count, const double * vertex_xy, int cell_count,
+                               const int * corner_offsets, int corner_count, const int * corners,
+                               const double * center_xy, TriangleUtilsGrid ** grid)
+{
+    return call(
+        [&]
+        {
+            check_pointer(grid, "grid");
+            *grid = nullptr;
+            const auto vertices = copy_points(vertex_count, vertex_xy);
+            check_count(cell_count, "cell");
+            check_count(corner_count, "corner");
+            check_pointer(corner_offsets, "corner offset");
+            if (corner_count > 0) check_pointer(corners, "corner");
+            if (corner_offsets[0] != 0 || corner_offsets[cell_count] != corner_count)
+                throw ArgumentError(triangle_utils::message(
+                    "the corner offsets run from ", corner_offsets[0], " to ",
+                    corner_offsets[cell_count], ", but they must run from 0 to the corner count, ",
+                    corner_count));
+            auto created = std::make_unique<TriangleUtilsGrid>();
+            created->grid.vertices = vertices;
+            for (std::size_t cell = 0; cell < static_cast<std::size_t>(cell_count); cell++)
+            {
+                if (corner_offsets[cell + 1] < corner_offsets[cell])
+                    throw ArgumentError(
+                        triangle_utils::message("the corner offsets decrease at cell ", cell));
+                created->grid.cells.emplace_back(corners + corner_offsets[cell],
+                                                 corners + corner_offsets[cell + 1]);
+            }
+            created->grid.centers = copy_points(cell_count, center_xy);
+            created->grid.sources.assign(static_cast<std::size_t>(cell_count), -1);
+            triangle_utils::check_grid(created->grid);
+            *grid = created.release();
+        });
+}
+
+namespace
+{
+
+// Store cell lengths in a new handle.
+TriangleUtilsCellLengths * store(std::vector<triangle_utils::CellLength> cell_lengths)
+{
+    auto stored = std::make_unique<TriangleUtilsCellLengths>();
+    stored->cell_lengths = std::move(cell_lengths);
+    return stored.release();
+}
+
+} // namespace
+
+int triangle_utils_grid_line_cells(const TriangleUtilsGrid * grid, int point_count,
+                                   const double * point_xy,
+                                   TriangleUtilsCellLengths ** cell_lengths)
+{
+    return call(
+        [&]
+        {
+            check_pointer(cell_lengths, "cell lengths");
+            *cell_lengths = nullptr;
+            check_pointer(grid, "grid");
+            *cell_lengths = store(
+                triangle_utils::cells_along_line(grid->grid, copy_points(point_count, point_xy)));
+        });
+}
+
+int triangle_utils_grid_segment_cells(const TriangleUtilsGrid * grid,
+                                      const TriangleUtilsMesh * mesh, int marker,
+                                      TriangleUtilsCellLengths ** cell_lengths)
+{
+    return call(
+        [&]
+        {
+            check_pointer(cell_lengths, "cell lengths");
+            *cell_lengths = nullptr;
+            check_pointer(grid, "grid");
+            check_pointer(mesh, "mesh");
+            *cell_lengths =
+                store(triangle_utils::cells_on_segments(grid->grid, mesh->mesh, marker));
+        });
+}
+
+void triangle_utils_cell_lengths_free(TriangleUtilsCellLengths * cell_lengths)
+{
+    delete cell_lengths;
+}
+
+int triangle_utils_cell_lengths_count(const TriangleUtilsCellLengths * cell_lengths, int * count)
+{
+    return call(
+        [&]
+        {
+            check_pointer(cell_lengths, "cell lengths");
+            check_pointer(count, "count");
+            // bounded by the grid's cells and the line's points, which fit an int
+            *count = static_cast<int>(cell_lengths->cell_lengths.size());
+        });
+}
+
+int triangle_utils_cell_lengths(const TriangleUtilsCellLengths * cell_lengths, int count,
+                                int * cells, double * starts, double * lengths)
+{
+    return call(
+        [&]
+        {
+            check_pointer(cell_lengths, "cell lengths");
+            check_matches(count, cell_lengths->cell_lengths.size(), "cell length", "result");
+            if (count > 0)
+            {
+                check_pointer(cells, "cell");
+                check_pointer(starts, "start");
+                check_pointer(lengths, "length");
+            }
+            for (std::size_t i = 0; i < cell_lengths->cell_lengths.size(); i++)
+            {
+                cells[i] = cell_lengths->cell_lengths[i].cell;
+                starts[i] = cell_lengths->cell_lengths[i].start;
+                lengths[i] = cell_lengths->cell_lengths[i].length;
+            }
         });
 }

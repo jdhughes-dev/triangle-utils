@@ -27,6 +27,9 @@ Cases:
                          their counts, clockwise cells, centers, and sources;
                          wrong counts, a bad center, and null pointers are
                          invalid arguments, and the grid is null.
+  - test_grid_create   : a grid from arrays maps a line to its cells; bad
+                         offsets and null pointers are invalid arguments, and
+                         the result is null.
   - test_improve       : an interior vertex moves to the middle of a square
                          unless it is fixed; a bad smoothing and a null result
                          pointer are invalid arguments, and the result is null.
@@ -35,7 +38,9 @@ Cases:
 import ctypes
 import math
 
+import pytest
 from triangle_utils._library import (
+    CELL_LENGTHS_POINTER,
     ERROR,
     GRID_POINTER,
     INVALID_ARGUMENT,
@@ -365,3 +370,65 @@ def test_grid(library):
         assert not grid
     finally:
         library.triangle_utils_mesh_free(mesh)
+
+
+def test_grid_create(library):
+    # the unit square as two cells, split at x = 0.5
+    xy = (ctypes.c_double * 12)(0, 0, 0.5, 0, 1, 0, 1, 1, 0.5, 1, 0, 1)
+    offsets = (ctypes.c_int * 3)(0, 4, 8)
+    corners = (ctypes.c_int * 8)(0, 5, 4, 1, 1, 4, 3, 2)
+    centers = (ctypes.c_double * 4)(0.25, 0.5, 0.75, 0.5)
+    grid = ctypes.cast(ctypes.c_void_p(1), GRID_POINTER)
+    status = library.triangle_utils_grid_create(
+        6, xy, 2, offsets, 8, corners, centers, ctypes.byref(grid)
+    )
+    assert status == OK
+    try:
+        line = (ctypes.c_double * 4)(0, 0.5, 1, 0.5)
+        result = ctypes.cast(ctypes.c_void_p(1), CELL_LENGTHS_POINTER)
+        status = library.triangle_utils_grid_line_cells(
+            grid, 2, line, ctypes.byref(result)
+        )
+        assert status == OK
+        try:
+            count = ctypes.c_int(-1)
+            assert (
+                library.triangle_utils_cell_lengths_count(result, ctypes.byref(count))
+                == OK
+            )
+            assert count.value == 2
+            cells = (ctypes.c_int * 2)()
+            starts = (ctypes.c_double * 2)()
+            lengths = (ctypes.c_double * 2)()
+            status = library.triangle_utils_cell_lengths(
+                result, 2, cells, starts, lengths
+            )
+            assert status == OK
+            assert list(cells) == [0, 1]
+            assert list(starts) == pytest.approx([0.0, 0.5])
+            assert list(lengths) == pytest.approx([0.5, 0.5])
+            status = library.triangle_utils_cell_lengths(
+                result, 3, cells, starts, lengths
+            )
+            assert status == INVALID_ARGUMENT
+        finally:
+            library.triangle_utils_cell_lengths_free(result)
+        result = ctypes.cast(ctypes.c_void_p(1), CELL_LENGTHS_POINTER)
+        status = library.triangle_utils_grid_line_cells(
+            grid, 1, line, ctypes.byref(result)
+        )
+        assert status == ERROR
+        assert not result
+        assert b"the line has 1 points" in library.triangle_utils_last_error()
+    finally:
+        library.triangle_utils_grid_free(grid)
+    bad = (ctypes.c_int * 3)(0, 4, 7)
+    grid = ctypes.cast(ctypes.c_void_p(1), GRID_POINTER)
+    status = library.triangle_utils_grid_create(
+        6, xy, 2, bad, 8, corners, centers, ctypes.byref(grid)
+    )
+    assert status == INVALID_ARGUMENT
+    assert not grid
+    assert (
+        b"must run from 0 to the corner count, 8" in library.triangle_utils_last_error()
+    )

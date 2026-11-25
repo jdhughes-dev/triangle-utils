@@ -46,3 +46,9 @@ EXPORTS
   triangle_utils_grid_sources
   triangle_utils_grid_attribute_count
   triangle_utils_grid_attributes
+  triangle_utils_grid_create
+  triangle_utils_grid_line_cells
+  triangle_utils_grid_segment_cells
+  triangle_utils_cell_lengths_free
+  triangle_utils_cell_lengths_count
+  triangle_utils_cell_lengths
