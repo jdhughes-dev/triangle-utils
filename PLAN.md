@@ -17,20 +17,22 @@ triangle grids for DISV), #12 (the cells of points, lines, and boundaries).
 
 1. #13 DISU connection data
 2. #46 package the Python module for PyPI
-3. #50 read features from shapefiles (shapelib) and GeoDataFrames
+3. #50 read features from GeoDataFrames and shapely geometries in Python
 4. #19 layers, DISV and DISU output
-5. #23 ghost-node correction
-6. #43 hybrid grid, Voronoi cells around features and triangles elsewhere
-7. #44 a point feature centered in a triangle cell, evaluated before the
+5. #51 read shapefiles in the C++ library with shapelib
+6. #52 evaluate reading GeoPackage and FlatGeobuf in the C++ library
+7. #23 ghost-node correction
+8. #43 hybrid grid, Voronoi cells around features and triangles elsewhere
+9. #44 a point feature centered in a triangle cell, evaluated before the
    release: shipped as an option, or closed with its findings
-8. #14 grid quality report
-9. #18 model checks with MODFLOW 6, MODFLOW-USG, and MODFLOW-USG-Transport
-10. #20 different refinement by layer
-11. #15 structured grids, merging cells, and refinement by a field
-12. #21 user guide
-13. #22 Read the Docs
-14. #24 release notes
-15. #10 release and conda-forge package
+10. #14 grid quality report
+11. #18 model checks with MODFLOW 6, MODFLOW-USG, and MODFLOW-USG-Transport
+12. #20 different refinement by layer
+13. #15 structured grids, merging cells, and refinement by a field
+14. #21 user guide
+15. #22 Read the Docs
+16. #24 release notes
+17. #10 release and conda-forge package
 
 ## Triangle
 
