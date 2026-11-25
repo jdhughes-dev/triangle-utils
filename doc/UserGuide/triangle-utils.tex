@@ -156,9 +156,9 @@ Figure~\ref{fig:improvedcloseups} shows the windows of Figure~\ref{fig:generated
 
 \section{Building a Grid for MODFLOW 6}
 
-MODFLOW 6 calculates the flow between two cells from the difference in head between their centers, which represents the flow across their shared face exactly when the line between the centers is perpendicular to that face. In a Voronoi grid, each cell surrounds one vertex of the mesh and contains the points closer to that vertex than to any other, so the face two cells share is perpendicular to the line between their vertices, and the vertices are the cell centers. The corners of a cell are the circumcenters of the triangles around its vertex, and a cell on the boundary is closed by the boundary's vertices and the midpoints of its edges. Each circumcenter lies inside the mesh only if every triangle is Delaunay, so the mesh is generated and refined with conforming Delaunay triangles (Triangle's D switch).
+MODFLOW 6 calculates the flow between two cells from the difference in head between their centers, which represents the flow across their shared face exactly when the line between the centers is perpendicular to that face. In a Voronoi grid, each cell surrounds one vertex of the mesh and contains the points closer to that vertex than to any other, so the face two cells share is perpendicular to the line between their vertices, and the vertices are the cell centers. The corners of a cell are the circumcenters of the triangles around its vertex, the centers of the circles through each triangle's three corners. A cell on the boundary is closed by the boundary's vertices and the midpoints of its edges, so its center is on its edge, and it is not convex where the boundary turns inward, as at a corner of a hole. Each circumcenter must lie inside the model area and on its triangle's side of every line and polygon, which holds when no circle through a triangle's corners contains another vertex and no angle opposite the boundary is over 90 degrees. Triangle's conforming Delaunay switch (D) adds vertices until both hold, so the mesh is generated and refined with it.
 
-Every line and polygon inside the model area runs through cell centers, since its vertices are vertices of the mesh, and the cells on it extend to both sides. Along the river, the cells follow the channel the way streamflow routing reaches do. A cell on the edge of a region, such as the lake's shore or a well's ring, takes the region of the side with most of its area; of the \shorecells\ cells on the lake's shore, \shorelakecells\ take the lake's region (fig.~\ref{fig:voronoi}\textit{D}).
+Every line and polygon inside the model area runs through cell centers, since its vertices are vertices of the mesh, and the cells on it extend to both sides. Along the river, a cell's center, where MODFLOW 6 calculates its head, is on the channel. A cell on the edge of a region, such as the lake's shore or a well's ring, takes the region of the side with most of its area; of the \shorecells\ cells on the lake's shore, \shorelakecells\ take the lake's region (fig.~\ref{fig:voronoi}\textit{D}).
 
 Figure~\ref{fig:voronoi} shows the Voronoi grid of the example valley, built from a mesh generated and refined as in Figures~\ref{fig:generated} and~\ref{fig:refined} with conforming Delaunay triangles, \delaunaytriangles\ in all. The grid has \voronoicells\ cells and \voronoivertices\ cell corners, each written once.
 
@@ -180,10 +180,10 @@ triangle-utils generate -a \maximumareavalue -q \minimumangle -s \boundaryspacin
 triangle-utils refine -A \maximumangle -D valley.1
 triangle-utils improve -A \improveangle valley.2
 triangle-utils check valley.3
-triangle-utils disv valley.3
+triangle-utils disv valley.2
 \end{Verbatim}
 
-\noindent Each command writes its mesh to files named as Triangle names them, valley.1 for valley and valley.2 for valley.1, and \texttt{disv} writes valley.3.disv; \texttt{triangle-utils generate -h}, \texttt{refine -h}, \texttt{improve -h}, and \texttt{disv -h} list the options of each.
+\noindent Each command writes its mesh to files named as Triangle names them, valley.1 for valley and valley.2 for valley.1, and \texttt{disv} writes the Voronoi grid of the refined mesh to valley.2.disv, as Figure~\ref{fig:voronoi} shows; \texttt{triangle-utils generate -h}, \texttt{refine -h}, \texttt{improve -h}, and \texttt{disv -h} list the options of each.
 
 From Python, the triangle-utils module in the python folder of the repository calls the library directly, and meshes and grids are returned as NumPy arrays. The script valley.py in the doc/UserGuide folder builds the example of this guide in steps, printed here in turn; the script make\_figures.py beside it uses its meshes and grid to make the figures. First come the coordinates of the boundary, river, lake, and wells:
 

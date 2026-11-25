@@ -8,6 +8,8 @@
 #include <map>
 #include <numbers>
 #include <numeric>
+#include <sstream>
+#include <string>
 #include <utility>
 #include <vector>
 
@@ -20,21 +22,18 @@ namespace
 {
 
 // how far past 90 degrees an angle opposite a boundary edge, or past 180 the
-// two opposite an interior edge, may be from rounding, in degrees
+// two opposite an interior edge, may be from rounding, in degrees; within it
+// of those limits, the circumcenters on each side of the edge, or the
+// circumcenter and the boundary edge's midpoint, are one Voronoi vertex, as
+// for a rectangle's two triangles, so no face is shorter than rounding
 constexpr double ANGLE_TOLERANCE = 1e-6;
-// the distance, as a fraction of an edge's length, within which the points
-// on each side of it are the same Voronoi vertex, as for a rectangle's two
-// triangles
-constexpr double MERGE_FRACTION = 1e-9;
+// the cross product of a boundary vertex's two edges, as a fraction of their
+// lengths' product, below which the boundary is straight there
+constexpr double STRAIGHT_FRACTION = 1e-9;
 
 Point midpoint(const Point & a, const Point & b)
 {
     return {0.5 * (a.x + b.x), 0.5 * (a.y + b.y)};
-}
-
-double distance(const Point & a, const Point & b)
-{
-    return std::hypot(b.x - a.x, b.y - a.y);
 }
 
 // The angle at a between b and c, in degrees.
@@ -66,6 +65,45 @@ double twice_area(const std::vector<Point> & polygon)
     return sum;
 }
 
+// An angle in degrees with enough digits to show how far it is from a limit.
+std::string degrees(double value)
+{
+    std::ostringstream text;
+    text.precision(12);
+    text << value;
+    return text.str();
+}
+
+// The angle opposite each edge of each triangle, plus the angle opposite it
+// in the neighbor across it, or twice the angle for a boundary edge, so 180
+// degrees is the limit for both.
+std::vector<std::array<double, 3>> opposite_sums(const Mesh & mesh,
+                                                 const std::vector<std::array<int, 3>> & neighbors)
+{
+    const auto & v = mesh.vertices;
+    std::vector<std::array<double, 3>> sums(mesh.triangles.size());
+    for (std::size_t triangle = 0; triangle < mesh.triangles.size(); triangle++)
+    {
+        const auto & t = mesh.triangles[triangle];
+        for (int corner = 0; corner < 3; corner++)
+        {
+            const int b = t[(corner + 1) % 3], c = t[(corner + 2) % 3];
+            const double opposite = angle(v[t[corner]], v[b], v[c]);
+            const int neighbor = neighbors[triangle][corner];
+            if (neighbor == NO_NEIGHBOR)
+            {
+                sums[triangle][corner] = 2.0 * opposite;
+                continue;
+            }
+            const auto & n = mesh.triangles[neighbor];
+            int across = 0;
+            while (n[across] == b || n[across] == c) across++;
+            sums[triangle][corner] = opposite + angle(v[n[across]], v[b], v[c]);
+        }
+    }
+    return sums;
+}
+
 void check_mesh(const Mesh & mesh)
 {
     check_sizes(mesh);
@@ -77,37 +115,26 @@ void check_mesh(const Mesh & mesh)
 // side of each edge its Voronoi cells need: an angle opposite a boundary
 // edge is at most 90 degrees, and two opposite an interior edge sum to at
 // most 180.
-void check_delaunay(const Mesh & mesh, const std::vector<std::array<int, 3>> & neighbors)
+void check_delaunay(const Mesh & mesh, const std::vector<std::array<int, 3>> & neighbors,
+                    const std::vector<std::array<double, 3>> & sums)
 {
-    const auto & v = mesh.vertices;
     for (std::size_t triangle = 0; triangle < mesh.triangles.size(); triangle++)
     {
         const auto & t = mesh.triangles[triangle];
         for (int corner = 0; corner < 3; corner++)
         {
+            if (sums[triangle][corner] <= 180.0 + ANGLE_TOLERANCE) continue;
             const int b = t[(corner + 1) % 3], c = t[(corner + 2) % 3];
-            const double opposite = angle(v[t[corner]], v[b], v[c]);
-            const int neighbor = neighbors[triangle][corner];
-            if (neighbor == NO_NEIGHBOR)
-            {
-                if (opposite > 90.0 + ANGLE_TOLERANCE)
-                    throw Error(message("the angle opposite the boundary edge from vertex ", b,
-                                        " to vertex ", c, " is ", opposite,
-                                        " degrees, over 90, so its triangle's circumcenter is "
-                                        "outside the mesh; generate or refine the mesh with "
-                                        "conforming Delaunay triangles"));
-                continue;
-            }
-            if (neighbor < static_cast<int>(triangle)) continue;
-            const auto & n = mesh.triangles[neighbor];
-            int across = 0;
-            while (n[across] == b || n[across] == c) across++;
-            const double sum = opposite + angle(v[n[across]], v[b], v[c]);
-            if (sum > 180.0 + ANGLE_TOLERANCE)
-                throw Error(message("the angles opposite the edge from vertex ", b, " to vertex ",
-                                    c, " sum to ", sum,
-                                    " degrees, over 180, so the mesh is not Delaunay; generate "
-                                    "or refine the mesh with conforming Delaunay triangles"));
+            if (neighbors[triangle][corner] == NO_NEIGHBOR)
+                throw Error(message("the angle opposite the boundary edge from vertex ", b,
+                                    " to vertex ", c, " is ", degrees(0.5 * sums[triangle][corner]),
+                                    " degrees, over 90, so its triangle's circumcenter is "
+                                    "outside the mesh; generate or refine the mesh with "
+                                    "conforming Delaunay triangles"));
+            throw Error(message("the angles opposite the edge from vertex ", b, " to vertex ", c,
+                                " sum to ", degrees(sums[triangle][corner]),
+                                " degrees, over 180, so the mesh is not Delaunay; generate or "
+                                "refine the mesh with conforming Delaunay triangles"));
         }
     }
 }
@@ -157,7 +184,8 @@ Grid voronoi_grid(const Mesh & mesh)
 {
     check_mesh(mesh);
     const auto neighbors = find_neighbors(mesh);
-    check_delaunay(mesh, neighbors);
+    const auto sums = opposite_sums(mesh, neighbors);
+    check_delaunay(mesh, neighbors, sums);
     const auto & v = mesh.vertices;
     const std::size_t triangle_count = mesh.triangles.size();
 
@@ -179,14 +207,12 @@ Grid voronoi_grid(const Mesh & mesh)
     Merged merged(points.size());
     for (std::size_t triangle = 0; triangle < triangle_count; triangle++)
     {
-        const auto & t = mesh.triangles[triangle];
         for (int corner = 0; corner < 3; corner++)
         {
-            const double length = distance(v[t[(corner + 1) % 3]], v[t[(corner + 2) % 3]]);
+            if (sums[triangle][corner] < 180.0 - ANGLE_TOLERANCE) continue;
             const int neighbor = neighbors[triangle][corner];
-            const int other = neighbor == NO_NEIGHBOR ? edge_point[triangle][corner] : neighbor;
-            if (distance(points[triangle], points[other]) <= MERGE_FRACTION * length)
-                merged.join(static_cast<int>(triangle), other);
+            merged.join(static_cast<int>(triangle),
+                        neighbor == NO_NEIGHBOR ? edge_point[triangle][corner] : neighbor);
         }
     }
 
@@ -292,7 +318,7 @@ Grid voronoi_grid(const Mesh & mesh)
             const double ux = first_middle.x - v[here].x, uy = first_middle.y - v[here].y;
             const double wx = last_middle.x - v[here].x, wy = last_middle.y - v[here].y;
             if (std::abs(ux * wy - uy * wx) >
-                MERGE_FRACTION * std::hypot(ux, uy) * std::hypot(wx, wy))
+                STRAIGHT_FRACTION * std::hypot(ux, uy) * std::hypot(wx, wy))
             {
                 cell.push_back(static_cast<int>(grid.vertices.size()));
                 grid.vertices.push_back(v[here]);

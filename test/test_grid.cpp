@@ -147,8 +147,8 @@ TEST(Grid, VoronoiCellsTileTheMeshAndAreConvex)
         const Point & center = mesh.vertices[grid.sources[cell]];
         EXPECT_EQ(grid.centers[cell].x, center.x);
         EXPECT_EQ(grid.centers[cell].y, center.y);
-        // clockwise corners turn right, except at a corner of a hole, where
-        // the cell's own vertex is a reflex corner
+        // clockwise corners turn right; the angle at the cell's own vertex,
+        // on the boundary, is skipped, since it is reflex at a hole's corner
         const auto & corners = grid.cells[cell];
         for (std::size_t i = 0; i < corners.size(); i++)
         {
@@ -200,6 +200,106 @@ TEST(Grid, VoronoiCellsTakeTheAttributeOfMostOfTheirArea)
     for (std::size_t cell = 0; cell < grid.cells.size(); cell++)
         if (grid.centers[cell].x == 6.0 && grid.centers[cell].y == 6.0)
             EXPECT_EQ(grid.attributes[cell], AQUIFER);
+}
+
+// A square lattice of n by n squares, each in two triangles, whose vertices
+// move by up to jitter, so neighboring circumcenters nearly coincide.
+Mesh lattice(int n, double jitter)
+{
+    Mesh mesh;
+    for (int row = 0; row <= n; row++)
+        for (int column = 0; column <= n; column++)
+        {
+            // a fixed pattern rather than random numbers, so the test repeats
+            const double shift = jitter * std::sin(7.0 * row + 3.0 * column);
+            const bool inside = row > 0 && row < n && column > 0 && column < n;
+            mesh.vertices.push_back(
+                {column + (inside ? shift : 0.0), row + (inside ? -shift : 0.0)});
+        }
+    for (int row = 0; row < n; row++)
+        for (int column = 0; column < n; column++)
+        {
+            const int a = row * (n + 1) + column, b = a + 1, c = a + n + 2, d = a + n + 1;
+            mesh.triangles.push_back({a, b, c});
+            mesh.triangles.push_back({a, c, d});
+        }
+    return mesh;
+}
+
+TEST(Grid, NearlyCocircularCircumcentersAreOneVertex)
+{
+    // the exact lattice's cells are squares, which share their corners
+    const Grid exact = voronoi_grid(lattice(6, 0.0));
+    check_tiling(exact, lattice(6, 0.0));
+    for (const double jitter : {1e-12, 1e-9})
+    {
+        const Mesh mesh = lattice(6, jitter);
+        const Grid grid = voronoi_grid(mesh);
+        check_tiling(grid, mesh);
+        EXPECT_EQ(grid.vertices.size(), exact.vertices.size()) << "jitter " << jitter;
+    }
+}
+
+TEST(Grid, ReentrantCornerCellIsTheOnlyOneNotConvex)
+{
+    Geometry geometry;
+    geometry.polygons.push_back(
+        {{{0.0, 0.0}, {4.0, 0.0}, {4.0, 2.0}, {2.0, 2.0}, {2.0, 4.0}, {0.0, 4.0}}, 0.0, 1});
+    MeshOptions options;
+    options.maximum_area = 0.2;
+    options.minimum_angle = 28.0;
+    options.conforming_delaunay = true;
+    const Mesh mesh = generate_mesh(geometry, options);
+    const Grid grid = voronoi_grid(mesh);
+    check_tiling(grid, mesh);
+    for (std::size_t cell = 0; cell < grid.cells.size(); cell++)
+    {
+        const auto & corners = grid.cells[cell];
+        bool convex = true;
+        for (std::size_t i = 0; i < corners.size(); i++)
+            if (cross(grid.vertices[corners[i]], grid.vertices[corners[(i + 1) % corners.size()]],
+                      grid.vertices[corners[(i + 2) % corners.size()]]) > TOLERANCE)
+                convex = false;
+        const Point & center = grid.centers[cell];
+        EXPECT_EQ(convex, !(center.x == 2.0 && center.y == 2.0)) << "cell " << cell;
+    }
+}
+
+TEST(Grid, BoundaryVerticesAreCornersOnlyWhereTheBoundaryTurns)
+{
+    const Mesh mesh = valley_mesh();
+    const Grid grid = voronoi_grid(mesh);
+    int corners = 0, straight = 0;
+    for (std::size_t cell = 0; cell < grid.cells.size(); cell++)
+    {
+        const Point & c = grid.centers[cell];
+        const bool on_side = c.x == 0.0 || c.x == 10.0 || c.y == 0.0 || c.y == 10.0;
+        if (!on_side) continue;
+        const bool at_corner = (c.x == 0.0 || c.x == 10.0) && (c.y == 0.0 || c.y == 10.0);
+        const bool listed = std::any_of(
+            grid.cells[cell].begin(), grid.cells[cell].end(), [&](int vertex)
+            { return grid.vertices[vertex].x == c.x && grid.vertices[vertex].y == c.y; });
+        EXPECT_EQ(listed, at_corner) << "cell " << cell;
+        (at_corner ? corners : straight)++;
+    }
+    EXPECT_EQ(corners, 4);
+    EXPECT_GT(straight, 0);
+}
+
+TEST(Grid, CellsTakeEveryAttributeOfTheirLargerSide)
+{
+    Mesh mesh;
+    mesh.vertices = {{0.0, 0.0}, {2.0, 0.0}, {2.0, 1.0}, {0.0, 1.0}};
+    mesh.triangles = {{0, 1, 2}, {0, 2, 3}};
+    mesh.triangle_attribute_count = 2;
+    mesh.triangle_attributes = {1.0, 10.0, 2.0, 20.0};
+    const Grid grid = voronoi_grid(mesh);
+    ASSERT_EQ(grid.attribute_count, 2);
+    // vertices 1 and 3 are each in one triangle
+    EXPECT_EQ(grid.attributes[2], 1.0);
+    EXPECT_EQ(grid.attributes[3], 10.0);
+    EXPECT_EQ(grid.attributes[6], 2.0);
+    EXPECT_EQ(grid.attributes[7], 20.0);
 }
 
 TEST(Grid, RectangleCellsShareTheirCircumcenter)
@@ -298,4 +398,18 @@ TEST(Grid, ErrorsGiveTheReason)
     EXPECT_EQ(reason(unused), "vertex 3 is in no triangle, so it has no cell");
 
     EXPECT_EQ(reason(Mesh{}), "the mesh has no triangles");
+
+    // two triangles that share only a vertex
+    Mesh bow_tie;
+    bow_tie.vertices = {{0.0, 0.0}, {1.0, 0.0}, {0.0, 1.0}, {-1.0, 0.0}, {0.0, -1.0}};
+    bow_tie.triangles = {{0, 1, 2}, {0, 3, 4}};
+    EXPECT_EQ(
+        reason(bow_tie),
+        "vertex 0 is where parts of the mesh meet at a point, so its cell is not one polygon");
+
+    // an angle just over 90 degrees is given with the digits that show it
+    Mesh barely;
+    barely.vertices = {{0.0, 0.0}, {2.0, 0.0}, {1.0, 0.99999}};
+    barely.triangles = {{0, 1, 2}};
+    EXPECT_NE(reason(barely).find("is 90.0005729"), std::string::npos) << reason(barely);
 }

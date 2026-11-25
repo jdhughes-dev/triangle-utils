@@ -467,7 +467,8 @@ def draw_grid(ax, grid, mesh, centers=False):
 
 
 def voronoi_figure(grid, mesh, windows):
-    """The Voronoi grid of the valley, with close-ups of a well and the river."""
+    """The Voronoi grid of the valley, with close-ups of a well, the river,
+    and the lake's shore."""
     with styles.USGSMap():
         fig, axd = valley_and_windows()
         draw_grid(axd["A"], grid, mesh)

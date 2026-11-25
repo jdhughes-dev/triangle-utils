@@ -35,7 +35,8 @@ enum class TriangleCenter
 };
 
 // The Voronoi grid of a conforming Delaunay mesh: a cell around each
-// vertex, centered on it. Throws Error if the mesh is not Delaunay.
+// vertex, centered on it; a boundary vertex's cell is not convex where the
+// boundary turns inward. Throws Error if the mesh is not Delaunay.
 Grid voronoi_grid(const Mesh & mesh);
 
 // A grid whose cells are the mesh's triangles.

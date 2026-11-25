@@ -42,6 +42,9 @@ Cases:
                          Voronoi DISV grid with a cell per vertex covering
                          the box, and a .cells file; the triangle grids have
                          a cell per triangle.
+  - test_disv_cells    : a mesh numbered from 0 with triangle attributes writes
+                         each cell's vertex or triangle from 0 and its
+                         attributes to the .cells file.
   - test_disv_errors   : a mesh that is not Delaunay exits 1 with the reason.
   - test_generate_errors : a bad option value is a usage error (2), and a
                          boundary not closed and a missing file are errors
@@ -477,6 +480,25 @@ def test_disv(tmp_path):
         assert sum(clockwise_area(vertices, cell[3]) for cell in cells) == (
             pytest.approx(8.0)
         )
+
+
+def test_disv_cells(tmp_path):
+    # the unit square in two triangles, numbered from 0, each with two
+    # attributes
+    base = write_mesh(
+        tmp_path,
+        node="4 2 0 0\n0 0 0\n1 1 0\n2 1 1\n3 0 1\n",
+        ele="2 3 2\n0 0 1 2 5 50\n1 0 2 3 6 60\n",
+    )
+    assert run("disv", "-g", "centroid", base)[0] == 0
+    rows = [line.split() for line in open(f"{base}.cells")][1:]
+    assert rows == [["2", "2"], ["1", "0", "5", "50"], ["2", "1", "6", "60"]]
+    assert run("disv", base)[0] == 0
+    rows = [line.split() for line in open(f"{base}.cells")][1:]
+    assert rows[0] == ["4", "2"]
+    # vertices 1 and 3 are each in one triangle
+    assert rows[2] == ["2", "1", "5", "50"]
+    assert rows[4] == ["4", "3", "6", "60"]
 
 
 def test_disv_errors(tmp_path):

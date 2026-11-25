@@ -30,8 +30,9 @@ MODFLOW-ORG/triangle and MODFLOW-ORG/gridgen.
 - **Build the user guide** (its figures and `doc/UserGuide/triangle-utils.pdf`;
   needs `pixi run build` first, TeX Live, and the usgslatex class from
   MODFLOW-ORG/usgslatex): `pixi run -e doc build-guide`
-- **Get MODFLOW 6** (into the pixi environment's `bin`, with flopy's
-  `get-modflow`, to run a grid): `pixi run get-mf6`
+- **Get MODFLOW 6** (6.7.0, into the pixi environment's `bin`, with flopy's
+  `get-modflow`; `test_modflow.py` runs it on the grids, and skips without
+  it): `pixi run get-mf6`
 
 ## Repository orientation
 

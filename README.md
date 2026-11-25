@@ -51,9 +51,10 @@ angle smaller unless a smaller minimum angle is given; a mesh's fixed vertices,
 which `generate` sets to its point features and ring centers, do not move.
 `triangle_utils_mesh_voronoi()` builds the Voronoi grid of a conforming
 Delaunay mesh: a cell around each vertex, centered on it, so the line between
-two cells' centers is perpendicular to their shared face; a cell on a segment
-inside the mesh, such as a lake's shore, spans both sides and takes the
-attributes of the side with most of its area.
+two cells' centers is perpendicular to their shared face; a cell on the
+boundary is centered on its edge, and is not convex where the boundary turns
+inward; a cell on a segment inside the mesh, such as a lake's shore, spans both
+sides and takes the attributes of the side with most of its area.
 `triangle_utils_mesh_triangle_grid()` makes the triangles the cells, centered
 on their centroids or circumcenters. Either grid lists each vertex once and
 each cell's corners clockwise, as MODFLOW 6 DISV does. The API also returns the

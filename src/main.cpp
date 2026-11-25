@@ -142,11 +142,12 @@ Build a grid from the mesh in <base>.node and <base>.ele and write it, with
 one layer, to <output>.disv for MODFLOW 6. The Voronoi grid has a cell
 around each vertex, centered on it, so the line between two cells' centers
 is perpendicular to their shared face; its mesh must be conforming Delaunay
-(generate or refine with -D). A cell on a segment inside the mesh, such as a
-lake's shore, spans both sides and takes the attributes of the side with
-most of its area. A triangle grid has the triangles as its cells. Each
-cell's vertex or triangle, numbered as in <base>.node or <base>.ele, and
-its attributes are written to <output>.cells.
+(generate or refine with -D). A cell on the boundary is centered on its
+edge, and is not convex where the boundary turns inward. A cell on a segment
+inside the mesh, such as a lake's shore, spans both sides and takes the
+attributes of the side with most of its area. A triangle grid has the
+triangles as its cells. Each cell's vertex or triangle, numbered as in
+<base>.node or <base>.ele, and its attributes are written to <output>.cells.
 
 Options:
   -h, --help              show this help

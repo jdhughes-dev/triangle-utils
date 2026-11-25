@@ -25,8 +25,9 @@ build = "meson install -C builddir"
 
 # test
 test = { cmd = "meson test --verbose --no-rebuild -C builddir" }
-# download MODFLOW 6 from MODFLOW-ORG/executables into the environment's bin
-get-mf6 = { cmd = "get-modflow :python --subset mf6" }
+# download MODFLOW 6 (6.7.0) from release 30.0 of MODFLOW-ORG/executables into
+# the environment's bin
+get-mf6 = { cmd = "get-modflow :python --subset mf6 --release-id 30.0" }
 
 # tests built with the address and undefined behavior sanitizers; any error
 # they report fails the test, and so does a leak where the leak sanitizer runs
