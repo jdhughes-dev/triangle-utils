@@ -60,7 +60,9 @@ Cases:
                          (1).
   - test_guide_commands : the user guide's commands, on the files
                          valley_files.py writes, exit 0, with the values of
-                         valley.py.
+                         valley.py; the generated mesh has the wells as fixed
+                         vertices, the regions' attributes, and the
+                         features' markers.
 """
 
 import itertools
@@ -614,6 +616,25 @@ def test_guide_commands(tmp_path, monkeypatch):
             cwd=tmp_path,
         )
         assert result.returncode == 0, result.stderr
+    # the .poly file gave the wells, the regions, and the markers
+    node = (tmp_path / "valley.1.node").read_text().split("\n")
+    vertices = {
+        (float(w[1]), float(w[2])): int(w[-1])
+        for w in (line.split() for line in node[1:])
+        if w
+    }
+    assert all(vertices[well] == 1 for well in valley["WELLS"])
+    ele = [line.split() for line in (tmp_path / "valley.1.ele").read_text().split("\n")]
+    assert ele[0][2] == "1"
+    attributes = {float(w[4]) for w in ele[1:] if w}
+    assert attributes == {valley["AQUIFER"], valley["LAKE_REGION"]}
+    poly = [
+        line.split() for line in (tmp_path / "valley.1.poly").read_text().split("\n")
+    ]
+    segment_count = int(poly[1][0])
+    markers = {int(w[3]) for w in poly[2 : 2 + segment_count]}
+    marker_names = ("BOUNDARY_MARKER", "RIVER_MARKER", "LAKE_MARKER")
+    assert markers == {valley[name] for name in marker_names}
     # the commands use the values of valley.py
     options = {(c[1], c[i]): c[i + 1] for c in commands for i in range(2, len(c) - 1)}
     assert float(options["generate", "-a"]) == valley["MAXIMUM_AREA"]

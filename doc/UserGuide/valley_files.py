@@ -11,27 +11,16 @@ import sys
 from pathlib import Path
 
 from valley import (
-    AQUIFER,
     BOUNDARY,
     BOUNDARY_MARKER,
     LAKE,
-    LAKE_AREA,
     LAKE_MARKER,
-    LAKE_REGION,
+    REGIONS,
     RIVER,
     RIVER_MARKER,
     TRIBUTARY,
     WELLS,
 )
-
-# a point inside each region, its attribute, and its area limit, or -1 for
-# none, as Triangle reads them
-REGIONS = [
-    ((500, 1000), AQUIFER, -1),
-    ((4000, 1000), AQUIFER, -1),
-    ((3500, 6500), AQUIFER, -1),
-    ((1100, 5400), LAKE_REGION, LAKE_AREA),
-]
 
 
 def write_files(folder):
@@ -60,8 +49,9 @@ def write_files(folder):
     lines += [f"{n} {a + 1} {b + 1} {m}" for n, (a, b, m) in enumerate(segments, 1)]
     lines.append("0")
     lines.append(str(len(REGIONS)))
+    # an area limit of -1 is none, as Triangle reads it
     lines += [
-        f"{n} {x} {y} {attribute} {area}"
+        f"{n} {x} {y} {attribute} {area if area > 0 else -1}"
         for n, ((x, y), attribute, area) in enumerate(REGIONS, 1)
     ]
     (folder / "valley.poly").write_text("\n".join(lines) + "\n")

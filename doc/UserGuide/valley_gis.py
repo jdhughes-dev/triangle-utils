@@ -15,17 +15,15 @@ import geopandas
 import triangle_utils as tu
 from shapely.geometry import LineString, Point, Polygon
 from valley import (
-    AQUIFER,
     BOUNDARY,
     BOUNDARY_MARKER,
     BOUNDARY_SPACING,
     LAKE,
-    LAKE_AREA,
     LAKE_MARKER,
-    LAKE_REGION,
     LAKE_SPACING,
     MAXIMUM_AREA,
     MINIMUM_ANGLE,
+    REGIONS,
     RIVER_MARKER,
     RIVER_SPACING,
     STREAMS,
@@ -39,13 +37,6 @@ from valley import (
 
 # a projected coordinate system, as a GIS gives one; the valley is in meters
 CRS = "EPSG:26916"
-# a point inside each region, with its attribute and area limit
-REGIONS = [
-    ((500, 1000), AQUIFER, 0.0),
-    ((4000, 1000), AQUIFER, 0.0),
-    ((3500, 6500), AQUIFER, 0.0),
-    ((1100, 5400), LAKE_REGION, LAKE_AREA),
-]
 
 
 def write_shapefiles(folder):

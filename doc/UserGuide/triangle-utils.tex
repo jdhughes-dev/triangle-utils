@@ -109,7 +109,7 @@ Points are added along each polygon and line so that no two successive points ar
 Figure~\ref{fig:generated} shows a mesh of an example valley of \valleyarea\ square kilometers (km$^2$), with points every \boundaryspacing\ meters (m) along its boundary, every \riverspacing~m along the river and its tributary, and every \lakespacing~m around the lake. Triangles are no larger than \maximumarea\ square meters (m$^2$) in the aquifer and \lakearea~m$^2$ in the lake, and have no angle smaller than \minimumangle\ degrees. Each of the three wells is at the center of a ring with a radius of \wellradius~m and \wellpoints\ points, in which triangles are no larger than \wellarea~m$^2$. The river starts and ends on the boundary, between two of its points, and the tributary starts on it and ends on the river. Figures~\ref{fig:generated}\textit{B}--\textit{D} show the mesh in square windows \wellwindow~m, \riverwindow~m, and \lakewindow~m on a side around the well where the generated mesh has the most triangles with an angle over \maximumangle\ degrees (fig.~\ref{fig:refined}), at the confluence, where the tributary joins the river, and on the lake's shore. The mesh has \generatedvertices\ vertices and \generatedtriangles\ triangles.
 
 \codelead
-In Python, the valley's geometry is built from the coordinates of its features, each with the spacing of its points and the marker of its segments; the complete script, valley.py, is listed in appendix~\ref{appendix:listings}, where the coordinates and values these lines use are defined:
+In Python, with the module imported as \texttt{tu} (\texttt{import triangle\_utils as tu}), the valley's geometry is built from the coordinates of its features, each with the spacing of its points and the marker of its segments; the complete script, valley.py, is listed in appendix~\ref{appendix:listings}, where the coordinates and values these lines use are defined:
 
 \excerpt{geometry}{valley.py}
 
@@ -312,7 +312,7 @@ The \texttt{triangle-utils} program reads and writes the files of Triangle. The 
 \APPENDIX{Listings of the Example}{}
 \label{appendix:listings}
 
-The example of this guide is three Python scripts in the doc/UserGuide folder of the repository. valley.py builds the valley's meshes, grid, connections, cells of its features, and layers; the excerpts in the text are numbered by its lines. valley\_gis.py builds the valley's geometry from shapefiles, and valley\_files.py writes the files of the command-line example. The tests run all three.
+The example of this guide is three Python scripts in the doc/UserGuide folder of the repository. valley.py builds the valley's meshes, grid, connections, cells of its features, and layers; the excerpts in the text are numbered by its lines. valley\_gis.py builds the valley's geometry from shapefiles, and valley\_files.py writes the files of the command-line example. The tests run valley.py, valley\_gis.py where geopandas is installed, and the commands of the command-line example on the files valley\_files.py writes.
 
 \subsection*{valley.py}
 

@@ -140,14 +140,12 @@ def choose_windows(mesh):
     return {"B": well, "C": CONFLUENCE_WINDOW, "D": LAKE_WINDOW}
 
 
-# the sections of valley.py the guide prints in turn, by the start of the
-# first line of each
 # the excerpts the guide prints beside the text: the script, and the starts
 # of the first and last statements; each runs from any comment just above
 # its first statement to the end of its last
 EXCERPTS = {
     "geometry": ("valley.py", "geometry = tu.Geometry()", "geometry.add_polygon(LAKE"),
-    "regions": ("valley.py", "geometry.add_region(500", "for x, y in WELLS:"),
+    "regions": ("valley.py", "for (x, y), attribute", "for x, y in WELLS:"),
     "generate": ("valley.py", "mesh = tu.generate(", "mesh = tu.generate("),
     "refine": ("valley.py", "refined = tu.refine(", "refined = tu.refine("),
     "improve": ("valley.py", "improved = tu.improve(", "improved = tu.improve("),
@@ -163,12 +161,13 @@ EXCERPTS = {
 
 def check_names():
     """Raise ValueError if the guide names a Python or C function that the
-    module or the library does not have."""
+    module or the C header does not have."""
     text = (HERE / "triangle-utils.tex").read_text().replace("\\_", "_")
-    exports = (HERE.parents[1] / "src" / "triangle_utils.def").read_text().split()
+    header = (HERE.parents[1] / "src" / "triangle_utils.h").read_text()
+    declared = set(re.findall(r"\b(triangle_utils_\w+)\(", header))
     missing = [n for n in re.findall(r"\btu\.(\w+)", text) if not hasattr(tu, n)]
     missing += [
-        n for n in re.findall(r"\b(triangle_utils_\w+)", text) if n not in exports
+        n for n in re.findall(r"\b(triangle_utils_\w+)", text) if n not in declared
     ]
     if missing:
         raise ValueError(f"the guide names functions that do not exist: {missing}")
@@ -191,11 +190,19 @@ def excerpt_lines():
                 )
             return found[0]
 
-        begin = find(first).lineno
+        statement = find(first)
+        # a decorated function starts at its first decorator
+        begin = min(
+            [statement.lineno]
+            + [d.lineno for d in getattr(statement, "decorator_list", [])]
+        )
         while begin > 1 and lines[begin - 2].lstrip().startswith("#"):
             begin -= 1
+        end = find(last).end_lineno
+        if end < begin:
+            raise ValueError(f"excerpt {name} ends before it starts")
         values[f"excerpt{name}first"] = begin
-        values[f"excerpt{name}last"] = find(last).end_lineno
+        values[f"excerpt{name}last"] = end
     return values
 
 
