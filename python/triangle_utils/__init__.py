@@ -352,28 +352,35 @@ class Geometry:
         )
 
     def add_features(self, features, points="vertices"):
-        """Add features, such as those read_features() returns: polygons, hole
-        polygons, and lines with their spacing and marker, and points as
-        vertices, as regions with their attribute and area limit, or as holes
-        (points is "vertices", "regions", or "holes")."""
+        """Add features, such as those of read_features(), with points as
+        "vertices", "regions", or "holes".
+
+        Polygons, hole polygons, and lines get their spacing and marker, and
+        regions their attribute and area limit."""
         if points not in ("vertices", "regions", "holes"):
             raise ValueError(
                 f'points must be "vertices", "regions", or "holes", not {points!r}'
             )
+        features = list(features)
         for feature in features:
             if feature.kind not in KINDS:
                 raise ValueError(f"{feature.kind!r} is not a kind of feature")
+        vertices = []
+        for feature in features:
             if feature.kind != "point":
                 add = getattr(self, f"add_{feature.kind}")
                 add(feature.points, spacing=feature.spacing, marker=feature.marker)
                 continue
             for x, y in _rows(feature.points, 2, "points", np.float64):
                 if points == "vertices":
-                    self.add_points([(x, y)])
+                    vertices.append((x, y))
                 elif points == "regions":
                     self.add_region(x, y, feature.attribute, feature.area_limit)
                 else:
                     self.add_hole(x, y)
+        # in one call, after the other features
+        if vertices:
+            self.add_points(vertices)
 
     def _handle(self):
         """A new geometry handle with the features; free it after use."""

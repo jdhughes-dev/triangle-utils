@@ -11,15 +11,21 @@ Cases:
   - test_parts         : multi-part features and collections give one feature
                          per part with their row's values, a polygon's holes
                          are hole polygons, rings are counterclockwise, z is
-                         dropped, and null and empty shapes are skipped.
+                         dropped, and null and empty shapes are skipped, even
+                         with missing values.
+  - test_points        : point features are added as vertices of the mesh or
+                         as holes.
+  - test_files         : a GeoPackage layer, GeoJSON, and a shapefile with a
+                         null shape and an integer field are read.
   - test_multipatch    : a multipatch of rings is a polygon with a hole; one
                          of triangle strips raises ValueError.
   - test_crs           : a geographic CRS raises ValueError; a projected one
                          or none is read.
-  - test_bad_values    : a missing column, a missing value, a marker that is
-                         not a whole number, a column of shapely geometries,
-                         a layer of a GeoDataFrame, and a bad kind or points
-                         argument raise ValueError.
+  - test_bad_values    : a missing column or value, a value that is not a
+                         finite number, a marker that is not a whole number,
+                         a column name for shapely geometries, a layer of a
+                         GeoDataFrame, and a bad kind or points argument
+                         raise ValueError, before any feature is added.
 """
 
 import runpy
@@ -144,10 +150,14 @@ def test_parts():
     )
 
     square = [(0, 0), (10, 0), (10, 10), (0, 10)]
-    # clockwise, as a GIS may store a hole
+    # clockwise, as a shapefile stores a hole
     hole = [(4, 4), (4, 6), (6, 6), (6, 4)]
+    # the null and empty shapes' values are missing
     frame = geopandas.GeoDataFrame(
-        {"marker": [1, 2, 3, 4, 5, 6], "spacing": [1.0, 2.0, 3.0, 4.0, 5.0, 6.0]},
+        {
+            "marker": [1, None, 3, None, 5, 6],
+            "spacing": [1.0, np.nan, 3.0, np.nan, 5.0, 6.0],
+        },
         geometry=[
             MultiPolygon(
                 [Polygon(square, [hole]), Polygon([(20, 0), (30, 0), (20, 10)])]
@@ -174,6 +184,9 @@ def test_parts():
     np.testing.assert_array_equal(features[0].points, square)
     np.testing.assert_array_equal(features[1].points, [hole[0], *hole[:0:-1]])
     np.testing.assert_array_equal(features[3].points, [(0, 0), (1, 1)])
+    # a clockwise outer boundary, as a shapefile stores it
+    clockwise = tu.read_features(Polygon(square[::-1]))
+    np.testing.assert_array_equal(clockwise[0].points, [square[-1], *square[:-1]])
     # shapely geometries alone, with numbers for the values
     features = tu.read_features(Polygon(square, [hole]), marker=7, spacing=0.5)
     assert [(f.kind, f.marker, f.spacing) for f in features] == [
@@ -186,6 +199,53 @@ def test_parts():
     areas = mesh.triangle_areas()
     assert areas.sum() == pytest.approx(100 - 4)
     assert set(mesh.segment_markers.tolist()) == {7}
+
+
+def test_points():
+    from shapely.geometry import MultiPoint, Polygon
+
+    square = [(0, 0), (10, 0), (10, 10), (0, 10)]
+    inner = [(4, 4), (6, 4), (6, 6), (4, 6)]
+    points = [(2.5, 7.5), (7.5, 2.5)]
+    geometry = tu.Geometry()
+    geometry.add_features(tu.read_features([Polygon(square), Polygon(inner)]))
+    geometry.add_features(tu.read_features(MultiPoint(points)))
+    mesh = tu.generate(geometry)
+    for point in points:
+        assert any(np.array_equal(vertex, point) for vertex in mesh.vertices)
+    assert mesh.triangle_areas().sum() == pytest.approx(100)
+    # a point inside the inner polygon as a hole
+    geometry = tu.Geometry()
+    geometry.add_features(tu.read_features([Polygon(square), Polygon(inner)]))
+    geometry.add_features(tu.read_features(MultiPoint([(5, 5)])), points="holes")
+    mesh = tu.generate(geometry)
+    assert mesh.triangle_areas().sum() == pytest.approx(100 - 4)
+
+
+def test_files(tmp_path):
+    from shapely.geometry import LineString, Point
+
+    lines = geopandas.GeoDataFrame(
+        {"marker": [2]}, geometry=[LineString([(0, 0), (5, 5)])], crs="EPSG:26916"
+    )
+    points = geopandas.GeoDataFrame(
+        {"marker": [3, 4]}, geometry=[Point(1, 2), None], crs="EPSG:26916"
+    )
+    package = tmp_path / "features.gpkg"
+    lines.to_file(package, layer="lines")
+    points.to_file(package, layer="points")
+    features = tu.read_features(package, layer="points", marker="marker")
+    assert [(f.kind, f.row, f.marker) for f in features] == [("point", 0, 3)]
+    lines.to_file(tmp_path / "lines.geojson")
+    features = tu.read_features(tmp_path / "lines.geojson", marker="marker")
+    assert [(f.kind, f.marker) for f in features] == [("line", 2)]
+    # a shapefile's integer field and null shape
+    points.to_file(tmp_path / "points.shp")
+    read = geopandas.read_file(tmp_path / "points.shp")
+    assert read.geometry.iloc[1] is None
+    assert np.issubdtype(read["marker"].dtype, np.integer)
+    features = tu.read_features(tmp_path / "points.shp", marker="marker")
+    assert [(f.kind, f.row, f.marker) for f in features] == [("point", 0, 3)]
 
 
 def write_multipatch(path, parts):
@@ -263,6 +323,11 @@ def test_bad_values():
         tu.read_features(frame, marker="marker")
     with pytest.raises(ValueError, match="whole number"):
         tu.read_features(frame, marker="fraction")
+    for value in (np.inf, np.nan, None):
+        with pytest.raises(ValueError, match="must be a"):
+            tu.read_features(frame, spacing=value)
+    with pytest.raises(ValueError, match="'text' in row 0 must be a number"):
+        tu.read_features(frame.assign(text=["abc", "1"]), spacing="text")
     with pytest.raises(ValueError, match="names a column"):
         tu.read_features([Point(0, 0)], marker="marker")
     with pytest.raises(ValueError, match="layer"):
@@ -271,4 +336,11 @@ def test_bad_values():
     with pytest.raises(ValueError, match="points must be"):
         geometry.add_features([], points="wells")
     with pytest.raises(ValueError, match="kind"):
-        geometry.add_features([tu.Feature("ring", np.zeros((1, 2)), 0)])
+        geometry.add_features(
+            [
+                tu.Feature("point", np.zeros((1, 2)), 0),
+                tu.Feature("ring", np.zeros((1, 2)), 0),
+            ]
+        )
+    # nothing was added
+    assert geometry == tu.Geometry()

@@ -55,28 +55,40 @@ def _frame(source, layer):
     return list(source)
 
 
-def _values(frame, value, name, convert):
-    """A value for each row: a column's, or the same number for all."""
-    rows = len(frame)
+def _value(frame, value, name, whole):
+    """A function of a row that gives its value: a column's, or a number."""
     if not isinstance(value, str):
-        return [convert(value, name)] * rows
+        number = _number(value, name, whole)
+        return lambda row: number
     if not hasattr(frame, "columns"):
         raise ValueError(f"{name} names a column, but the source has none")
     if value not in frame.columns:
         raise ValueError(f"{name} names column {value!r}, which the source lacks")
     import pandas
 
-    values = []
-    for row, item in enumerate(frame[value]):
-        if pandas.isna(item):
+    column = frame[value].tolist()
+
+    def row_value(row):
+        if pandas.isna(column[row]):
             raise ValueError(f"column {value!r} has no value in row {row}")
-        values.append(convert(item, f"column {value!r} in row {row}"))
-    return values
+        return _number(column[row], f"column {value!r} in row {row}", whole)
+
+    return row_value
 
 
-def _float(value, name):
-    """A number for a double argument."""
-    return float(value)
+def _number(value, name, whole):
+    """A finite number, or a whole number if whole; ValueError if not."""
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        raise ValueError(f"{name} must be a number, not {value!r}") from None
+    if not np.isfinite(number):
+        raise ValueError(f"{name} must be a finite number, not {value!r}")
+    if whole:
+        from . import _int
+
+        return _int(number, name)
+    return number
 
 
 def _ring(ring):
@@ -118,16 +130,15 @@ def _parts(geometry):
 def read_features(
     source, layer=None, marker=0, spacing=0.0, attribute=0.0, area_limit=0.0
 ):
-    """The parts of the features of a file geopandas reads (a shapefile,
-    GeoPackage, or GeoJSON), a GeoDataFrame, or shapely geometries.
+    """A list of a Feature for each part of the features of a file geopandas
+    reads (a shapefile, GeoPackage, or GeoJSON), a GeoDataFrame, or shapely
+    geometries.
 
-    Each value is a number for every feature or, for a file or GeoDataFrame,
-    the name of the column that holds it. A polygon's holes are hole polygons
-    with its values, every polygon is counterclockwise, and empty and null
-    shapes are skipped. The coordinates
-    must be projected; a geographic CRS raises ValueError."""
-    from . import _int
-
+    Each value is a number or, for a file or GeoDataFrame, the name of the
+    column that holds it. A polygon's holes are hole polygons with its values,
+    every polygon is counterclockwise, empty and null shapes are skipped, and
+    a feature's row is its position in the source. A geographic CRS raises
+    ValueError; a source without a CRS is taken to be projected."""
     frame = _frame(source, layer)
     crs = getattr(frame, "crs", None)
     if crs is not None and crs.is_geographic:
@@ -135,15 +146,26 @@ def read_features(
             f"the coordinates are geographic ({crs.name}); project them, for "
             "example with GeoDataFrame.to_crs()"
         )
-    values = zip(
-        _values(frame, marker, "marker", _int),
-        _values(frame, spacing, "spacing", _float),
-        _values(frame, attribute, "attribute", _float),
-        _values(frame, area_limit, "area_limit", _float),
-    )
+    # each value's function of a row, with numbers checked now and a
+    # column's values when their row has a shape, since a null shape's may
+    # be missing
+    values = [
+        _value(frame, value, name, whole)
+        for name, value, whole in (
+            ("marker", marker, True),
+            ("spacing", spacing, False),
+            ("attribute", attribute, False),
+            ("area_limit", area_limit, False),
+        )
+    ]
     geometries = frame.geometry if hasattr(frame, "geometry") else frame
     features = []
-    for row, (geometry, row_values) in enumerate(zip(geometries, values)):
-        for kind, points in _parts(geometry):
-            features.append(Feature(kind, np.array(points), row, *row_values))
+    for row, geometry in enumerate(geometries):
+        parts = list(_parts(geometry))
+        if parts:
+            row_values = [value(row) for value in values]
+            features.extend(
+                Feature(kind, np.array(points), row, *row_values)
+                for kind, points in parts
+            )
     return features
