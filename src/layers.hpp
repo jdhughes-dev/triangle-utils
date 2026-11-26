@@ -65,11 +65,8 @@ Layers layer_grid(const Grid & grid, int layer_count, const std::vector<double> 
                   const std::vector<double> & bottoms, const std::vector<int> & idomain,
                   double minimum_thickness);
 
-// Layers of the same grid with a new top and new bottoms, from the idomain
-// and minimum thickness the layers were given, so a cell that is now thin
-// enough becomes pass-through and one that is no longer thin is restored.
-// Throws Error as layer_grid() does, or if the bottoms are not one for each
-// cell in each layer.
+// Layers of the same grid with a new top and bottoms, from the idomain and
+// minimum thickness the layers were given. Throws Error as layer_grid() does.
 Layers layers_with_elevations(const Grid & grid, const Layers & layers,
                               const std::vector<double> & top, const std::vector<double> & bottoms);
 

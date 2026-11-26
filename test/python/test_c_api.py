@@ -706,6 +706,8 @@ def test_layers(library):
     try:
         status, layers = make_layers(library, grid, (5, 5, 0, 0), 0.1)
         assert status == OK
+        # its connections, made here, are kept for the new layers
+        assert len(disu(library, layers)["cells"]) == 4
         top = (ctypes.c_double * 2)(10.0, 10.0)
         result = ctypes.cast(ctypes.c_void_p(1), LAYERS_POINTER)
         try:
@@ -719,6 +721,17 @@ def test_layers(library):
                 assert library.triangle_utils_layers_idomain(result, 4, idomain) == OK
                 assert list(idomain) == [1, 1, 1, -1]
                 assert disu(library, result)["cells"] == [0, 1, 2]
+                # as built with those elevations, through the cached
+                # connections, and the first layers unchanged
+                status, built = make_layers(library, grid, tuple(thin), 0.1)
+                assert status == OK
+                assert disu(library, result) == disu(library, built)
+                library.triangle_utils_layers_free(built)
+                assert library.triangle_utils_layers_idomain(layers, 4, idomain) == OK
+                assert list(idomain) == [1, 1, 1, 1]
+                bottoms = (ctypes.c_double * 4)()
+                assert library.triangle_utils_layers_bottoms(layers, 4, bottoms) == OK
+                assert list(bottoms) == [5, 5, 0, 0]
                 restored = LAYERS_POINTER()
                 first = (ctypes.c_double * 4)(5, 5, 0, 0)
                 status = library.triangle_utils_layers_with_elevations(

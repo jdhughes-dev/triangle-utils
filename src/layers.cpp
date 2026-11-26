@@ -111,9 +111,6 @@ Layers layer_grid(const Grid & grid, int layer_count, const std::vector<double> 
 Layers layers_with_elevations(const Grid & grid, const Layers & layers,
                               const std::vector<double> & top, const std::vector<double> & bottoms)
 {
-    if (bottoms.size() != layers.given_idomain.size())
-        throw Error(message(layers.layer_count, " layers of ", layers.cell_count, " cells need ",
-                            layers.given_idomain.size(), " bottom values, not ", bottoms.size()));
     return layer_grid(grid, layers.layer_count, top, bottoms, layers.given_idomain,
                       layers.minimum_thickness);
 }

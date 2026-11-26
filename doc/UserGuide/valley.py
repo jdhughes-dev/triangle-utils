@@ -78,6 +78,8 @@ BASE_WEST = -95.0
 BASE_EAST = -45.0
 BASE_RELIEF = 5.0
 MINIMUM_THICKNESS = 1.0
+# a revision of the geologic model that raises the clay's base
+CLAY_RAISE = 1.0
 # the attribute of each region, and the marker of each feature's segments
 AQUIFER, LAKE_REGION, WELL_REGION = 1, 2, 3
 BOUNDARY_MARKER, RIVER_MARKER, LAKE_MARKER, WELL_MARKER = 1, 2, 3, 4
@@ -219,3 +221,8 @@ layers = tu.layer_grid(
 # the arguments of FloPy's ModflowGwfdisv and ModflowGwfdisu
 disv = layers.disv_arguments()
 disu = layers.disu_arguments()
+
+# the layers again after a revision raises the clay's base: more of the
+# clay is thinner than the minimum and passes flow between the aquifers,
+# and the DISU nodes and connections follow
+revised = layers.with_elevations(top, [UPPER_BOTTOM, clay_bottom + CLAY_RAISE, bottom])

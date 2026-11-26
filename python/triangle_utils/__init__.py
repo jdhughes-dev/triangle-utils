@@ -907,10 +907,11 @@ class Layers:
     def with_elevations(self, top, botm):
         """Layers of the same grid with a new top and botm, given as for
         layer_grid() with as many layers, from the idomain and minimum
-        thickness these layers were given: a cell the new elevations make
-        thinner than the minimum thickness becomes pass-through, and one they
-        make thick enough is active again, so the DISV idomain and the DISU
-        nodes, connections, and CL12 follow the new elevations."""
+        thickness given to layer_grid().
+
+        A cell the new elevations make thinner than the minimum thickness
+        becomes pass-through, and one they make thick enough is active again;
+        the DISV and DISU data follow the new elevations."""
         layer_count = _layer_count(botm)
         if layer_count != len(self.given_idomain):
             raise ValueError(
