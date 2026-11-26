@@ -899,6 +899,27 @@ class Layers:
     # the DISU node of each cell in each layer, or -1
     nodes: np.ndarray
     disu: Disu
+    # the idomain and minimum thickness the layers were given, before thin
+    # cells were made pass-through
+    given_idomain: np.ndarray
+    minimum_thickness: float
+
+    def with_elevations(self, top, botm):
+        """Layers of the same grid with a new top and botm, given as for
+        layer_grid() with as many layers, from the idomain and minimum
+        thickness these layers were given: a cell the new elevations make
+        thinner than the minimum thickness becomes pass-through, and one they
+        make thick enough is active again, so the DISV idomain and the DISU
+        nodes, connections, and CL12 follow the new elevations."""
+        layer_count = _layer_count(botm)
+        if layer_count != len(self.given_idomain):
+            raise ValueError(
+                f"botm must have {len(self.given_idomain)} layers, as the layers "
+                f"do, not {layer_count}"
+            )
+        return layer_grid(
+            self.grid, top, botm, self.given_idomain, self.minimum_thickness
+        )
 
     def disv_arguments(self):
         """The arguments of flopy's ModflowGwfdisv for the layers."""
@@ -971,6 +992,12 @@ def _layer_values(values, layer_count, cell_count, name, dtype):
         ) from None
 
 
+def _layer_count(botm):
+    """The number of layers botm gives, as layer_grid() takes it."""
+    scalar = not isinstance(botm, (list, tuple)) and np.ndim(botm) == 0
+    return 1 if scalar else len(botm)
+
+
 def layer_grid(grid, top, botm, idomain=None, minimum_thickness=0.0):
     """Layers of a grid, from the top of its cells and the bottom of each
     layer, as DISV takes them: top is a number or a value for each cell, and
@@ -988,8 +1015,7 @@ def layer_grid(grid, top, botm, idomain=None, minimum_thickness=0.0):
     connect_cells() cannot connect, such as a triangle grid centered on the
     circumcenters of obtuse triangles."""
     cell_count = len(grid.cells)
-    scalar = not isinstance(botm, (list, tuple)) and np.ndim(botm) == 0
-    layer_count = 1 if scalar else len(botm)
+    layer_count = _layer_count(botm)
     if layer_count == 0:
         raise ValueError("botm must have a bottom for at least one layer")
     bottoms = _layer_values(botm, layer_count, cell_count, "botm", np.float64)
@@ -1002,12 +1028,14 @@ def layer_grid(grid, top, botm, idomain=None, minimum_thickness=0.0):
             f"{tops.shape}"
         )
     domain_pointer = None
+    given = np.ones((layer_count, cell_count), dtype=np.intc)
     if idomain is not None:
         domain = _integers(
             _layer_values(idomain, layer_count, cell_count, "idomain", np.float64),
             "idomain",
         )
         domain, domain_pointer = _ints(domain)
+        given = domain.copy()
     tops, top_pointer = _doubles(tops)
     bottoms, bottom_pointer = _doubles(bottoms)
     api = _api()
@@ -1098,4 +1126,6 @@ def layer_grid(grid, top, botm, idomain=None, minimum_thickness=0.0):
         result,
         nodes.reshape(layer_count, cell_count),
         disu,
+        given.reshape(layer_count, cell_count),
+        float(minimum_thickness),
     )

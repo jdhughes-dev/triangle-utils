@@ -25,6 +25,10 @@ struct Layers
     std::vector<double> bottoms;
     // > 0 active, 0 not in the model, < 0 vertical pass-through
     std::vector<int> idomain;
+    // the idomain and minimum thickness the layers were given, before thin
+    // cells were made pass-through
+    std::vector<int> given_idomain;
+    double minimum_thickness = 0.0;
 };
 
 // DISU data of layers: a node for each active cell, numbered layer by layer.
@@ -60,6 +64,14 @@ struct Disu
 Layers layer_grid(const Grid & grid, int layer_count, const std::vector<double> & top,
                   const std::vector<double> & bottoms, const std::vector<int> & idomain,
                   double minimum_thickness);
+
+// Layers of the same grid with a new top and new bottoms, from the idomain
+// and minimum thickness the layers were given, so a cell that is now thin
+// enough becomes pass-through and one that is no longer thin is restored.
+// Throws Error as layer_grid() does, or if the bottoms are not one for each
+// cell in each layer.
+Layers layers_with_elevations(const Grid & grid, const Layers & layers,
+                              const std::vector<double> & top, const std::vector<double> & bottoms);
 
 // The DISU data of layers of a grid with its connections. A node connects
 // to the active cells beside it in its layer and to the active cells above

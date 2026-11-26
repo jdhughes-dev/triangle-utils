@@ -50,7 +50,9 @@ struct TriangleUtilsLayers
 {
     triangle_utils::Grid grid;
     triangle_utils::Layers layers;
-    // connected on the first DISU call, since DISV does not need it
+    // connected on the first DISU call, since DISV does not need them, and
+    // kept for layers with new elevations
+    mutable std::optional<triangle_utils::Connections> connections;
     mutable std::optional<triangle_utils::Disu> disu;
 };
 
@@ -1135,17 +1137,20 @@ const triangle_utils::Disu & layers_disu(const TriangleUtilsLayers * layers)
 {
     if (!layers->disu)
     {
-        triangle_utils::Connections connections;
-        try
+        if (!layers->connections)
         {
-            connections = triangle_utils::connect_cells(layers->grid);
+            try
+            {
+                layers->connections = triangle_utils::connect_cells(layers->grid);
+            }
+            catch (const triangle_utils::Error & error)
+            {
+                throw triangle_utils::Error(
+                    triangle_utils::message("the layers' DISU connections: ", error.what()));
+            }
         }
-        catch (const triangle_utils::Error & error)
-        {
-            throw triangle_utils::Error(
-                triangle_utils::message("the layers' DISU connections: ", error.what()));
-        }
-        layers->disu = triangle_utils::layer_disu(layers->grid, connections, layers->layers);
+        layers->disu =
+            triangle_utils::layer_disu(layers->grid, *layers->connections, layers->layers);
     }
     return *layers->disu;
 }
@@ -1155,6 +1160,30 @@ const triangle_utils::Disu & layers_disu(const TriangleUtilsLayers * layers)
 void triangle_utils_layers_free(TriangleUtilsLayers * layers)
 {
     delete layers;
+}
+
+int triangle_utils_layers_with_elevations(const TriangleUtilsLayers * layers, int cell_count,
+                                          const double * top, int value_count,
+                                          const double * bottoms, TriangleUtilsLayers ** result)
+{
+    return call(
+        [&]
+        {
+            check_pointer(result, "result");
+            *result = nullptr;
+            check_pointer(layers, "layers");
+            check_matches(cell_count, layers->grid.cells.size(), "cell", "layers");
+            check_matches(value_count, layers->layers.bottoms.size(), "bottom value", "layers");
+            if (cell_count > 0) check_pointer(top, "top");
+            if (value_count > 0) check_pointer(bottoms, "bottom");
+            auto stored = std::make_unique<TriangleUtilsLayers>();
+            stored->grid = layers->grid;
+            stored->connections = layers->connections;
+            stored->layers = triangle_utils::layers_with_elevations(
+                layers->grid, layers->layers, std::vector<double>(top, top + cell_count),
+                std::vector<double>(bottoms, bottoms + value_count));
+            *result = stored.release();
+        });
 }
 
 int triangle_utils_layers_idomain(const TriangleUtilsLayers * layers, int value_count,

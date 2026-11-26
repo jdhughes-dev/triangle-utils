@@ -33,6 +33,11 @@ Cases:
                          and the arguments for FloPy hold the arrays;
                          crossing bottoms raise Error and bad shapes
                          ValueError.
+  - test_layers_with_elevations : new elevations give the layers built with
+                         them, with the given idomain and minimum thickness:
+                         a thinned cell passes through and the first
+                         elevations restore it; another layer count raises
+                         ValueError.
   - test_shapes        : arrays of the wrong shape, length, or range, and
                          values too large for an int, raise ValueError before
                          the library reads them.
@@ -321,6 +326,42 @@ def test_layers():
         tu.layer_grid(grid, 10.0, 0.0, minimum_thickness=-1.0)
     with pytest.raises(tu.Error, match="vertex count is 2"):
         tu.values_at_centers(grid, mesh, [1.0, 2.0])
+
+
+def assert_layers_equal(a, b):
+    for name in ("top", "botm", "idomain", "nodes", "given_idomain"):
+        np.testing.assert_array_equal(getattr(a, name), getattr(b, name), name)
+    for name in ("layers", "cells", "top", "bot", "iac", "ja", "ihc", "cl12", "hwva"):
+        np.testing.assert_array_equal(
+            getattr(a.disu, name), getattr(b.disu, name), name
+        )
+
+
+def test_layers_with_elevations():
+    mesh = tu.generate(
+        square_geometry(), maximum_area=0.5, minimum_angle=25, conforming_delaunay=True
+    )
+    grid = tu.voronoi(mesh)
+    x = grid.centers[:, 0]
+    idomain = np.ones((3, len(x)), dtype=int)
+    idomain[1, 0] = 0
+    layers = tu.layer_grid(grid, 10.0, [5.0, 3.0, 0.0], idomain, 0.5)
+    np.testing.assert_array_equal(layers.given_idomain, idomain)
+    assert layers.minimum_thickness == 0.5
+    # the middle layer thins to 0.1 m west of x = 5 under a rising top
+    top = 12.0 + 0.1 * x
+    botm = [5.0, np.where(x < 5.0, 4.9, 3.0), 0.0]
+    changed = layers.with_elevations(top, botm)
+    assert_layers_equal(changed, tu.layer_grid(grid, top, botm, idomain, 0.5))
+    thin = (x < 5.0) & (idomain[1] == 1)
+    assert thin.any()
+    np.testing.assert_array_equal(changed.idomain[1, thin], -1)
+    assert changed.idomain[1, 0] == 0
+    assert len(changed.disu.cells) < len(layers.disu.cells)
+    # the first elevations restore the thin cells
+    assert_layers_equal(changed.with_elevations(10.0, [5.0, 3.0, 0.0]), layers)
+    with pytest.raises(ValueError, match="botm must have 3 layers, as the layers do"):
+        layers.with_elevations(10.0, [5.0, 0.0])
 
 
 def test_shapes():

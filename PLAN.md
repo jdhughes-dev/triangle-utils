@@ -18,23 +18,23 @@ triangle grids for DISV), #12 (the cells of points, lines, and boundaries),
 tributary in the guide's example), #50 (features from GeoDataFrames and
 shapely geometries in Python), #19 (layers, with DISV and DISU arrays),
 #61 (the guide's code beside its sections, with the full listings in an
-appendix), #58 (layered DISV and DISU files from the command line).
+appendix), #58 (layered DISV and DISU files from the command line), #59
+(layers with new elevations).
 
-1. #59 recompute a layered grid's DISU data for new elevations
-2. #51 read shapefiles in the C++ library with shapelib
-3. #52 evaluate reading GeoPackage and FlatGeobuf in the C++ library
-4. #23 ghost-node correction
-5. #43 hybrid grid, Voronoi cells around features and triangles elsewhere
-6. #44 a point feature centered in a triangle cell, evaluated before the
+1. #51 read shapefiles in the C++ library with shapelib
+2. #52 evaluate reading GeoPackage and FlatGeobuf in the C++ library
+3. #23 ghost-node correction
+4. #43 hybrid grid, Voronoi cells around features and triangles elsewhere
+5. #44 a point feature centered in a triangle cell, evaluated before the
    release: shipped as an option, or closed with its findings
-7. #14 grid quality report
-8. #18 model checks with MODFLOW 6, MODFLOW-USG, and MODFLOW-USG-Transport
-9. #20 different refinement by layer
-10. #15 structured grids, merging cells, and refinement by a field
-11. #21 user guide
-12. #22 Read the Docs
-13. #24 release notes
-14. #10 release and conda-forge package
+6. #14 grid quality report
+7. #18 model checks with MODFLOW 6, MODFLOW-USG, and MODFLOW-USG-Transport
+8. #20 different refinement by layer
+9. #15 structured grids, merging cells, and refinement by a field
+10. #21 user guide
+11. #22 Read the Docs
+12. #24 release notes
+13. #10 release and conda-forge package
 
 ## Triangle
 
