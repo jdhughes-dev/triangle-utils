@@ -20,6 +20,7 @@
 #include "geometry.hpp"
 #include "grid.hpp"
 #include "improve.hpp"
+#include "layers.hpp"
 #include "mesh.hpp"
 #include "refine.hpp"
 
@@ -41,6 +42,12 @@ struct TriangleUtilsCellLengths
 struct TriangleUtilsConnections
 {
     triangle_utils::Connections connections;
+};
+
+struct TriangleUtilsLayers
+{
+    triangle_utils::Layers layers;
+    triangle_utils::Disu disu;
 };
 
 struct TriangleUtilsGeometry
@@ -1056,5 +1063,146 @@ int triangle_utils_connections(const TriangleUtilsConnections * connections, int
             std::copy(c.distances.begin(), c.distances.end(), distances);
             std::copy(c.widths.begin(), c.widths.end(), widths);
             std::copy(c.angles.begin(), c.angles.end(), angles);
+        });
+}
+
+int triangle_utils_grid_vertex_values(const TriangleUtilsGrid * grid,
+                                      const TriangleUtilsMesh * mesh, int vertex_count,
+                                      const double * vertex_values, int cell_count,
+                                      double * cell_values)
+{
+    return call(
+        [&]
+        {
+            check_pointer(grid, "grid");
+            check_pointer(mesh, "mesh");
+            check_matches(vertex_count, mesh->mesh.vertices.size(), "vertex");
+            check_matches(cell_count, grid->grid.cells.size(), "cell", "grid");
+            if (vertex_count > 0) check_pointer(vertex_values, "vertex value");
+            if (cell_count > 0) check_pointer(cell_values, "cell value");
+            const auto values = triangle_utils::values_at_centers(
+                grid->grid, mesh->mesh,
+                std::vector<double>(vertex_values, vertex_values + vertex_count));
+            std::copy(values.begin(), values.end(), cell_values);
+        });
+}
+
+int triangle_utils_grid_layers(const TriangleUtilsGrid * grid, int layer_count, int cell_count,
+                               const double * top, const double * bottoms, const int * idomain,
+                               double minimum_thickness, TriangleUtilsLayers ** layers)
+{
+    return call(
+        [&]
+        {
+            check_pointer(layers, "layers");
+            *layers = nullptr;
+            check_pointer(grid, "grid");
+            check_matches(cell_count, grid->grid.cells.size(), "cell", "grid");
+            if (layer_count < 1)
+                throw ArgumentError(
+                    triangle_utils::message("the layer count is ", layer_count, ", not positive"));
+            const std::size_t cells = static_cast<std::size_t>(cell_count);
+            const std::size_t values = static_cast<std::size_t>(layer_count) * cells;
+            if (cells > 0)
+            {
+                check_pointer(top, "top");
+                check_pointer(bottoms, "bottom");
+            }
+            std::vector<int> domain;
+            if (idomain != nullptr) domain.assign(idomain, idomain + values);
+            auto stored = std::make_unique<TriangleUtilsLayers>();
+            stored->layers = triangle_utils::layer_grid(
+                grid->grid, layer_count, std::vector<double>(top, top + cells),
+                std::vector<double>(bottoms, bottoms + values), domain, minimum_thickness);
+            stored->disu = triangle_utils::layer_disu(
+                grid->grid, triangle_utils::connect_cells(grid->grid), stored->layers);
+            *layers = stored.release();
+        });
+}
+
+void triangle_utils_layers_free(TriangleUtilsLayers * layers)
+{
+    delete layers;
+}
+
+int triangle_utils_layers_idomain(const TriangleUtilsLayers * layers, int value_count,
+                                  int * idomain)
+{
+    return call(
+        [&]
+        {
+            check_pointer(layers, "layers");
+            const auto & values = layers->layers.idomain;
+            check_matches(value_count, values.size(), "idomain value", "layers");
+            if (value_count > 0) check_pointer(idomain, "idomain");
+            std::copy(values.begin(), values.end(), idomain);
+        });
+}
+
+int triangle_utils_layers_disu_count(const TriangleUtilsLayers * layers, int * node_count,
+                                     int * connection_count)
+{
+    return call(
+        [&]
+        {
+            check_pointer(layers, "layers");
+            check_pointer(node_count, "node count");
+            check_pointer(connection_count, "connection count");
+            // layer_grid and layer_disu limit both to what an int holds
+            *node_count = static_cast<int>(layers->disu.cells.size());
+            *connection_count = static_cast<int>(layers->disu.nodes.size());
+        });
+}
+
+int triangle_utils_layers_disu_nodes(const TriangleUtilsLayers * layers, int node_count,
+                                     int * cells, double * top, double * bottom, double * area)
+{
+    return call(
+        [&]
+        {
+            check_pointer(layers, "layers");
+            const auto & d = layers->disu;
+            check_matches(node_count, d.cells.size(), "node", "layers");
+            if (node_count > 0)
+            {
+                check_pointer(cells, "cell");
+                check_pointer(top, "top");
+                check_pointer(bottom, "bottom");
+                check_pointer(area, "area");
+            }
+            std::copy(d.cells.begin(), d.cells.end(), cells);
+            std::copy(d.top.begin(), d.top.end(), top);
+            std::copy(d.bottom.begin(), d.bottom.end(), bottom);
+            std::copy(d.area.begin(), d.area.end(), area);
+        });
+}
+
+int triangle_utils_layers_disu_connections(const TriangleUtilsLayers * layers, int node_count,
+                                           int * offsets, int connection_count, int * nodes,
+                                           int * directions, double * distances, double * widths,
+                                           double * angles)
+{
+    return call(
+        [&]
+        {
+            check_pointer(layers, "layers");
+            const auto & d = layers->disu;
+            check_matches(node_count, d.cells.size(), "node", "layers");
+            check_matches(connection_count, d.nodes.size(), "connection", "layers");
+            check_pointer(offsets, "offset");
+            if (connection_count > 0)
+            {
+                check_pointer(nodes, "node");
+                check_pointer(directions, "direction");
+                check_pointer(distances, "distance");
+                check_pointer(widths, "width");
+                check_pointer(angles, "angle");
+            }
+            std::copy(d.offsets.begin(), d.offsets.end(), offsets);
+            std::copy(d.nodes.begin(), d.nodes.end(), nodes);
+            std::copy(d.directions.begin(), d.directions.end(), directions);
+            std::copy(d.distances.begin(), d.distances.end(), distances);
+            std::copy(d.widths.begin(), d.widths.end(), widths);
+            std::copy(d.angles.begin(), d.angles.end(), angles);
         });
 }

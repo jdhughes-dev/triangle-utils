@@ -36,11 +36,16 @@ class Connections(ctypes.Structure):
     """The opaque connections."""
 
 
+class Layers(ctypes.Structure):
+    """The opaque layers."""
+
+
 MESH_POINTER = ctypes.POINTER(Mesh)
 GEOMETRY_POINTER = ctypes.POINTER(Geometry)
 GRID_POINTER = ctypes.POINTER(Grid)
 CELL_LENGTHS_POINTER = ctypes.POINTER(CellLengths)
 CONNECTIONS_POINTER = ctypes.POINTER(Connections)
+LAYERS_POINTER = ctypes.POINTER(Layers)
 
 INT = ctypes.c_int
 DOUBLE = ctypes.c_double
@@ -137,6 +142,44 @@ SIGNATURES = {
             INT,
             INT_ARRAY,
             INT,
+            INT_ARRAY,
+            DOUBLE_ARRAY,
+            DOUBLE_ARRAY,
+            DOUBLE_ARRAY,
+        ],
+    ),
+    "grid_vertex_values": (
+        INT,
+        [GRID_POINTER, MESH_POINTER, INT, DOUBLE_ARRAY, INT, DOUBLE_ARRAY],
+    ),
+    "grid_layers": (
+        INT,
+        [
+            GRID_POINTER,
+            INT,
+            INT,
+            DOUBLE_ARRAY,
+            DOUBLE_ARRAY,
+            INT_ARRAY,
+            DOUBLE,
+            ctypes.POINTER(LAYERS_POINTER),
+        ],
+    ),
+    "layers_free": (None, [LAYERS_POINTER]),
+    "layers_idomain": (INT, [LAYERS_POINTER, INT, INT_ARRAY]),
+    "layers_disu_count": (INT, [LAYERS_POINTER, INT_ARRAY, INT_ARRAY]),
+    "layers_disu_nodes": (
+        INT,
+        [LAYERS_POINTER, INT, INT_ARRAY, DOUBLE_ARRAY, DOUBLE_ARRAY, DOUBLE_ARRAY],
+    ),
+    "layers_disu_connections": (
+        INT,
+        [
+            LAYERS_POINTER,
+            INT,
+            INT_ARRAY,
+            INT,
+            INT_ARRAY,
             INT_ARRAY,
             DOUBLE_ARRAY,
             DOUBLE_ARRAY,

@@ -18,6 +18,7 @@ from ._library import (
     CONNECTIONS_POINTER,
     GEOMETRY_POINTER,
     GRID_POINTER,
+    LAYERS_POINTER,
     MESH_POINTER,
     OK,
     load,
@@ -26,10 +27,12 @@ from ._library import (
 __all__ = [
     "CellLengths",
     "Connections",
+    "Disu",
     "Error",
     "Feature",
     "Geometry",
     "Grid",
+    "Layers",
     "Mesh",
     "cells_along_line",
     "cells_at_points",
@@ -38,9 +41,11 @@ __all__ = [
     "count_angles_over",
     "generate",
     "improve",
+    "layer_grid",
     "read_features",
     "refine",
     "triangle_grid",
+    "values_at_centers",
     "version",
     "voronoi",
 ]
@@ -820,3 +825,262 @@ def connect_cells(grid):
         return Connections(offsets, cells, distances, widths, angles)
     finally:
         api.triangle_utils_connections_free(handle)
+
+
+def values_at_centers(grid, mesh, vertex_values):
+    """The value at each cell's center, such as an elevation, interpolated
+    linearly from a value at each of the mesh's vertices; a center on a
+    vertex, as in a Voronoi grid, gets the vertex's value."""
+    values, value_pointer = _doubles(np.asarray(vertex_values, dtype=np.float64))
+    if values.ndim != 1:
+        raise ValueError(
+            f"vertex_values must be one value per vertex, not {values.shape}"
+        )
+    result, result_pointer = _doubles(np.zeros(len(grid.cells)))
+    api = _api()
+    grid_handle = _grid_handle(grid)
+    try:
+        mesh_handle = _to_handle(mesh)
+        try:
+            _check(
+                api.triangle_utils_grid_vertex_values(
+                    grid_handle,
+                    mesh_handle,
+                    len(values),
+                    value_pointer,
+                    len(result),
+                    result_pointer,
+                )
+            )
+        finally:
+            api.triangle_utils_mesh_free(mesh_handle)
+    finally:
+        api.triangle_utils_grid_free(grid_handle)
+    return result
+
+
+@dataclass(eq=False)
+class Disu:
+    """The DISU data of layers, a node for each active cell numbered layer by
+    layer; indices are zero based. The connections of node n are iac[n]
+    values of ja and the arrays beside it, the first to n itself."""
+
+    # the layer and cell of each node
+    layers: np.ndarray
+    cells: np.ndarray
+    top: np.ndarray
+    bot: np.ndarray
+    area: np.ndarray
+    iac: np.ndarray
+    ja: np.ndarray
+    # 0 vertical, 1 horizontal
+    ihc: np.ndarray
+    # 0 for a node's connection to itself
+    cl12: np.ndarray
+    hwva: np.ndarray
+    angldegx: np.ndarray
+
+
+@dataclass(eq=False)
+class Layers:
+    """Layers of a grid, each with the grid's cells, with their DISV and DISU
+    data; indices are zero based."""
+
+    grid: Grid
+    # the top of each cell, shape (cell count,)
+    top: np.ndarray
+    # the bottom of each cell in each layer, shape (layer count, cell count)
+    botm: np.ndarray
+    # > 0 active, 0 not in the model, < 0 vertical pass-through, with the
+    # pass-through cells the minimum thickness made
+    idomain: np.ndarray
+    # the DISU node of each cell in each layer, or -1
+    nodes: np.ndarray
+    disu: Disu
+
+    def disv_arguments(self):
+        """The arguments of flopy's ModflowGwfdisv for the layers."""
+        layer_count, cell_count = self.botm.shape
+        return {
+            "nlay": layer_count,
+            "ncpl": cell_count,
+            "nvert": len(self.grid.vertices),
+            "top": self.top,
+            "botm": self.botm,
+            "idomain": self.idomain,
+            "vertices": self.grid.disv_vertices(),
+            "cell2d": self.grid.disv_cell2d(),
+        }
+
+    def disu_arguments(self):
+        """The arguments of flopy's ModflowGwfdisu for the layers, with each
+        node's cell as its vertices."""
+        d = self.disu
+        centers = self.grid.centers[d.cells].tolist()
+        corners = [self.grid.cells[cell].tolist() for cell in d.cells]
+        return {
+            "nodes": len(d.cells),
+            "nja": len(d.ja),
+            "nvert": len(self.grid.vertices),
+            "top": d.top,
+            "bot": d.bot,
+            "area": d.area,
+            "iac": d.iac,
+            "ja": d.ja,
+            "ihc": d.ihc,
+            "cl12": d.cl12,
+            "hwva": d.hwva,
+            "angldegx": d.angldegx,
+            "vertices": self.grid.disv_vertices(),
+            "cell2d": [
+                [node, x, y, len(cell), *cell]
+                for node, ((x, y), cell) in enumerate(
+                    zip(centers, corners, strict=True)
+                )
+            ],
+        }
+
+
+def _layer_values(values, layer_count, cell_count, name, dtype):
+    """Values for each cell in each layer from a number, or for each layer a
+    number or a value for each cell."""
+    try:
+        if isinstance(values, (list, tuple)):
+            # a number or a value for each cell, for each layer
+            array = np.array(
+                [
+                    np.broadcast_to(np.asarray(v, dtype=dtype), cell_count)
+                    for v in values
+                ]
+            )
+        else:
+            array = np.asarray(values, dtype=dtype)
+            if array.ndim == 1:
+                array = array[:, np.newaxis]
+        return np.ascontiguousarray(np.broadcast_to(array, (layer_count, cell_count)))
+    except ValueError:
+        raise ValueError(
+            f"{name} must be a number, a value for each of {layer_count} layers, "
+            f"or shape ({layer_count}, {cell_count}), not shape {array.shape}"
+        ) from None
+
+
+def layer_grid(grid, top, botm, idomain=None, minimum_thickness=0.0):
+    """Layers of a grid, from the top of its cells and the bottom of each
+    layer, as DISV takes them: top is a number or a value for each cell, and
+    botm has, for each layer, a number or a value for each cell, from which
+    the layer count is taken; idomain, if given, is a number or is given for
+    each layer as botm is.
+
+    A cell's top is the bottom of the cell above it, as in MODFLOW. An active
+    cell thinner than minimum_thickness, if it is positive, becomes a
+    pass-through cell (idomain -1); otherwise an active cell that is not
+    thicker than 0 raises Error, naming its cell and layer."""
+    cell_count = len(grid.cells)
+    scalar = not isinstance(botm, (list, tuple)) and np.ndim(botm) == 0
+    layer_count = 1 if scalar else len(botm)
+    bottoms = _layer_values(botm, layer_count, cell_count, "botm", np.float64)
+    tops = np.asarray(top, dtype=np.float64)
+    if tops.ndim == 0:
+        tops = np.full(cell_count, tops)
+    elif tops.shape != (cell_count,):
+        raise ValueError(
+            f"top must be a number or one of {cell_count} values, not shape "
+            f"{tops.shape}"
+        )
+    domain_pointer = None
+    if idomain is not None:
+        domain = _integers(
+            _layer_values(idomain, layer_count, cell_count, "idomain", np.float64),
+            "idomain",
+        )
+        domain, domain_pointer = _ints(domain)
+    tops, top_pointer = _doubles(tops)
+    bottoms, bottom_pointer = _doubles(bottoms)
+    api = _api()
+    grid_handle = _grid_handle(grid)
+    try:
+        handle = LAYERS_POINTER()
+        _check(
+            api.triangle_utils_grid_layers(
+                grid_handle,
+                layer_count,
+                cell_count,
+                top_pointer,
+                bottom_pointer,
+                domain_pointer,
+                float(minimum_thickness),
+                ctypes.byref(handle),
+            )
+        )
+    finally:
+        api.triangle_utils_grid_free(grid_handle)
+    try:
+        result, result_pointer = _ints(np.zeros((layer_count, cell_count)))
+        _check(api.triangle_utils_layers_idomain(handle, result.size, result_pointer))
+        node_count = ctypes.c_int()
+        count = ctypes.c_int()
+        _check(
+            api.triangle_utils_layers_disu_count(
+                handle, ctypes.byref(node_count), ctypes.byref(count)
+            )
+        )
+        n = node_count.value
+        cells, cell_pointer = _ints(np.zeros(n))
+        node_top, node_top_pointer = _doubles(np.zeros(n))
+        node_bot, node_bot_pointer = _doubles(np.zeros(n))
+        area, area_pointer = _doubles(np.zeros(n))
+        _check(
+            api.triangle_utils_layers_disu_nodes(
+                handle,
+                n,
+                cell_pointer,
+                node_top_pointer,
+                node_bot_pointer,
+                area_pointer,
+            )
+        )
+        offsets, offset_pointer = _ints(np.zeros(n + 1))
+        ja, ja_pointer = _ints(np.zeros(count.value))
+        ihc, ihc_pointer = _ints(np.zeros(count.value))
+        cl12, cl12_pointer = _doubles(np.zeros(count.value))
+        hwva, hwva_pointer = _doubles(np.zeros(count.value))
+        angles, angle_pointer = _doubles(np.zeros(count.value))
+        _check(
+            api.triangle_utils_layers_disu_connections(
+                handle,
+                n,
+                offset_pointer,
+                count,
+                ja_pointer,
+                ihc_pointer,
+                cl12_pointer,
+                hwva_pointer,
+                angle_pointer,
+            )
+        )
+    finally:
+        api.triangle_utils_layers_free(handle)
+    nodes = np.full(layer_count * cell_count, -1, dtype=np.intc)
+    nodes[cells] = np.arange(n, dtype=np.intc)
+    disu = Disu(
+        cells // cell_count if cell_count else cells,
+        cells % cell_count if cell_count else cells,
+        node_top,
+        node_bot,
+        area,
+        np.diff(offsets).astype(np.intc),
+        ja,
+        ihc,
+        cl12,
+        hwva,
+        angles,
+    )
+    return Layers(
+        grid,
+        tops,
+        bottoms.reshape(layer_count, cell_count),
+        result,
+        nodes.reshape(layer_count, cell_count),
+        disu,
+    )

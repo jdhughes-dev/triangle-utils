@@ -70,8 +70,16 @@ point, such as a well. `triangle_utils_grid_connections()` gives, for each face
 two cells share at two common corners, the distance from each center to the face along its normal,
 the face's width, and the direction of its normal, for MODFLOW DISU (CL12,
 HWVA, and ANGLDEGX); a center on a face or beyond it, as an obtuse triangle's
-circumcenter, is an error. `triangle_utils_grid_create()` makes a grid from a
-caller's arrays. The API also returns the versions of triangle-utils and
+circumcenter, is an error. `triangle_utils_grid_layers()` gives a grid layers,
+from the top of each cell, the bottom of each cell in each layer, and IDOMAIN,
+and returns the DISV IDOMAIN, with an active cell thinner than a minimum
+thickness made a pass-through cell, and the DISU nodes and connections, which
+connect through pass-through cells as MODFLOW 6 does in DISV;
+`triangle_utils_grid_vertex_values()` interpolates values at the mesh's
+vertices, such as elevations, to the cell centers. In Python,
+`layer_grid()` returns them with the arguments of FloPy's DISV and DISU
+packages. `triangle_utils_grid_create()` makes a grid from a caller's
+arrays. The API also returns the versions of triangle-utils and
 Triangle, the license, and Triangle's copyright notice. Calls must not run
 concurrently, since Triangle keeps global state.
 
