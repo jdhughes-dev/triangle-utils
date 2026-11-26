@@ -7,6 +7,8 @@ prints, so its example is the code that made the figures; uses the library
 values to values.tex, so the guide rebuilds from the repository alone.
 """
 
+import ast
+import re
 import sys
 from pathlib import Path
 
@@ -138,35 +140,69 @@ def choose_windows(mesh):
     return {"B": well, "C": CONFLUENCE_WINDOW, "D": LAKE_WINDOW}
 
 
-# the sections of valley.py the guide prints in turn, by the start of the
-# first line of each
-VALLEY_SECTIONS = {
-    "coordinates": "import triangle_utils as tu",
-    "values": "# the spacing of points along each feature",
-    "geometry": "geometry = tu.Geometry()",
-    "meshing": "mesh = tu.generate(",
-    "grid": "# the Voronoi grid needs",
-    "connections": "# the connections between",
-    "features": "# each stream's cells",
-    "layers": "def inside_polygon(",
+# the excerpts the guide prints beside the text: the script, and the starts
+# of the first and last statements; each runs from any comment just above
+# its first statement to the end of its last
+EXCERPTS = {
+    "geometry": ("valley.py", "geometry = tu.Geometry()", "geometry.add_polygon(LAKE"),
+    "regions": ("valley.py", "for (x, y), attribute", "for x, y in WELLS:"),
+    "generate": ("valley.py", "mesh = tu.generate(", "mesh = tu.generate("),
+    "refine": ("valley.py", "refined = tu.refine(", "refined = tu.refine("),
+    "improve": ("valley.py", "improved = tu.improve(", "improved = tu.improve("),
+    "delaunay": ("valley.py", "delaunay_mesh = tu.generate(", "delaunay_refined ="),
+    "voronoi": ("valley.py", "grid = tu.voronoi(", "disv_cell2d ="),
+    "connections": ("valley.py", "connections = tu.connect_cells(", "connections ="),
+    "features": ("valley.py", "stream_cells =", "well_cells ="),
+    "surfaces": ("valley.py", "vertices = delaunay_refined", "aquifer_base = ("),
+    "layers": ("valley.py", "top = tu.values_at_centers(", "disu = layers.disu"),
+    "gis": ("valley_gis.py", "columns = {", "for well in tu.read_features("),
 }
 
 
-def valley_section_lines():
-    """The first and last line of each section of valley.py, for the guide;
-    a section ends before the blank line that precedes the next."""
-    lines = (HERE / "valley.py").read_text().splitlines()
-    firsts = []
-    for start in VALLEY_SECTIONS.values():
-        found = [n for n, line in enumerate(lines, 1) if line.startswith(start)]
-        if len(found) != 1:
-            raise ValueError(f"valley.py has {len(found)} lines starting {start!r}")
-        firsts.append(found[0])
-    lasts = [first - 2 for first in firsts[1:]] + [len(lines)]
+def check_names():
+    """Raise ValueError if the guide names a Python or C function that the
+    module or the C header does not have."""
+    text = (HERE / "triangle-utils.tex").read_text().replace("\\_", "_")
+    header = (HERE.parents[1] / "src" / "triangle_utils.h").read_text()
+    declared = set(re.findall(r"\b(triangle_utils_\w+)\(", header))
+    missing = [n for n in re.findall(r"\btu\.(\w+)", text) if not hasattr(tu, n)]
+    missing += [
+        n for n in re.findall(r"\b(triangle_utils_\w+)", text) if n not in declared
+    ]
+    if missing:
+        raise ValueError(f"the guide names functions that do not exist: {missing}")
+
+
+def excerpt_lines():
+    """The first and last line of each excerpt, as the guide's macros, for
+    \\VerbatimInput and for the text that cites the full listings."""
     values = {}
-    for name, first, last in zip(VALLEY_SECTIONS, firsts, lasts, strict=True):
-        values[f"valley{name}first"] = first
-        values[f"valley{name}last"] = last
+    for name, (script, first, last) in EXCERPTS.items():
+        text = (HERE / script).read_text()
+        lines = text.splitlines()
+        statements = ast.parse(text).body
+
+        def find(start, statements=statements, script=script):
+            found = [s for s in statements if lines[s.lineno - 1].startswith(start)]
+            if len(found) != 1:
+                raise ValueError(
+                    f"{script} has {len(found)} statements starting {start!r}"
+                )
+            return found[0]
+
+        statement = find(first)
+        # a decorated function starts at its first decorator
+        begin = min(
+            [statement.lineno]
+            + [d.lineno for d in getattr(statement, "decorator_list", [])]
+        )
+        while begin > 1 and lines[begin - 2].lstrip().startswith("#"):
+            begin -= 1
+        end = find(last).end_lineno
+        if end < begin:
+            raise ValueError(f"excerpt {name} ends before it starts")
+        values[f"excerpt{name}first"] = begin
+        values[f"excerpt{name}last"] = end
     return values
 
 
@@ -248,12 +284,16 @@ WINDOW_HEADINGS = {
 
 def valley_and_windows():
     """A figure with the valley in A and its three close-ups beside it."""
-    return plt.subplot_mosaic(
+    fig, axd = plt.subplot_mosaic(
         [["A", "B"], ["A", "C"], ["A", "D"]],
         figsize=(6.7, VALLEY_FIGURE_HEIGHT),
         width_ratios=[VALLEY_FIGURE_RATIO, 1.0],
         layout="constrained",
     )
+    # the valley keeps equal scales by widening its x range, so its panel is
+    # as tall as the three close-ups
+    axd["A"].set_adjustable("datalim")
+    return fig, axd
 
 
 def mesh_figure(mesh, windows):
@@ -891,6 +931,7 @@ def signed(value):
 
 
 def main():
+    check_names()
     FIGURES.mkdir(exist_ok=True)
     windows = choose_windows(mesh)
     mesh_figure(mesh, windows)
@@ -987,7 +1028,7 @@ def main():
         "maximumangle": f"{MAXIMUM_ANGLE:g}",
         "wellx": f"{windows['B'][0]:,.0f}",
         "welly": f"{windows['B'][1]:,.0f}",
-        **valley_section_lines(),
+        **excerpt_lines(),
         "boundarymarker": BOUNDARY_MARKER,
         "rivercells": len(stream_cells[0].cells),
         "riverlength": f"{stream_cells[0].lengths.sum():,.0f}",
@@ -1064,9 +1105,6 @@ def main():
         "disunodes": f"{len(layers.disu.cells):,}",
         "disuconnections": f"{len(layers.disu.ja):,}",
         "sectiony": f"{SECTION_Y:,.0f}",
-        # without thousands separators, for the command-line example
-        "maximumareavalue": f"{MAXIMUM_AREA:.0f}",
-        "boundaryspacingvalue": f"{BOUNDARY_SPACING:.0f}",
         "tuversion": tu.version()[0],
         "triangleversion": tu.version()[1],
         "trianglerelease": tu.version()[2],

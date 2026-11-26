@@ -1,0 +1,9 @@
+triangle-utils generate -a 40000 -q 30 -s 200 -D valley
+triangle-utils refine -A 100 -D valley.1
+triangle-utils improve -A 90 valley.2
+triangle-utils check valley.3
+triangle-utils disv valley.2
+triangle-utils cells -l river.txt valley.2
+triangle-utils cells -l tributary.txt valley.2
+triangle-utils cells -m 1 valley.2
+triangle-utils cells -p wells.txt valley.2

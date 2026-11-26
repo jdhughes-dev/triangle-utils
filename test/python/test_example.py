@@ -1,8 +1,8 @@
 """
-Tests the user guide's example, doc/UserGuide/valley.py.
+Tests the user guide's example, doc/UserGuide/valley.py and valley_gis.py.
 
-It runs from geometry to grid, connections, and features, as a user of the
-package would, and runs against each wheel.
+It runs from geometry to grid, connections, features, and layers, as a
+user of the package would, and runs against each wheel.
 
 Cases:
   - test_example : the valley's Voronoi grid matches its DISV arrays, its
@@ -10,6 +10,8 @@ Cases:
                    order to the confluence's cell, one of the river's, and
                    its layers make the clay's thin cells pass-through and
                    leave them out of the DISU nodes.
+  - test_gis     : the valley's geometry read from shapefiles meshes to the
+                   same mesh as its coordinates (skipped without geopandas).
 """
 
 import runpy
@@ -19,6 +21,7 @@ import numpy as np
 import pytest
 
 REPOSITORY = Path(__file__).resolve().parents[2]
+GUIDE = REPOSITORY / "doc" / "UserGuide"
 
 
 def length(points, closed=False):
@@ -72,3 +75,16 @@ def test_example():
     disu = valley["disu"]
     assert disu["nodes"] == (layers.idomain > 0).sum()
     assert valley["disv"]["nlay"] == 3
+
+
+def test_gis(monkeypatch):
+    pytest.importorskip("geopandas")
+    # valley_gis.py imports valley.py from beside it
+    monkeypatch.syspath_prepend(str(GUIDE))
+    gis = runpy.run_path(str(GUIDE / "valley_gis.py"))
+    valley = runpy.run_path(str(GUIDE / "valley.py"))
+    mesh, expected = gis["mesh"], valley["mesh"]
+    np.testing.assert_array_equal(mesh.vertices, expected.vertices)
+    np.testing.assert_array_equal(mesh.triangles, expected.triangles)
+    np.testing.assert_array_equal(mesh.attributes, expected.attributes)
+    np.testing.assert_array_equal(mesh.segment_markers, expected.segment_markers)

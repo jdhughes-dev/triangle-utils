@@ -86,18 +86,21 @@ MODFLOW-ORG/triangle and MODFLOW-ORG/gridgen.
   ctypes, and `_features.py` reads features with geopandas, an optional
   dependency); the user guide's figures and the Python tests use it.
 - `doc/UserGuide/` — the user guide: `triangle-utils.tex` and `.bib`, in the
-  usgslatex class as gridgen's release notes are, `valley.py`, the guide's
-  example, which meshes the valley and builds its grid and which the guide
-  prints, and `make_figures.py`, which writes the figures from it and
-  `values.tex`, the numbers the text quotes.
+  usgslatex class as gridgen's release notes are; `valley.py`, the guide's
+  example, which meshes the valley and builds its grid; `valley_gis.py`,
+  which builds the valley's geometry from shapefiles; `valley_files.py` and
+  `valley_commands.txt`, the command-line example's files and commands; and
+  `make_figures.py`, which writes the figures from `valley.py` and
+  `values.tex`, the numbers the text quotes and the lines of each excerpt.
 - `test/` — the GoogleTest tests; `test_c_header.c`, which builds the API
   header as C; and `python/`, the pytest tests of the C API through
   `ctypes` (declared in `python/triangle_utils/_library.py`), of the Python
   module, of reading features (`test_features.py`, skipped without
-  geopandas), of the installed package (`test_package.py`), of the user guide's
-  example (`test_example.py`, which runs `doc/UserGuide/valley.py`), and of
-  the program, which `meson test` runs except under the sanitizers; the
-  wheels run all but the program's and MODFLOW 6's.
+  geopandas), of the installed package (`test_package.py`), of the user
+  guide's example (`test_example.py`, which runs `doc/UserGuide/valley.py`
+  and `valley_gis.py`), and of the program (`test_command_line.py`, which
+  also runs the guide's commands), which `meson test` runs except under the
+  sanitizers; the wheels run all but the program's and MODFLOW 6's.
 - `scripts/clang_format.py` — runs clang-format on the tracked C and C++
   files, for `pixi run check-format` and `fix-format`.
 - `scripts/check_wheel.py` — checks that a wheel holds only the package's
@@ -263,8 +266,11 @@ MODFLOW-ORG/triangle and MODFLOW-ORG/gridgen.
 - **User guide:** a pull request that adds or changes a feature a user
   sees adds or updates its section of the user guide, with figures made by
   `doc/UserGuide/make_figures.py` and numbers written to `values.tex`
-  rather than typed, and builds the guide to look at the figures. Write
-  the guide for groundwater modelers, in LaTeX that pandoc can read (#22).
+  rather than typed, and builds the guide to look at the figures. Code in
+  the guide is printed from a script a test runs: a section shows a short
+  excerpt of it (`EXCERPTS` in `make_figures.py`), and the appendix lists
+  the scripts in full. Write the guide for groundwater modelers, in LaTeX
+  that pandoc can read (#22).
 - **Branching:** `origin` is `jdhughes-dev/triangle-utils`, the repository
   of record until it moves to MODFLOW-ORG; then `origin` is the fork and
   `upstream` is `MODFLOW-ORG/triangle-utils`. Cut each branch from an

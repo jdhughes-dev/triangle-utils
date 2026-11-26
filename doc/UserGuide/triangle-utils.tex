@@ -31,6 +31,15 @@
 % the version and the values the text quotes, written by make_figures.py
 \input{values.tex}
 
+% an excerpt of a script, numbered as in its listing in the appendix, and
+% the lines it spans there; \codelead starts the sentence that introduces
+% an excerpt on a page with room for the first lines of the excerpt
+% (a page break here unless the page has 7 more lines, as needspace's
+% approximate form)
+\newcommand{\codelead}{\par\vskip 0pt plus 7\baselineskip\penalty -250\vskip 0pt plus -7\baselineskip}
+\newcommand{\excerpt}[2]{\VerbatimInput[fontsize=\small,numbers=left,numbersep=6pt,firstnumber=\csname excerpt#1first\endcsname,firstline=\csname excerpt#1first\endcsname,lastline=\csname excerpt#1last\endcsname]{#2}}
+\newcommand{\excerptlines}[1]{lines~\csname excerpt#1first\endcsname--\csname excerpt#1last\endcsname}
+
 \renewcommand{\cooperator}{}
 \renewcommand{\reporttitle}{triangle-utils: User Guide}
 \renewcommand{\coverphoto}{cover.png}
@@ -99,6 +108,25 @@ Points are added along each polygon and line so that no two successive points ar
 
 Figure~\ref{fig:generated} shows a mesh of an example valley of \valleyarea\ square kilometers (km$^2$), with points every \boundaryspacing\ meters (m) along its boundary, every \riverspacing~m along the river and its tributary, and every \lakespacing~m around the lake. Triangles are no larger than \maximumarea\ square meters (m$^2$) in the aquifer and \lakearea~m$^2$ in the lake, and have no angle smaller than \minimumangle\ degrees. Each of the three wells is at the center of a ring with a radius of \wellradius~m and \wellpoints\ points, in which triangles are no larger than \wellarea~m$^2$. The river starts and ends on the boundary, between two of its points, and the tributary starts on it and ends on the river. Figures~\ref{fig:generated}\textit{B}--\textit{D} show the mesh in square windows \wellwindow~m, \riverwindow~m, and \lakewindow~m on a side around the well where the generated mesh has the most triangles with an angle over \maximumangle\ degrees (fig.~\ref{fig:refined}), at the confluence, where the tributary joins the river, and on the lake's shore. The mesh has \generatedvertices\ vertices and \generatedtriangles\ triangles.
 
+\codelead
+In Python, with the module imported as \texttt{tu} (\texttt{import triangle\_utils as tu}), the valley's geometry is built from the coordinates of its features, each with the spacing of its points and the marker of its segments; the complete script, valley.py, is listed in appendix~\ref{appendix:listings}, where the coordinates and values these lines use are defined:
+
+\excerpt{geometry}{valley.py}
+
+\codelead
+\noindent A point inside each region, with its attribute and area limit, and a ring around each well are added the same way (\excerptlines{regions}), and the geometry is meshed:
+
+\excerpt{generate}{valley.py}
+
+Features drawn in a GIS are read with \texttt{read\_features}, from a shapefile, GeoPackage, or GeoJSON file, a GeoDataFrame, or shapely geometries; it needs geopandas, installed with the module as triangle-utils[gis]. It returns each part of each feature, with the points the functions of this guide take, the row of the table it came from, and its marker, spacing, region attribute, and area limit, each given as a number or as the name of the column that holds it. A polygon's holes are returned as hole polygons, and every polygon's points run counterclockwise, as in valley.py, although a shapefile stores an outer boundary clockwise. The mesh is in plain x and y, so the features must be in a projected coordinate system; a geographic coordinate system is an error, and features without one are taken to be projected.
+
+\codelead
+The script valley\_gis.py (appendix~\ref{appendix:listings}) writes the valley's features to shapefiles in a temporary folder, \texttt{folder}, with the values of valley.py in their columns, and builds the geometry from them:
+
+\excerpt{gis}{valley_gis.py}
+
+\noindent It meshes to the same mesh as the coordinates in valley.py, and each stream read from streams.shp has the points \texttt{cells\_along\_line} takes.
+
 \begin{figure}[htbp]
   \centering
   \includegraphics{generated_mesh.pdf}
@@ -113,6 +141,11 @@ Refining splits the triangles of an existing mesh, keeping its boundary and its 
 Refining by a maximum angle reduces the obtuse triangles of a mesh. Triangle can reduce the largest angle to about 95 to 100 degrees, but not to 90 degrees, at which refining does not finish. Refining by a maximum angle stops after a given number of triangles have been split, and the triangles left with an angle over the limit can be counted. The attributes and area limits of regions are kept exactly only where polygons or lines bound them; elsewhere they are averaged with those of neighboring triangles.
 
 Figure~\ref{fig:refined} shows the mesh of Figure~\ref{fig:generated} refined to a maximum angle of \maximumangle\ degrees. In the generated mesh, \generatedover\ triangles have an angle over \maximumangle\ degrees, the largest \generatedlargest\ degrees. The refined mesh has \refinedtriangles\ triangles, of which \refinedover\ have an angle over \maximumangle\ degrees, the largest \refinedlargest\ degrees.
+
+\codelead
+The generated mesh is refined with the same smallest angle and a largest angle of \maximumangle\ degrees:
+
+\excerpt{refine}{valley.py}
 
 \begin{figure}[htbp]
   \centering
@@ -138,6 +171,11 @@ By default, no move may make an angle smaller than the smallest angle of the mes
 
 Figure~\ref{fig:improved} shows the refined mesh of Figure~\ref{fig:refined} improved toward a maximum angle of \improveangle\ degrees. The refined mesh has \refinedoverninety\ triangles with an angle over \improveangle\ degrees and a smallest angle of \refinedsmallest\ degrees. Improved with that smallest angle kept, the mesh has \improvedoverninety\ triangles over \improveangle\ degrees: \improvedboundaryover\ with the angle at a point on the boundary where two triangles meet, \improvedfixedover\ at another point that does not move (on the river, the lake, or a ring), and \improvedfreeover\ at a vertex that moves. Improved with a minimum angle of \tradedangle\ degrees, the mesh has \tradedoverninety\ triangles over \improveangle\ degrees, \tradedfreeover\ of them at a vertex that moves, and a smallest angle of \tradedsmallest\ degrees, so keeping the smallest angle is what left the \improvedfreeover\ at vertices that move.
 
+\codelead
+The refined mesh is improved toward a largest angle of \improveangle\ degrees:
+
+\excerpt{improve}{valley.py}
+
 \begin{figure}[htbp]
   \centering
   \includegraphics{improved_mesh.pdf}
@@ -162,6 +200,11 @@ Every line and polygon inside the model area runs through cell centers, since it
 
 Figure~\ref{fig:voronoi} shows the Voronoi grid of the example valley, built from a mesh generated and refined as in Figures~\ref{fig:generated} and~\ref{fig:refined} with conforming Delaunay triangles, \delaunaytriangles\ in all. The grid has \voronoicells\ cells and \voronoivertices\ cell corners.
 
+\codelead
+The mesh of the Voronoi grid is generated and refined as before, with conforming Delaunay triangles (\excerptlines{delaunay} of valley.py), and the grid's vertices and cells are returned in the form FloPy's DISV package takes:
+
+\excerpt{voronoi}{valley.py}
+
 \begin{figure}[htbp]
   \centering
   \includegraphics{voronoi_grid.pdf}
@@ -172,6 +215,11 @@ Figure~\ref{fig:voronoi} shows the Voronoi grid of the example valley, built fro
 A grid can also be made of the triangles themselves, centered on their centroids or their circumcenters. A circumcenter also gives faces perpendicular to the lines between centers, but it lies outside an obtuse triangle, so the obtuse triangles are refined and improved first. Either grid is written as the vertices and cells of a MODFLOW 6 DISV file.
 
 The unstructured discretization (DISU) of MODFLOW 6 and MODFLOW-USG describes the grid by its connections, with its vertices optional in MODFLOW 6: for each face two cells share, the distance from each cell's center to the face, measured along the face's normal (CL12), the face's width (HWVA), and the direction of the normal out of each cell, as an angle counterclockwise from the x axis (ANGLDEGX), which MODFLOW 6 needs for horizontal anisotropy, the XT3D formulation, and specific discharge. triangle-utils calculates them for either grid (fig.~\ref{fig:connections}). In a Voronoi grid each face bisects the line between the two centers, so each distance is half the length of that line; the Voronoi grid of the valley has \voronoifaces\ faces between cells. In a triangle grid centered on centroids, the line between two centers is not perpendicular to their face, and the two distances, measured along the normal, sum to less than the distance between the centers. In a triangle grid centered on circumcenters, an obtuse triangle's circumcenter lies beyond its longest side, which makes the distance to that face negative, and a right triangle's lies on it, which makes the distance zero; triangle-utils reports such a face as an error, naming its two cells, rather than giving MODFLOW a distance that is not positive.
+
+\codelead
+The connections are calculated from the grid:
+
+\excerpt{connections}{valley.py}
 
 \begin{figure}[htbp]
   \centering
@@ -188,6 +236,11 @@ A river network is often digitized as several lines, as a polyline shapefile giv
 
 Figure~\ref{fig:features} shows the cells of the streams and the boundary in the Voronoi grid of Figure~\ref{fig:voronoi}. The river's \riverlength~m pass through \rivercells\ cells and the tributary's \tributarylength~m through \tributarycells\ cells, each centered on the stream's vertices, and the boundary's \boundarylength~m through \boundarycells\ cells. A boundary cell's length is half the distance to the boundary vertex on each side of its own. Each well is the center of its ring, a vertex of the mesh, so its cell is centered on the well.
 
+\codelead
+Each stream's cells are found from its own line, the boundary's from the segments of the mesh with the boundary's marker, and the wells' from their points:
+
+\excerpt{features}{valley.py}
+
 \begin{figure}[htbp]
   \centering
   \includegraphics{features.pdf}
@@ -203,6 +256,11 @@ Elevations are often known at points, such as the land surface from a digital el
 
 The valley is given three layers (fig.~\ref{fig:layers}), after the synthetic valley of \citet{hughes2024flopy}. The land surface rises from \rivermouth~m at the river's mouth along the streams and up the valley's sides, over a ridge \ridgeheight~m high across the middle of the valley, which the river cuts through in a gap, and falls \lakedepth~m into a basin that follows the lake's shore; it reaches \landsurfacemax~m. An upper aquifer extends from the land surface to \upperbottom~m; a clay below it is \claythickness~m thick at the west boundary and thins to nothing \clayedge~m east of it; and the base of the lower aquifer dips from about \baseeast~m at the east boundary to about \basewest~m at the west, with a gentle relief along the valley. The land surface, the clay's base, and the aquifer's base are given at the mesh's vertices. With a minimum thickness of \minimumthickness~m, \passthroughcells\ cells of the clay pass flow between the aquifers. The DISV grid has \disvcells\ cells in its three layers; the DISU grid has \disunodes\ nodes, one for each active cell, and \disuconnections\ entries in its connection arrays, a node's connection to itself included.
 
+\codelead
+The surfaces are calculated at the mesh's vertices (\excerptlines{surfaces} of valley.py) and interpolated to the cell centers, and the grid is layered; the DISV and DISU arrays are returned as the arguments of FloPy's packages, used as \texttt{flopy.mf6.ModflowGwfdisv(model, **disv)}:
+
+\excerpt{layers}{valley.py}
+
 \begin{figure}[htbp]
   \centering
   \includegraphics{layers.pdf}
@@ -212,82 +270,66 @@ The valley is given three layers (fig.~\ref{fig:layers}), after the synthetic va
 
 \section{Using triangle-utils}
 
-The \texttt{triangle-utils} program reads and writes the files of Triangle. The \texttt{generate} command meshes the segments, vertices, holes, and regions of a .poly file, such as one describing the boundary, river, and lake of a valley, the \texttt{refine} command refines the mesh in a .node file and an .ele file, with the segments of a .poly file and the area of each triangle in an .area file if they exist, the \texttt{improve} command moves the vertices of such a mesh, the \texttt{disv} command writes its Voronoi grid, or its triangles, as a MODFLOW 6 DISV file, and the \texttt{cells} command prints the cells of the grid that points contain or that a line or the segments with a marker pass through. A vertex with marker 1 in a .node file, as \texttt{generate} writes for the points of the .poly file, such as wells, stays in place:
+triangle-utils is used from Python, from the command line, and from C, C++, and Fortran programs through its C interface, declared in triangle\_utils.h. Until its first release, it is built from its repository with pixi: \texttt{pixi run setup} and \texttt{pixi run build} build the program, the library, and its header, the Python module in the repository's python folder uses that library, and \texttt{pixi run wheel} builds a wheel of the module with the library inside it, which \texttt{pip install} installs. From the first release, the module will be installed with \texttt{pip install triangle-utils}, or \texttt{pip install triangle-utils[gis]} to read features from a GIS with geopandas. Table~\ref{tab:reference} lists each capability of this guide with its Python function, its C function, and its command.
 
-\begin{Verbatim}[fontsize=\small,commandchars=\\\{\}]
-triangle-utils generate -a \maximumareavalue -q \minimumangle -s \boundaryspacingvalue -D valley
-triangle-utils refine -A \maximumangle -D valley.1
-triangle-utils improve -A \improveangle valley.2
-triangle-utils check valley.3
-triangle-utils disv valley.2
-triangle-utils cells -l river.txt valley.2
-triangle-utils cells -l tributary.txt valley.2
-triangle-utils cells -m \boundarymarker valley.2
-triangle-utils cells -p wells.txt valley.2
-\end{Verbatim}
+\begin{table}[htbp]
+  \centering
+  \caption{The capabilities of triangle-utils, with their Python functions, C functions, and commands. A dash means the capability is not available that way}
+  \label{tab:reference}
+  \small
+  \begin{tabular}{llll}
+    \hline
+    Capability & Python & C & Command \\
+    \hline
+    Build the geometry & \texttt{tu.Geometry} & \texttt{triangle\_utils\_geometry\_create} & .poly file \\
+    Generate a mesh & \texttt{tu.generate} & \texttt{triangle\_utils\_mesh\_generate} & \texttt{generate} \\
+    Refine a mesh & \texttt{tu.refine} & \texttt{triangle\_utils\_mesh\_refine} & \texttt{refine} \\
+    Count angles over a limit & \texttt{tu.count\_angles\_over} & \texttt{triangle\_utils\_mesh\_count\_angles\_over} & \texttt{refine -A} \\
+    Improve a mesh & \texttt{tu.improve} & \texttt{triangle\_utils\_mesh\_improve} & \texttt{improve} \\
+    Check a mesh & --- & --- & \texttt{check} \\
+    Voronoi grid & \texttt{tu.voronoi} & \texttt{triangle\_utils\_mesh\_voronoi} & \texttt{disv} \\
+    Triangle grid & \texttt{tu.triangle\_grid} & \texttt{triangle\_utils\_mesh\_triangle\_grid} & \texttt{disv -g} \\
+    Connections & \texttt{tu.connect\_cells} & \texttt{triangle\_utils\_grid\_connections} & --- \\
+    Cells along a line & \texttt{tu.cells\_along\_line} & \texttt{triangle\_utils\_grid\_line\_cells} & \texttt{cells -l} \\
+    Cells on marked segments & \texttt{tu.cells\_on\_segments} & \texttt{triangle\_utils\_grid\_segment\_cells} & \texttt{cells -m} \\
+    Cells at points & \texttt{tu.cells\_at\_points} & \texttt{triangle\_utils\_grid\_point\_cells} & \texttt{cells -p} \\
+    Values at cell centers & \texttt{tu.values\_at\_centers} & \texttt{triangle\_utils\_grid\_vertex\_values} & --- \\
+    Layers & \texttt{tu.layer\_grid} & \texttt{triangle\_utils\_grid\_layers} & --- \\
+    Read features from a GIS & \texttt{tu.read\_features} & --- & --- \\
+    \hline
+  \end{tabular}
+\end{table}
 
-\noindent Each command writes its mesh to files named as Triangle names them, valley.1 for valley and valley.2 for valley.1, and \texttt{disv} writes the Voronoi grid of the refined mesh to valley.2.disv, as Figure~\ref{fig:voronoi} shows; \texttt{triangle-utils generate -h}, \texttt{refine -h}, \texttt{improve -h}, \texttt{disv -h}, and \texttt{cells -h} list the options of each. The files river.txt, tributary.txt, and wells.txt give the x and y of each of a stream's points and of each well, one point to a line, such as the coordinates of RIVER, TRIBUTARY, and WELLS in valley.py below; each stream is mapped by a command of its own.
+The \texttt{triangle-utils} program reads and writes the files of Triangle. The \texttt{generate} command meshes the segments, vertices, holes, and regions of a .poly file, the \texttt{refine} command refines the mesh in a .node file and an .ele file, with the segments of a .poly file and the area of each triangle in an .area file if they exist, the \texttt{improve} command moves the vertices of such a mesh, the \texttt{check} command checks a mesh, the \texttt{disv} command writes its Voronoi grid, or its triangles, as a MODFLOW 6 DISV file, and the \texttt{cells} command prints the cells of the grid that points contain or that a line or the segments with a marker pass through. A vertex with marker 1 in a .node file, as \texttt{generate} writes for the points of the .poly file, such as wells, stays in place.
 
-From Python, the triangle-utils module in the python folder of the repository calls the library directly, and meshes and grids are returned as NumPy arrays. The script valley.py in the doc/UserGuide folder builds the example of this guide in steps, printed here in turn; the script make\_figures.py beside it uses its meshes and grid to make the figures. First come the coordinates of the boundary, river, tributary, lake, and wells, with the streams as a list of lines:
+\codelead
+The script valley\_files.py (appendix~\ref{appendix:listings}) writes the valley's boundary, streams, lake, wells, and region points to valley.poly, and the points of each stream and of the wells to river.txt, tributary.txt, and wells.txt, one point to a line; the commands
 
-\VerbatimInput[fontsize=\small,firstline=\valleycoordinatesfirst,lastline=\valleycoordinateslast]{valley.py}
+\VerbatimInput[fontsize=\small]{valley_commands.txt}
 
-\noindent Then come the spacings of the points along each feature, the largest triangle areas, the angles, the shapes of the layers' surfaces, and the attribute of each region and marker of each feature's segments:
-
-\VerbatimInput[fontsize=\small,firstline=\valleyvaluesfirst,lastline=\valleyvalueslast]{valley.py}
-
-\noindent The geometry is built from them: each feature with the spacing of its points and the marker of its segments, a point inside each region with its attribute and area limit, and a ring around each well:
-
-\VerbatimInput[fontsize=\small,firstline=\valleygeometryfirst,lastline=\valleygeometrylast]{valley.py}
-
-\noindent The geometry is meshed (fig.~\ref{fig:generated}), the mesh is refined by angle (fig.~\ref{fig:refined}), and the refined mesh is improved (fig.~\ref{fig:improved}):
-
-\VerbatimInput[fontsize=\small,firstline=\valleymeshingfirst,lastline=\valleymeshinglast]{valley.py}
-
-\noindent The Voronoi grid (fig.~\ref{fig:voronoi}) is built from the geometry meshed and refined again with conforming Delaunay triangles, and its vertices and cells are returned in the form FloPy's DISV package takes:
-
-\VerbatimInput[fontsize=\small,firstline=\valleygridfirst,lastline=\valleygridlast]{valley.py}
-
-\noindent The connections between the grid's cells (fig.~\ref{fig:connections}) are calculated from the grid:
-
-\VerbatimInput[fontsize=\small,firstline=\valleyconnectionsfirst,lastline=\valleyconnectionslast]{valley.py}
-
-\noindent Each stream's, the boundary's, and the wells' cells (fig.~\ref{fig:features}) are found in the grid, each stream's from its own line and the boundary's from the segments of the mesh with the boundary's marker:
-
-\VerbatimInput[fontsize=\small,firstline=\valleyfeaturesfirst,lastline=\valleyfeatureslast]{valley.py}
-
-\noindent The grid is given three layers (fig.~\ref{fig:layers}), from surfaces calculated at the mesh's vertices, and the DISV and DISU arrays are returned as the arguments of FloPy's packages, used as \texttt{flopy.mf6.ModflowGwfdisv(model, **disv)}:
-
-\VerbatimInput[fontsize=\small,firstline=\valleylayersfirst,lastline=\valleylayerslast]{valley.py}
-
-Features drawn in a GIS are read with \texttt{read\_features}, from a shapefile, GeoPackage, or GeoJSON file, a GeoDataFrame, or shapely geometries; it needs geopandas, installed with the module as triangle-utils[gis]. It returns each part of each feature, with the points the functions above take, the row of the table it came from, and its marker, spacing, region attribute, and area limit, each given as a number or as the name of the column that holds it. A polygon's holes are returned as hole polygons, and every polygon's points run counterclockwise, as in valley.py, although a shapefile stores an outer boundary clockwise. The mesh is in plain x and y, so the features must be in a projected coordinate system; a geographic coordinate system is an error, and features without one are taken to be projected. With the valley's boundary, streams, and lake in shapefiles whose marker and spacing columns hold the values above, a point inside each region in a shapefile with zone and area columns, and the wells in a shapefile of points, the geometry is built by
-
-\begin{Verbatim}[fontsize=\small]
-columns = {"marker": "marker", "spacing": "spacing"}
-geometry = tu.Geometry()
-for path in ["boundary.shp", "streams.shp", "lake.shp"]:
-    geometry.add_features(tu.read_features(path, **columns))
-regions = tu.read_features("regions.shp", attribute="zone", area_limit="area")
-geometry.add_features(regions, points="regions")
-for well in tu.read_features("wells.shp"):
-    x, y = well.points[0]
-    geometry.add_ring(
-        x,
-        y,
-        radius=WELL_RADIUS,
-        point_count=WELL_POINTS,
-        attribute=WELL_REGION,
-        area_limit=WELL_AREA,
-        marker=WELL_MARKER,
-    )
-\end{Verbatim}
-
-\noindent and meshes to the same mesh as the coordinates in valley.py. Each stream read from streams.shp has the points \texttt{cells\_along\_line} takes.
-
-\noindent The same functions are available to C, C++, and Fortran programs through the C interface declared in triangle\_utils.h.
+\noindent mesh the valley with points every \boundaryspacing~m along all its segments and conforming Delaunay triangles (\texttt{-D}), refine and improve the mesh, check the improved mesh, write the Voronoi grid of the refined mesh to valley.2.disv, and print the cells of each stream, the boundary, and the wells. Each command writes its mesh to files named as Triangle names them, valley.1 for valley and valley.2 for valley.1; \texttt{triangle-utils generate -h}, \texttt{refine -h}, \texttt{improve -h}, \texttt{check -h}, \texttt{disv -h}, and \texttt{cells -h} list the options of each.
 
 \REFSECTION
 \bibliographystyle{usgs}
 \bibliography{triangle-utils}
+
+\begin{appendix}
+\APPENDIX{Listings of the Example}{}
+\label{appendix:listings}
+
+The example of this guide is three Python scripts in the doc/UserGuide folder of the repository. valley.py builds the valley's meshes, grid, connections, cells of its features, and layers; the excerpts in the text are numbered by its lines. valley\_gis.py builds the valley's geometry from shapefiles, and valley\_files.py writes the files of the command-line example. The tests run valley.py, valley\_gis.py where geopandas is installed, and the commands of the command-line example on the files valley\_files.py writes.
+
+\subsection*{valley.py}
+
+\VerbatimInput[fontsize=\small,numbers=left,numbersep=6pt]{valley.py}
+
+\subsection*{valley\_gis.py}
+
+\VerbatimInput[fontsize=\small,numbers=left,numbersep=6pt]{valley_gis.py}
+
+\subsection*{valley\_files.py}
+
+\VerbatimInput[fontsize=\small,numbers=left,numbersep=6pt]{valley_files.py}
+\end{appendix}
 
 \end{document}

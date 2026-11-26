@@ -81,6 +81,15 @@ MINIMUM_THICKNESS = 1.0
 # the attribute of each region, and the marker of each feature's segments
 AQUIFER, LAKE_REGION, WELL_REGION = 1, 2, 3
 BOUNDARY_MARKER, RIVER_MARKER, LAKE_MARKER, WELL_MARKER = 1, 2, 3, 4
+# a point inside each region, its attribute, and its largest triangle area,
+# or 0 for none; the streams divide the aquifer into three parts, so it
+# needs one in each
+REGIONS = [
+    ((500, 1000), AQUIFER, 0.0),
+    ((4000, 1000), AQUIFER, 0.0),
+    ((3500, 6500), AQUIFER, 0.0),
+    ((1100, 5400), LAKE_REGION, LAKE_AREA),
+]
 
 geometry = tu.Geometry()
 geometry.add_polygon(BOUNDARY, spacing=BOUNDARY_SPACING, marker=BOUNDARY_MARKER)
@@ -89,12 +98,8 @@ geometry.add_polygon(BOUNDARY, spacing=BOUNDARY_SPACING, marker=BOUNDARY_MARKER)
 for stream in STREAMS:
     geometry.add_line(stream, spacing=RIVER_SPACING, marker=RIVER_MARKER)
 geometry.add_polygon(LAKE, spacing=LAKE_SPACING, marker=LAKE_MARKER)
-# a point inside each region; the streams divide the aquifer into three
-# parts, so it needs one in each
-geometry.add_region(500, 1000, attribute=AQUIFER)
-geometry.add_region(4000, 1000, attribute=AQUIFER)
-geometry.add_region(3500, 6500, attribute=AQUIFER)
-geometry.add_region(1100, 5400, attribute=LAKE_REGION, area_limit=LAKE_AREA)
+for (x, y), attribute, area_limit in REGIONS:
+    geometry.add_region(x, y, attribute=attribute, area_limit=area_limit)
 for x, y in WELLS:
     geometry.add_ring(
         x,

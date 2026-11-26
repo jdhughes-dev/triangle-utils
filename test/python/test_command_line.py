@@ -58,12 +58,16 @@ Cases:
   - test_generate_errors : a bad option value is a usage error (2), and a
                          boundary not closed and a missing file are errors
                          (1).
+  - test_guide_commands : the guide's commands, with valley.py's values, give
+                         the valley's mesh, grid, and cells from its files.
 """
 
 import itertools
 import math
 import os
+import runpy
 import subprocess
+from pathlib import Path
 
 import pytest
 
@@ -586,3 +590,71 @@ def test_cells_errors(tmp_path):
     status, _, errors = run("cells", "-m", "7", f"{base}.1")
     assert status == 1
     assert "no segment of the mesh has marker 7" in errors
+
+
+def test_guide_commands(tmp_path, monkeypatch):
+    guide = Path(__file__).resolve().parents[2] / "doc" / "UserGuide"
+    # valley_files.py imports valley.py from beside it
+    monkeypatch.syspath_prepend(str(guide))
+    files = runpy.run_path(str(guide / "valley_files.py"))
+    files["write_files"](tmp_path)
+    valley = runpy.run_path(str(guide / "valley.py"))
+    commands = [
+        line.split()
+        for line in (guide / "valley_commands.txt").read_text().splitlines()
+    ]
+    outputs = {}
+    for command in commands:
+        assert command[0] == "triangle-utils"
+        result = subprocess.run(
+            [PROGRAM, *command[1:]],
+            capture_output=True,
+            text=True,
+            check=False,
+            cwd=tmp_path,
+        )
+        assert result.returncode == 0, result.stderr
+        outputs[" ".join(command[1:])] = result.stdout
+    # the grid file, and the cells of each stream, the boundary, and the wells
+    assert (tmp_path / "valley.2.disv").stat().st_size > 0
+
+    def rows(command):
+        output = outputs[f"cells {command} valley.2"]
+        return [line.split() for line in output.splitlines() if line[:1] != "#"]
+
+    # a line passes through a cell centered on each of its points, and the
+    # boundary through one on each corner
+    assert len(rows("-l river.txt")) >= len(valley["RIVER"])
+    assert len(rows("-l tributary.txt")) >= len(valley["TRIBUTARY"])
+    assert len(rows("-m 1")) >= len(valley["BOUNDARY"])
+    # each well in a cell of its own
+    wells = [int(row[1]) for row in rows("-p wells.txt")]
+    assert len(wells) == len(valley["WELLS"])
+    assert min(wells) > 0 and len(set(wells)) == len(wells)
+    # the .poly file gave the wells, the regions, and the markers
+    node = (tmp_path / "valley.1.node").read_text().split("\n")
+    vertices = {
+        (float(w[1]), float(w[2])): int(w[-1])
+        for w in (line.split() for line in node[1:])
+        if w
+    }
+    assert all(vertices[well] == 1 for well in valley["WELLS"])
+    ele = [line.split() for line in (tmp_path / "valley.1.ele").read_text().split("\n")]
+    assert ele[0][2] == "1"
+    attributes = {float(w[4]) for w in ele[1:] if w}
+    assert attributes == {valley["AQUIFER"], valley["LAKE_REGION"]}
+    poly = [
+        line.split() for line in (tmp_path / "valley.1.poly").read_text().split("\n")
+    ]
+    segment_count = int(poly[1][0])
+    markers = {int(w[3]) for w in poly[2 : 2 + segment_count]}
+    marker_names = ("BOUNDARY_MARKER", "RIVER_MARKER", "LAKE_MARKER")
+    assert markers == {valley[name] for name in marker_names}
+    # the commands use the values of valley.py
+    options = {(c[1], c[i]): c[i + 1] for c in commands for i in range(2, len(c) - 1)}
+    assert float(options["generate", "-a"]) == valley["MAXIMUM_AREA"]
+    assert float(options["generate", "-q"]) == valley["MINIMUM_ANGLE"]
+    assert float(options["generate", "-s"]) == valley["BOUNDARY_SPACING"]
+    assert float(options["refine", "-A"]) == valley["MAXIMUM_ANGLE"]
+    assert float(options["improve", "-A"]) == valley["IMPROVE_ANGLE"]
+    assert int(options["cells", "-m"]) == valley["BOUNDARY_MARKER"]
