@@ -34,6 +34,15 @@ Cases:
                          face; a center past the face is an error, wrong
                          counts and null pointers are invalid arguments, and
                          the result is null.
+  - test_layers        : two layers of two cells give four DISU nodes with
+                         their horizontal and vertical connections; a
+                         minimum thickness makes a thin cell pass-through, a
+                         crossing bottom is an error naming its cell and
+                         layer, and wrong counts and null pointers are
+                         invalid arguments.
+  - test_vertex_values : values at a square's corners give the plane's value
+                         at each triangle's centroid; a wrong count is an
+                         invalid argument.
   - test_improve       : an interior vertex moves to the middle of a square
                          unless it is fixed; a bad smoothing and a null result
                          pointer are invalid arguments, and the result is null.
@@ -49,6 +58,7 @@ from triangle_utils._library import (
     ERROR,
     GRID_POINTER,
     INVALID_ARGUMENT,
+    LAYERS_POINTER,
     MESH_POINTER,
     OK,
 )
@@ -530,3 +540,192 @@ def test_connections(library):
     assert status == INVALID_ARGUMENT
     assert not result
     assert library.triangle_utils_grid_connections(None, None) == INVALID_ARGUMENT
+
+
+def two_cells(library):
+    """The unit square as two cells, split at x = 0.5."""
+    xy = (ctypes.c_double * 12)(0, 0, 0.5, 0, 1, 0, 1, 1, 0.5, 1, 0, 1)
+    offsets = (ctypes.c_int * 3)(0, 4, 8)
+    corners = (ctypes.c_int * 8)(0, 5, 4, 1, 1, 4, 3, 2)
+    centers = (ctypes.c_double * 4)(0.25, 0.5, 0.75, 0.5)
+    grid = GRID_POINTER()
+    status = library.triangle_utils_grid_create(
+        6, xy, 2, offsets, 8, corners, centers, ctypes.byref(grid)
+    )
+    assert status == OK
+    return grid
+
+
+def make_layers(library, grid, bottoms, minimum_thickness=0.0, idomain=None):
+    """The status and layers of the two cells with a top of 10."""
+    top = (ctypes.c_double * 2)(10.0, 10.0)
+    bottom_values = (ctypes.c_double * 4)(*bottoms)
+    domain = None if idomain is None else (ctypes.c_int * 4)(*idomain)
+    layers = ctypes.cast(ctypes.c_void_p(1), LAYERS_POINTER)
+    status = library.triangle_utils_grid_layers(
+        grid, 2, 2, top, bottom_values, domain, minimum_thickness, ctypes.byref(layers)
+    )
+    return status, layers
+
+
+def disu(library, layers):
+    """The DISU nodes and connections of layers, as lists."""
+    counts = [ctypes.c_int(-1) for _ in range(2)]
+    status = library.triangle_utils_layers_disu_count(
+        layers, *[ctypes.byref(count) for count in counts]
+    )
+    assert status == OK
+    nodes, count = (c.value for c in counts)
+    cells = (ctypes.c_int * nodes)()
+    top, bottom, area = ((ctypes.c_double * nodes)() for _ in range(3))
+    status = library.triangle_utils_layers_disu_nodes(
+        layers, nodes, cells, top, bottom, area
+    )
+    assert status == OK
+    offsets = (ctypes.c_int * (nodes + 1))()
+    ja, ihc = ((ctypes.c_int * count)() for _ in range(2))
+    cl12, hwva, angles = ((ctypes.c_double * count)() for _ in range(3))
+    status = library.triangle_utils_layers_disu_connections(
+        layers, nodes, offsets, count, ja, ihc, cl12, hwva, angles
+    )
+    assert status == OK
+    return {
+        "cells": list(cells),
+        "top": list(top),
+        "bottom": list(bottom),
+        "area": list(area),
+        "offsets": list(offsets),
+        "ja": list(ja),
+        "ihc": list(ihc),
+        "cl12": list(cl12),
+        "hwva": list(hwva),
+        "angles": list(angles),
+    }
+
+
+def test_layers(library):
+    grid = two_cells(library)
+    try:
+        status, layers = make_layers(library, grid, (5, 5, 0, 0))
+        assert status == OK
+        try:
+            idomain = (ctypes.c_int * 4)()
+            assert library.triangle_utils_layers_idomain(layers, 4, idomain) == OK
+            assert list(idomain) == [1, 1, 1, 1]
+            bottoms = (ctypes.c_double * 4)()
+            assert library.triangle_utils_layers_bottoms(layers, 4, bottoms) == OK
+            assert list(bottoms) == [5, 5, 0, 0]
+            status = library.triangle_utils_layers_bottoms(layers, 5, bottoms)
+            assert status == INVALID_ARGUMENT
+            d = disu(library, layers)
+            assert d["cells"] == [0, 1, 2, 3]
+            assert d["top"] == [10, 10, 5, 5]
+            assert d["bottom"] == [5, 5, 0, 0]
+            assert d["area"] == pytest.approx([0.5, 0.5, 0.5, 0.5])
+            assert d["offsets"] == [0, 3, 6, 9, 12]
+            # each node itself, then the others in increasing order
+            assert d["ja"] == [0, 1, 2, 1, 0, 3, 2, 0, 3, 3, 1, 2]
+            assert d["ihc"] == [0, 1, 0, 0, 1, 0, 0, 0, 1, 0, 0, 1]
+            assert d["cl12"] == pytest.approx(
+                [0, 0.25, 2.5, 0, 0.25, 2.5, 0, 2.5, 0.25, 0, 2.5, 0.25]
+            )
+            assert d["hwva"] == pytest.approx(
+                [0, 1, 0.5, 0, 1, 0.5, 0, 0.5, 1, 0, 0.5, 1]
+            )
+            assert d["angles"] == [0, 0, 0, 0, 180, 0, 0, 0, 0, 0, 0, 180]
+            status = library.triangle_utils_layers_idomain(layers, 3, idomain)
+            assert status == INVALID_ARGUMENT
+            assert library.triangle_utils_layers_idomain(layers, 4, None) == (
+                INVALID_ARGUMENT
+            )
+            cells = (ctypes.c_int * 4)()
+            status = library.triangle_utils_layers_disu_nodes(
+                layers, 4, cells, None, None, None
+            )
+            assert status == INVALID_ARGUMENT
+            status = library.triangle_utils_layers_disu_connections(
+                layers, 4, None, 12, None, None, None, None, None
+            )
+            assert status == INVALID_ARGUMENT
+        finally:
+            library.triangle_utils_layers_free(layers)
+        library.triangle_utils_layers_free(None)
+
+        # the second cell's second layer is 0.05 thick: pass-through with a
+        # minimum thickness, and connected through to nothing below it
+        status, layers = make_layers(library, grid, (5, 5, 0, 4.95), 0.1)
+        assert status == OK
+        try:
+            idomain = (ctypes.c_int * 4)()
+            assert library.triangle_utils_layers_idomain(layers, 4, idomain) == OK
+            assert list(idomain) == [1, 1, 1, -1]
+            assert disu(library, layers)["cells"] == [0, 1, 2]
+        finally:
+            library.triangle_utils_layers_free(layers)
+
+        status, layers = make_layers(library, grid, (5, 5, 0, 6))
+        assert status == ERROR
+        assert not layers
+        assert library.triangle_utils_last_error() == (
+            b"cell 1 in layer 1 has a top of 5 and a bottom of 6, so it is not "
+            b"thicker than 0"
+        )
+        # not if it is inactive
+        status, layers = make_layers(library, grid, (5, 5, 0, 6), idomain=(1, 1, 1, 0))
+        assert status == OK
+        library.triangle_utils_layers_free(layers)
+
+        top = (ctypes.c_double * 2)(10.0, 10.0)
+        bottoms = (ctypes.c_double * 4)(5, 5, 0, 0)
+        layers = ctypes.cast(ctypes.c_void_p(1), LAYERS_POINTER)
+        for arguments in (
+            (grid, 2, 3, top, bottoms, None, 0.0),
+            (grid, 0, 2, top, bottoms, None, 0.0),
+            (grid, 2, 2, None, bottoms, None, 0.0),
+            (None, 2, 2, top, bottoms, None, 0.0),
+            # more values than an int counts, refused before they are read
+            (grid, 2**30, 2, top, bottoms, None, 0.0),
+        ):
+            status = library.triangle_utils_grid_layers(
+                *arguments, ctypes.byref(layers)
+            )
+            assert status == INVALID_ARGUMENT
+            assert not layers
+        assert library.triangle_utils_grid_layers(
+            grid, 2, 2, top, bottoms, None, 0.0, None
+        ) == (INVALID_ARGUMENT)
+    finally:
+        library.triangle_utils_grid_free(grid)
+
+
+def test_vertex_values(library):
+    status, mesh = create_mesh(library, [0, 0, 1, 0, 1, 1, 0, 1], [0, 1, 2, 0, 2, 3])
+    assert status == OK
+    try:
+        grid = GRID_POINTER()
+        status = library.triangle_utils_mesh_triangle_grid(mesh, 0, ctypes.byref(grid))
+        assert status == OK
+        try:
+            # the plane 1 + 2x + 3y
+            values = (ctypes.c_double * 4)(1, 3, 6, 4)
+            result = (ctypes.c_double * 2)()
+            status = library.triangle_utils_grid_vertex_values(
+                grid, mesh, 4, values, 2, result
+            )
+            assert status == OK
+            centroids = [(2 / 3, 1 / 3), (1 / 3, 2 / 3)]
+            assert list(result) == pytest.approx(
+                [1 + 2 * x + 3 * y for x, y in centroids]
+            )
+            status = library.triangle_utils_grid_vertex_values(
+                grid, mesh, 3, values, 2, result
+            )
+            assert status == INVALID_ARGUMENT
+            status = library.triangle_utils_grid_vertex_values(
+                grid, mesh, 4, values, 2, None
+            )
+            assert status == INVALID_ARGUMENT
+        finally:
+            library.triangle_utils_grid_free(grid)
+    finally:
+        library.triangle_utils_mesh_free(mesh)

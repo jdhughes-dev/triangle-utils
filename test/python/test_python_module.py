@@ -25,6 +25,14 @@ Cases:
                          interior cell's area follows from them; circumcenters
                          outside their triangles raise Error, and a grid with
                          no cells has no connections.
+  - test_layers        : elevations at the mesh's vertices give each cell's
+                         value; top, botm, and idomain are taken as numbers,
+                         values for each layer, or values for each cell, and
+                         a minimum thickness makes thin cells pass-through;
+                         the DISU nodes and connections match the layers,
+                         and the arguments for FloPy hold the arrays;
+                         crossing bottoms raise Error and bad shapes
+                         ValueError.
   - test_shapes        : arrays of the wrong shape, length, or range, and
                          values too large for an int, raise ValueError before
                          the library reads them.
@@ -213,6 +221,106 @@ def test_connections():
     )
     np.testing.assert_array_equal(empty.offsets, [0])
     assert len(empty.cells) == 0
+
+
+def test_layers():
+    mesh = tu.generate(
+        square_geometry(), maximum_area=0.5, minimum_angle=25, conforming_delaunay=True
+    )
+    grid = tu.voronoi(mesh)
+    cell_count = len(grid.cells)
+    x = grid.centers[:, 0]
+    top = tu.values_at_centers(grid, mesh, 20.0 - mesh.vertices[:, 0])
+    np.testing.assert_allclose(top, 20.0 - x)
+    layers = tu.layer_grid(grid, top, [np.full(cell_count, 5.0), 3.0, 0.0])
+    assert layers.botm.shape == (3, cell_count)
+    np.testing.assert_array_equal(layers.botm[1], 3.0)
+    np.testing.assert_array_equal(layers.idomain, 1)
+    np.testing.assert_array_equal(layers.top, top)
+    # the second layer is thinner than 0.5 west of x = 5
+    thin = tu.layer_grid(
+        grid, top, np.vstack([np.full(cell_count, 5.0), 5.0 - 0.1 * x]), [1, 1], 0.5
+    )
+    np.testing.assert_array_equal(thin.idomain[1] == -1, 0.1 * x < 0.5)
+    assert (thin.idomain[1] == -1).any() and (thin.idomain[1] == 1).any()
+    np.testing.assert_array_equal(thin.idomain[0], 1)
+
+    # the DISU nodes are the active cells, layer by layer
+    d = thin.disu
+    active = np.argwhere(thin.idomain > 0)
+    np.testing.assert_array_equal(np.column_stack([d.layers, d.cells]), active)
+    np.testing.assert_array_equal(
+        thin.nodes[d.layers, d.cells], np.arange(len(d.cells))
+    )
+    assert (thin.nodes[thin.idomain <= 0] == -1).all()
+    np.testing.assert_allclose(d.area, cell_areas(grid)[d.cells])
+    np.testing.assert_array_equal(d.top, np.where(d.layers == 0, top[d.cells], 5.0))
+    assert d.iac.sum() == len(d.ja)
+    starts = np.concatenate([[0], np.cumsum(d.iac)[:-1]])
+    np.testing.assert_array_equal(d.ja[starts], np.arange(len(d.cells)))
+    node = np.repeat(np.arange(len(d.cells)), d.iac)
+    vertical = (d.ihc == 0) & (node != d.ja)
+    np.testing.assert_allclose(d.hwva[vertical], d.area[node[vertical]])
+    np.testing.assert_allclose(d.cl12[vertical], 0.5 * (d.top - d.bot)[node[vertical]])
+    # the first layer's cells above pass-through cells connect to nothing
+    # below
+    assert set(d.ja[vertical].tolist()) == set(
+        thin.nodes[0, thin.idomain[1] > 0].tolist()
+    ) | set(thin.nodes[1, thin.idomain[1] > 0].tolist())
+
+    disv = thin.disv_arguments()
+    assert (disv["nlay"], disv["ncpl"]) == (2, cell_count)
+    assert disv["cell2d"] == grid.disv_cell2d()
+    disu = thin.disu_arguments()
+    assert (disu["nodes"], disu["nja"]) == (len(d.cells), len(d.ja))
+    assert disu["cell2d"][0][:3] == [0, *grid.centers[d.cells[0]].tolist()]
+    assert len(disu["cell2d"]) == len(d.cells)
+
+    # numbers and values for each layer
+    layers = tu.layer_grid(grid, 10.0, [6.0, 2.0], idomain=[1, 0])
+    assert layers.idomain.tolist() == [[1] * cell_count, [0] * cell_count]
+    assert len(layers.disu.cells) == cell_count
+    assert (
+        layers.disu.ihc[
+            layers.disu.ja != np.repeat(np.arange(cell_count), layers.disu.iac)
+        ]
+        == 1
+    ).all()
+    one = tu.layer_grid(grid, 1.0, 0.0)
+    assert one.botm.shape == (1, cell_count)
+
+    with pytest.raises(tu.Error, match="in layer 1 has a top of 6 and a bottom of 7"):
+        tu.layer_grid(grid, 10.0, [6.0, 7.0])
+    # a crossing bottom made pass-through moves up, and the layer below starts
+    # at the bottom above
+    crossing = tu.layer_grid(grid, 10.0, [6.0, 7.0, 0.0], minimum_thickness=0.5)
+    np.testing.assert_array_equal(crossing.idomain[1], -1)
+    np.testing.assert_array_equal(crossing.botm[1], 6.0)
+    np.testing.assert_array_equal(crossing.disu.top[crossing.disu.layers == 2], 6.0)
+    with pytest.raises(tu.Error, match="is not active but has a bottom of 7"):
+        tu.layer_grid(grid, 10.0, [6.0, 7.0, 0.0], idomain=[1, 0, 1])
+    obtuse = tu.Mesh(
+        np.array([(0.0, 0.0), (4.0, 0.0), (2.0, 2.0 / np.sqrt(3.0)), (2.0, -5.0)]),
+        np.array([(0, 1, 2), (1, 0, 3)]),
+    )
+    with pytest.raises(tu.Error, match="the layers' DISU connections: the center"):
+        tu.layer_grid(tu.triangle_grid(obtuse, center="circumcenter"), 10.0, 0.0)
+    with pytest.raises(ValueError, match="botm must be"):
+        tu.layer_grid(grid, 10.0, np.zeros((2, 3)))
+    with pytest.raises(ValueError, match=r"botm must be .* not the shapes"):
+        tu.layer_grid(grid, 10.0, [np.zeros(cell_count), np.zeros(cell_count + 1)])
+    with pytest.raises(ValueError, match="at least one layer"):
+        tu.layer_grid(grid, 10.0, [])
+    with pytest.raises(ValueError, match="top must be"):
+        tu.layer_grid(grid, [10.0, 9.0], 0.0)
+    with pytest.raises(ValueError, match="idomain must be"):
+        tu.layer_grid(grid, 10.0, [5.0, 0.0], idomain=[1, 1, 1])
+    with pytest.raises(ValueError, match="idomain must be whole"):
+        tu.layer_grid(grid, 10.0, [5.0, 0.0], idomain=0.5)
+    with pytest.raises(tu.Error, match="minimum thickness"):
+        tu.layer_grid(grid, 10.0, 0.0, minimum_thickness=-1.0)
+    with pytest.raises(tu.Error, match="vertex count is 2"):
+        tu.values_at_centers(grid, mesh, [1.0, 2.0])
 
 
 def test_shapes():

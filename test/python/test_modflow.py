@@ -13,6 +13,9 @@ Cases:
   - test_disu_runs     : the Voronoi grid in DISU, with its connections, gives
                          the linear head and the uniform specific discharge,
                          as in DISV.
+  - test_layers_run    : three layers of the Voronoi grid, with pass-through,
+                         thin, and inactive cells, give the same heads in
+                         DISV and DISU.
 """
 
 import itertools
@@ -195,3 +198,77 @@ def test_disu_runs(tmp_path):
     exact = [(WEST_HEAD - EAST_HEAD) / LENGTH, 0.0]
     np.testing.assert_allclose(discharge, np.tile(exact, (len(heads), 1)), atol=1e-7)
     np.testing.assert_allclose(disv_discharge, discharge, atol=1e-7)
+
+
+def run_layers(workspace, layers, disu):
+    """The heads of a steady model of the layers, in DISV or DISU, with a
+    fixed head at the west end of the top layer and the east end of the
+    bottom layer, as an array of layer by cell (nan where there is no node)."""
+    simulation = flopy.mf6.MFSimulation(sim_ws=workspace, exe_name="mf6")
+    flopy.mf6.ModflowTdis(simulation)
+    flopy.mf6.ModflowIms(
+        simulation,
+        outer_dvclose=1e-12,
+        inner_dvclose=1e-12,
+        rcloserecord=[1e-10, "strict"],
+        outer_maximum=50,
+        inner_maximum=2000,
+        linear_acceleration="cg",
+    )
+    model = flopy.mf6.ModflowGwf(simulation, modelname="layers")
+    if disu:
+        flopy.mf6.ModflowGwfdisu(model, **layers.disu_arguments())
+    else:
+        flopy.mf6.ModflowGwfdisv(model, **layers.disv_arguments())
+    flopy.mf6.ModflowGwfnpf(model, k=1.0, k33=0.1)
+    flopy.mf6.ModflowGwfic(model, strt=0.5)
+    x = layers.grid.centers[:, 0]
+    bottom = len(layers.botm) - 1
+    fixed = []
+    for layer, cells, head in (
+        (0, np.flatnonzero(x == 0.0), WEST_HEAD),
+        (bottom, np.flatnonzero(x == LENGTH), EAST_HEAD),
+    ):
+        for cell in cells:
+            cellid = (layers.nodes[layer, cell],) if disu else (layer, cell)
+            fixed.append([cellid, head])
+    flopy.mf6.ModflowGwfchd(model, stress_period_data=fixed)
+    flopy.mf6.ModflowGwfoc(
+        model, head_filerecord="layers.hds", saverecord=[("HEAD", "ALL")]
+    )
+    simulation.write_simulation(silent=True)
+    success, _ = simulation.run_simulation(silent=True)
+    assert success
+    heads = model.output.head().get_data().ravel()
+    if disu:
+        result = np.full(layers.nodes.shape, np.nan)
+        result[layers.disu.layers, layers.disu.cells] = heads
+        return result
+    heads = heads.reshape(layers.nodes.shape)
+    return np.where(layers.nodes >= 0, heads, np.nan)
+
+
+def test_layers_run(tmp_path):
+    geometry = tu.Geometry()
+    geometry.add_polygon([(0, 0), (LENGTH, 0), (LENGTH, WIDTH), (0, WIDTH)], marker=1)
+    mesh = tu.generate(
+        geometry, maximum_area=0.2, minimum_angle=28, conforming_delaunay=True
+    )
+    grid = tu.voronoi(mesh)
+    x, y = grid.centers.T
+    # a top sloping to the east, from the mesh's vertices, and a middle
+    # layer that thins to nothing in a band and is cut out of a patch
+    top = tu.values_at_centers(grid, mesh, 10.0 - 0.2 * mesh.vertices[:, 0])
+    middle = np.where(np.abs(x - 5.0) < 1.0, 5.0 - 0.01, 3.0)
+    botm = np.array([np.full_like(x, 5.0), middle, np.full_like(x, 0.0)])
+    idomain = np.ones(botm.shape, dtype=int)
+    idomain[1, (x > 7.0) & (y > 2.0)] = 0
+    layers = tu.layer_grid(grid, top, botm, idomain, minimum_thickness=0.1)
+    assert (layers.idomain[1] == -1).sum() > 0
+    assert (layers.idomain == 0).sum() == (idomain == 0).sum()
+    disv = run_layers(tmp_path / "disv", layers, disu=False)
+    disu = run_layers(tmp_path / "disu", layers, disu=True)
+    np.testing.assert_array_equal(np.isnan(disv), np.isnan(disu))
+    np.testing.assert_allclose(disu, disv, atol=1e-8)
+    # flow crosses the thin band only through its pass-through cells
+    assert np.nanmax(disu) - np.nanmin(disu) > 0.5

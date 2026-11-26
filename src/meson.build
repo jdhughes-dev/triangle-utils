@@ -28,6 +28,7 @@ core_lib = static_library(
   'geometry.cpp',
   'grid.cpp',
   'improve.cpp',
+  'layers.cpp',
   'mesh.cpp',
   'refine.cpp',
   'run_triangle.cpp',

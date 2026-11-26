@@ -6,8 +6,10 @@ package would, and runs against each wheel.
 
 Cases:
   - test_example : the valley's Voronoi grid matches its DISV arrays, its
-                   connections are symmetric, and each stream's cells run in
-                   order to the confluence's cell, one of the river's.
+                   connections are symmetric, each stream's cells run in
+                   order to the confluence's cell, one of the river's, and
+                   its layers make the clay's thin cells pass-through and
+                   leave them out of the DISU nodes.
 """
 
 import runpy
@@ -59,3 +61,14 @@ def test_example():
         length(valley["BOUNDARY"], closed=True)
     )
     np.testing.assert_allclose(grid.centers[valley["well_cells"]], valley["WELLS"])
+    layers = valley["layers"]
+    x = grid.centers[:, 0]
+    clay = layers.botm[0] - layers.botm[1]
+    np.testing.assert_array_equal(
+        layers.idomain[1] == -1, clay < valley["MINIMUM_THICKNESS"]
+    )
+    assert (x[layers.idomain[1] == -1] > 2000.0).all()
+    np.testing.assert_array_equal(layers.idomain[[0, 2]], 1)
+    disu = valley["disu"]
+    assert disu["nodes"] == (layers.idomain > 0).sum()
+    assert valley["disv"]["nlay"] == 3

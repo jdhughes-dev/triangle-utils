@@ -70,14 +70,16 @@ MODFLOW-ORG/triangle and MODFLOW-ORG/gridgen.
   and flips edges), `grid.hpp` and `.cpp` (Voronoi and triangle grids for
   DISV), `features.hpp` and `.cpp` (the cells of points, and along a line or
   marked segments), `connections.hpp` and `.cpp` (the faces cells share, for
-  DISU), `run_triangle.hpp` (calls Triangle and throws its reason
-  for an error), and `error.hpp` (the one error type it throws, and
-  `message()`); the C API: `triangle_utils.h`, its documentation, and
-  `triangle_utils.cpp`. Add a new API function to `src/triangle_utils.def`
-  (Windows), `src/triangle_utils.map` (Linux), and `src/triangle_utils.exports`
-  (macOS). The command line: `main.cpp`, which reads files into the core's
-  types and calls only the C API for the rest, `triangle_files.hpp` and `.cpp`,
-  which read and write Triangle's files, and `modflow_files.hpp` and `.cpp`,
+  DISU), `layers.hpp` and `.cpp` (layers of a grid, their DISU nodes and
+  connections, and values at cell centers), `run_triangle.hpp` (calls
+  Triangle and throws its reason for an error), and `error.hpp` (the one
+  error type it throws, and `message()`); the C API: `triangle_utils.h`,
+  its documentation, and `triangle_utils.cpp`. Add a new API function to
+  `src/triangle_utils.def` (Windows), `src/triangle_utils.map` (Linux), and
+  `src/triangle_utils.exports` (macOS). The command line: `main.cpp`, which
+  reads files into the core's types and calls only the C API for the rest,
+  `triangle_files.hpp` and `.cpp`, which read and write Triangle's files, and
+  `modflow_files.hpp` and `.cpp`,
   which write MODFLOW 6's.
 - `python/triangle_utils/` — the Python module over the C API, meshes in
   and out as NumPy arrays (`_library.py` declares the C functions for

@@ -58,6 +58,14 @@
     triangle_utils_connections_free;
     triangle_utils_connections_count;
     triangle_utils_connections;
+    triangle_utils_grid_vertex_values;
+    triangle_utils_grid_layers;
+    triangle_utils_layers_free;
+    triangle_utils_layers_idomain;
+    triangle_utils_layers_bottoms;
+    triangle_utils_layers_disu_count;
+    triangle_utils_layers_disu_nodes;
+    triangle_utils_layers_disu_connections;
   local:
     *;
 };

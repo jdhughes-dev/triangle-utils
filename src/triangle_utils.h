@@ -50,6 +50,10 @@ typedef struct TriangleUtilsCellLengths TriangleUtilsCellLengths;
    triangle_utils_connections_free(). */
 typedef struct TriangleUtilsConnections TriangleUtilsConnections;
 
+/* The layers of a grid, with their MODFLOW DISV idomain and DISU data; free
+   them with triangle_utils_layers_free(). */
+typedef struct TriangleUtilsLayers TriangleUtilsLayers;
+
 /* The reason for the last status other than TRIANGLE_UTILS_OK, or an empty
    string after a function that returns a status succeeded; valid until the
    next such call. */
@@ -384,6 +388,72 @@ int triangle_utils_connections_count(const TriangleUtilsConnections * connection
 int triangle_utils_connections(const TriangleUtilsConnections * connections, int cell_count,
                                int * offsets, int connection_count, int * cells, double * distances,
                                double * widths, double * angles);
+
+/* The value at each cell's center, interpolated linearly from values at
+   the mesh's vertices over the triangle that holds it; a center on a vertex,
+   as in a Voronoi grid, gets the vertex's value. An error if a center is
+   outside the mesh. */
+int triangle_utils_grid_vertex_values(const TriangleUtilsGrid * grid,
+                                      const TriangleUtilsMesh * mesh, int vertex_count,
+                                      const double * vertex_values, int cell_count,
+                                      double * cell_values);
+
+/* Layers of a grid, each with the grid's cells, from the top of each cell
+   and the bottom of each cell in each layer, and idomain (> 0 active, 0 not
+   in the model, < 0 vertical pass-through), or all 1 if idomain is NULL;
+   values in layers are layer by layer (layer * cell_count + cell), as DISV
+   lists them. A cell's top is the bottom of the cell above it, as in
+   MODFLOW. An active cell thinner than minimum_thickness, if it is
+   positive, becomes a pass-through cell, and a bottom above its top moves
+   up to it, so the cell below does not overlap the cells above. An error if
+   a value is not finite, an active cell is not thicker than 0, or a cell
+   that is not active, above the last layer, has a bottom above its top,
+   naming the cell and layer, or if the grid's cells cannot be connected
+   for DISU (triangle_utils_grid_connections()). triangle_utils_layers_bottoms()
+   gives the bottoms. *layers is NULL after a failure. */
+int triangle_utils_grid_layers(const TriangleUtilsGrid * grid, int layer_count, int cell_count,
+                               const double * top, const double * bottoms, const int * idomain,
+                               double minimum_thickness, TriangleUtilsLayers ** layers);
+
+/* Free layers; NULL is ignored. */
+void triangle_utils_layers_free(TriangleUtilsLayers * layers);
+
+/* The idomain of each cell in each layer, with the pass-through cells the
+   minimum thickness made; value_count must be the layer count times the
+   cell count. */
+int triangle_utils_layers_idomain(const TriangleUtilsLayers * layers, int value_count,
+                                  int * idomain);
+
+/* The bottom of each cell in each layer, with a bottom that the minimum
+   thickness made pass-through moved up to its top if it was above it;
+   value_count must be the layer count times
+   the cell count. */
+int triangle_utils_layers_bottoms(const TriangleUtilsLayers * layers, int value_count,
+                                  double * bottoms);
+
+/* The number of DISU nodes, one for each active cell, and of DISU
+   connections (NJA), each node's connection to itself included. */
+int triangle_utils_layers_disu_count(const TriangleUtilsLayers * layers, int * node_count,
+                                     int * connection_count);
+
+/* For each DISU node, numbered layer by layer: its cell in the layers
+   (layer * cell_count + cell), top, bottom, and area. */
+int triangle_utils_layers_disu_nodes(const TriangleUtilsLayers * layers, int node_count,
+                                     int * cells, double * top, double * bottom, double * area);
+
+/* The DISU connections of node n are offsets[n] up to offsets[n + 1], so
+   offsets has node_count + 1 values and IAC is the difference of each pair;
+   the first is to n itself and the rest are in increasing order of the
+   other node. For each: the other node (JA), 0 for vertical or 1 for
+   horizontal (IHC), CL12, HWVA, and ANGLDEGX, which are 0 for the node
+   itself. A node connects to the active cells beside it in its layer and to
+   the active cells above and below it, through any pass-through cells
+   between, as MODFLOW 6 connects DISV cells; a vertical connection's CL12
+   is half the node's thickness and its HWVA the cell's area. */
+int triangle_utils_layers_disu_connections(const TriangleUtilsLayers * layers, int node_count,
+                                           int * offsets, int connection_count, int * nodes,
+                                           int * directions, double * distances, double * widths,
+                                           double * angles);
 
 #ifdef __cplusplus
 }
