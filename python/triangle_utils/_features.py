@@ -64,6 +64,8 @@ def _value(frame, value, name, whole):
         raise ValueError(f"{name} names a column, but the source has none")
     if value not in frame.columns:
         raise ValueError(f"{name} names column {value!r}, which the source lacks")
+    if list(frame.columns).count(value) > 1:
+        raise ValueError(f"{name} names column {value!r}, which the source repeats")
     import pandas
 
     column = frame[value].tolist()
@@ -97,7 +99,9 @@ def _ring(ring):
     import shapely
 
     points = shapely.get_coordinates(ring)[:-1]
-    x, y = points.T
+    # relative to the first point, so the area of a small ring far from the
+    # origin keeps its sign
+    x, y = (points - points[:1]).T
     if np.dot(x, np.roll(y, -1)) - np.dot(np.roll(x, -1), y) < 0:
         points = np.vstack([points[:1], points[:0:-1]])
     return points
@@ -107,7 +111,11 @@ def _parts(geometry):
     """The (kind, points) of each part of a geometry; nothing if it is empty."""
     import shapely
 
-    if geometry is None or geometry.is_empty:
+    if geometry is None:
+        return
+    if not isinstance(geometry, shapely.Geometry):
+        raise ValueError(f"{geometry!r} is not a shapely geometry")
+    if geometry.is_empty:
         return
     kind = geometry.geom_type
     if kind == "Polygon":

@@ -187,6 +187,13 @@ def test_parts():
     # a clockwise outer boundary, as a shapefile stores it
     clockwise = tu.read_features(Polygon(square[::-1]))
     np.testing.assert_array_equal(clockwise[0].points, [square[-1], *square[:-1]])
+    # a clockwise 1 mm square at UTM coordinates, whose area from the raw
+    # coordinates rounds to zero
+    corner = np.array([500000.123, 4500000.456])
+    small = corner + 0.001 * np.array(square[::-1], dtype=float) / 10
+    np.testing.assert_array_equal(
+        tu.read_features(Polygon(small))[0].points, [small[0], *small[:0:-1]]
+    )
     # shapely geometries alone, with numbers for the values
     features = tu.read_features(Polygon(square, [hole]), marker=7, spacing=0.5)
     assert [(f.kind, f.marker, f.spacing) for f in features] == [
@@ -330,6 +337,10 @@ def test_bad_values():
         tu.read_features(frame.assign(text=["abc", "1"]), spacing="text")
     with pytest.raises(ValueError, match="names a column"):
         tu.read_features([Point(0, 0)], marker="marker")
+    with pytest.raises(ValueError, match="repeats"):
+        tu.read_features(frame.assign(m=1, n=2).rename(columns={"n": "m"}), marker="m")
+    with pytest.raises(ValueError, match="not a shapely geometry"):
+        tu.read_features([b"abc"])
     with pytest.raises(ValueError, match="layer"):
         tu.read_features(frame, layer="wells")
     geometry = tu.Geometry()
@@ -347,6 +358,13 @@ def test_bad_values():
             [
                 tu.Feature("polygon", np.eye(3, 2), 0),
                 tu.Feature("line", np.zeros((2, 3)), 1),
+            ]
+        )
+    with pytest.raises(ValueError, match="whole number"):
+        geometry.add_features(
+            [
+                tu.Feature("polygon", np.eye(3, 2), 0),
+                tu.Feature("line", np.eye(2), 1, marker=1.5),
             ]
         )
     # nothing was added

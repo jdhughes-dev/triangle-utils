@@ -361,28 +361,33 @@ class Geometry:
             raise ValueError(
                 f'points must be "vertices", "regions", or "holes", not {points!r}'
             )
-        # every feature is checked before any is added
-        features = list(features)
+        # added to a new geometry first, so an error adds nothing
+        staged = Geometry()
+        vertices = []
         for feature in features:
             if feature.kind not in KINDS:
                 raise ValueError(f"{feature.kind!r} is not a kind of feature")
-            _rows(feature.points, 2, "points", np.float64)
-        vertices = []
-        for feature in features:
             if feature.kind != "point":
-                add = getattr(self, f"add_{feature.kind}")
-                add(feature.points, spacing=feature.spacing, marker=feature.marker)
+                add = getattr(staged, f"add_{feature.kind}")
+                add(
+                    feature.points,
+                    spacing=float(feature.spacing),
+                    marker=feature.marker,
+                )
                 continue
-            for x, y in np.asarray(feature.points, dtype=np.float64):
+            for x, y in _rows(feature.points, 2, "points", np.float64):
                 if points == "vertices":
                     vertices.append((x, y))
                 elif points == "regions":
-                    self.add_region(x, y, feature.attribute, feature.area_limit)
+                    staged.add_region(
+                        x, y, float(feature.attribute), float(feature.area_limit)
+                    )
                 else:
-                    self.add_hole(x, y)
+                    staged.add_hole(x, y)
         # in one call, after the other features
         if vertices:
-            self.add_points(vertices)
+            staged.add_points(vertices)
+        self._features.extend(staged._features)
 
     def _handle(self):
         """A new geometry handle with the features; free it after use."""
