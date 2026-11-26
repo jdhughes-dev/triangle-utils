@@ -58,12 +58,17 @@ Cases:
   - test_generate_errors : a bad option value is a usage error (2), and a
                          boundary not closed and a missing file are errors
                          (1).
+  - test_guide_commands : the user guide's commands, on the files
+                         valley_files.py writes, exit 0, with the values of
+                         valley.py.
 """
 
 import itertools
 import math
 import os
+import runpy
 import subprocess
+from pathlib import Path
 
 import pytest
 
@@ -586,3 +591,34 @@ def test_cells_errors(tmp_path):
     status, _, errors = run("cells", "-m", "7", f"{base}.1")
     assert status == 1
     assert "no segment of the mesh has marker 7" in errors
+
+
+def test_guide_commands(tmp_path, monkeypatch):
+    guide = Path(__file__).resolve().parents[2] / "doc" / "UserGuide"
+    # valley_files.py imports valley.py from beside it
+    monkeypatch.syspath_prepend(str(guide))
+    files = runpy.run_path(str(guide / "valley_files.py"))
+    files["write_files"](tmp_path)
+    valley = runpy.run_path(str(guide / "valley.py"))
+    commands = [
+        line.split()
+        for line in (guide / "valley_commands.txt").read_text().splitlines()
+    ]
+    for command in commands:
+        assert command[0] == "triangle-utils"
+        result = subprocess.run(
+            [PROGRAM, *command[1:]],
+            capture_output=True,
+            text=True,
+            check=False,
+            cwd=tmp_path,
+        )
+        assert result.returncode == 0, result.stderr
+    # the commands use the values of valley.py
+    options = {(c[1], c[i]): c[i + 1] for c in commands for i in range(2, len(c) - 1)}
+    assert float(options["generate", "-a"]) == valley["MAXIMUM_AREA"]
+    assert float(options["generate", "-q"]) == valley["MINIMUM_ANGLE"]
+    assert float(options["generate", "-s"]) == valley["BOUNDARY_SPACING"]
+    assert float(options["refine", "-A"]) == valley["MAXIMUM_ANGLE"]
+    assert float(options["improve", "-A"]) == valley["IMPROVE_ANGLE"]
+    assert int(options["cells", "-m"]) == valley["BOUNDARY_MARKER"]

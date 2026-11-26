@@ -16,7 +16,9 @@ on an edge splits it), #8 (improve by moving vertices), #9 (Voronoi and
 triangle grids for DISV), #12 (the cells of points, lines, and boundaries),
 #13 (DISU connection data), #46 (the Python package's wheels), #55 (a
 tributary in the guide's example), #50 (features from GeoDataFrames and
-shapely geometries in Python), #19 (layers, with DISV and DISU arrays).
+shapely geometries in Python), #19 (layers, with DISV and DISU arrays),
+#61 (the guide's code beside its sections, with the full listings in an
+appendix).
 
 1. #58 write layered DISV and DISU files from the command line
 2. #59 recompute a layered grid's DISU data for new elevations
