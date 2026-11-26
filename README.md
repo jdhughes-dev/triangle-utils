@@ -74,7 +74,9 @@ circumcenter, is an error. `triangle_utils_grid_layers()` gives a grid layers,
 from the top of each cell, the bottom of each cell in each layer, and IDOMAIN,
 and returns the DISV IDOMAIN, with an active cell thinner than a minimum
 thickness made a pass-through cell, and the DISU nodes and connections, which
-connect through pass-through cells as MODFLOW 6 does in DISV;
+connect through pass-through cells as MODFLOW 6 does in DISV, and which
+are an error, on the first DISU call, for a grid whose cells cannot be
+connected;
 `triangle_utils_grid_vertex_values()` interpolates values at the mesh's
 vertices, such as elevations, to the cell centers. In Python,
 `layer_grid()` returns them with the arguments of FloPy's DISV and DISU
@@ -113,6 +115,7 @@ triangle-utils generate [options] <base>  # mesh <base>.poly to <base>.1.*
 triangle-utils refine [options] <base>    # refine <base>.node and .ele
 triangle-utils improve [options] <base>   # move its vertices
 triangle-utils disv [options] <base>      # write <base>.disv for MODFLOW 6
+triangle-utils disu [options] <base>      # write <base>.disu, MODFLOW 6 or USG
 triangle-utils cells [options] <base>     # cells of points, a line, a boundary
 triangle-utils check <base>   # check <base>.node, .ele, and .neigh
 triangle-utils --version      # the versions of triangle-utils and Triangle,
@@ -139,9 +142,23 @@ with 0 on success, 1 on an error, and 2 on a usage error.
 
 `disv` writes the Voronoi grid of the mesh in `<base>.node` and `.ele`, which
 must be conforming Delaunay (`-D`), or its triangles (`-g centroid` or
-`-g circumcenter`), as a one-layer MODFLOW 6 DISV file, `<base>.disv`, and
-each cell's mesh vertex or triangle and attributes to `<base>.cells`.
-`pixi run get-mf6` downloads MODFLOW 6 into the pixi environment.
+`-g circumcenter`), with its layers, as a MODFLOW 6 DISV file, `<base>.disv`,
+and each cell's mesh vertex or triangle and attributes to `<base>.cells`.
+The top (`-t`) and each layer's bottom (`-b`, once for each layer, from the
+top down) are a number or a file of values, one for each cell or for each
+mesh vertex, interpolated to the cell centers; `-i` gives each layer's
+IDOMAIN, and `-m` a minimum thickness. `disu` writes the same layers as a
+MODFLOW 6 DISU file, or a MODFLOW-USG DISU file (`-f usg`) that
+MODFLOW-USG-Transport also reads, with one steady-state stress period and
+each horizontal face's area (width times the mean thickness of its two
+cells), and each node's layer and cell to `<base>.nodes`.
+
+```shell
+triangle-utils disu -t land.txt -b -5 -b clay.txt -b base.txt -m 1 valley.2
+```
+
+`pixi run get-mf6` downloads MODFLOW 6 into the pixi environment, and
+`pixi run get-mfusg` MODFLOW-USG and MODFLOW-USG-Transport.
 
 `cells` prints the cells of the same grid that points contain (`-p`, a file
 of x and y), or that a line (`-l`) or the segments of `<base>.poly` with a

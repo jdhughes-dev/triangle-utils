@@ -39,7 +39,8 @@ Cases:
                          minimum thickness makes a thin cell pass-through, a
                          crossing bottom is an error naming its cell and
                          layer, and wrong counts and null pointers are
-                         invalid arguments.
+                         invalid arguments; a grid whose cells cannot be
+                         connected has layers, and an error for DISU.
   - test_vertex_values : values at a square's corners give the plane's value
                          at each triangle's centroid; a wrong count is an
                          invalid argument.
@@ -542,12 +543,12 @@ def test_connections(library):
     assert library.triangle_utils_grid_connections(None, None) == INVALID_ARGUMENT
 
 
-def two_cells(library):
+def two_cells(library, center_xy=(0.25, 0.5, 0.75, 0.5)):
     """The unit square as two cells, split at x = 0.5."""
     xy = (ctypes.c_double * 12)(0, 0, 0.5, 0, 1, 0, 1, 1, 0.5, 1, 0, 1)
     offsets = (ctypes.c_int * 3)(0, 4, 8)
     corners = (ctypes.c_int * 8)(0, 5, 4, 1, 1, 4, 3, 2)
-    centers = (ctypes.c_double * 4)(0.25, 0.5, 0.75, 0.5)
+    centers = (ctypes.c_double * 4)(*center_xy)
     grid = GRID_POINTER()
     status = library.triangle_utils_grid_create(
         6, xy, 2, offsets, 8, corners, centers, ctypes.byref(grid)
@@ -694,6 +695,27 @@ def test_layers(library):
         assert library.triangle_utils_grid_layers(
             grid, 2, 2, top, bottoms, None, 0.0, None
         ) == (INVALID_ARGUMENT)
+    finally:
+        library.triangle_utils_grid_free(grid)
+
+    # the first center is past the face: DISV layers, but no DISU
+    grid = two_cells(library, (0.6, 0.5, 0.75, 0.5))
+    try:
+        status, layers = make_layers(library, grid, (5, 5, 0, 0))
+        assert status == OK
+        try:
+            idomain = (ctypes.c_int * 4)()
+            assert library.triangle_utils_layers_idomain(layers, 4, idomain) == OK
+            counts = [ctypes.c_int(-1) for _ in range(2)]
+            status = library.triangle_utils_layers_disu_count(
+                layers, *[ctypes.byref(count) for count in counts]
+            )
+            assert status == ERROR
+            assert library.triangle_utils_last_error().startswith(
+                b"the layers' DISU connections: the center of cell 0 is not on its side"
+            )
+        finally:
+            library.triangle_utils_layers_free(layers)
     finally:
         library.triangle_utils_grid_free(grid)
 

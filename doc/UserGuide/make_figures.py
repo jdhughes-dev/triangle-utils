@@ -153,8 +153,8 @@ EXCERPTS = {
     "voronoi": ("valley.py", "grid = tu.voronoi(", "disv_cell2d ="),
     "connections": ("valley.py", "connections = tu.connect_cells(", "connections ="),
     "features": ("valley.py", "stream_cells =", "well_cells ="),
-    "surfaces": ("valley.py", "vertices = delaunay_refined", "aquifer_base = ("),
-    "layers": ("valley.py", "top = tu.values_at_centers(", "disu = layers.disu"),
+    "surfaces": ("valley.py", "def surfaces(", "def surfaces("),
+    "layers": ("valley.py", "land_surface, clay_base", "disu = layers.disu"),
     "gis": ("valley_gis.py", "columns = {", "for well in tu.read_features("),
 }
 

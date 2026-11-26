@@ -48,7 +48,19 @@ Cases:
   - test_disv_ignores_poly : disv reads only the .node and .ele files, so a
                          .poly file with its own vertices beside them does
                          not stop it.
-  - test_disv_errors   : a mesh that is not Delaunay exits 1 with the reason.
+  - test_disv_errors   : a mesh that is not Delaunay, and a top below the
+                         bottom, exit 1 with the reason.
+  - test_disv_layers   : three layers, with a top from a file of the mesh's
+                         vertices, a bottom and idomain from files of the
+                         cells, and a minimum thickness, write their arrays,
+                         with pass-through and inactive cells, to the DISV file.
+  - test_disu          : the same layers write a MODFLOW 6 DISU file with a
+                         node for each active cell, each row starting with the
+                         node, a .nodes file of each node's layer and cell,
+                         and a MODFLOW-USG DISU file.
+  - test_disu_errors   : a file with the wrong number of values or a word, an
+                         idomain that is not a whole number, and a MODFLOW-USG
+                         layer with no active cells exit 1 with the reason.
   - test_cells         : a line across the box and the box's boundary print
                          their cells, numbered from 1, whose lengths sum to
                          the line's length in the box and to the boundary's,
@@ -59,7 +71,8 @@ Cases:
                          boundary not closed and a missing file are errors
                          (1).
   - test_guide_commands : the guide's commands, with valley.py's values, give
-                         the valley's mesh, grid, and cells from its files.
+                         the valley's mesh, grid, cells, and layers from the
+                         files valley_files.py writes.
 """
 
 import itertools
@@ -67,6 +80,7 @@ import math
 import os
 import runpy
 import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -152,10 +166,19 @@ def test_license():
             "disv: the grid must be voronoi, centroid, or circumcenter, not other",
         ),
         (
-            ("disv", "-t", "0", "-b", "1", "box"),
-            "disv: the top (0) must be above the bottom (1)",
+            ("disv", "-i", "1", "-i", "1", "box"),
+            "disv: give -i once for each layer, 1, not 2 times",
+        ),
+        (
+            ("disv", "-m", "-1", "box"),
+            "disv: the minimum thickness (-1) must not be negative",
         ),
         (("disv",), "disv: give one <base>"),
+        (
+            ("disu", "-f", "mf2005", "box"),
+            "disu: the format must be mf6 or usg, not mf2005",
+        ),
+        (("disu", "-b", "0", "box", "box"), "disu: give one <base>"),
         (("cells", "box"), "cells: give one of -l, -p, and -m"),
         (("cells", "-l", "x", "-m", "1", "box"), "cells: give one of -l, -p, and -m"),
         (("cells", "-m", "1.5", "box"), "cells: -m needs a whole number, not 1.5"),
@@ -482,6 +505,7 @@ def test_disv(tmp_path):
     text = open(f"{base}.1.disv").read()
     assert "TOP\n    CONSTANT 10\n" in text
     assert "BOTM LAYERED\n    CONSTANT -5\n" in text
+    assert "IDOMAIN LAYERED\n    CONSTANT 1\n" in text
     rows = [line.split() for line in open(f"{base}.1.cells")][1:]
     assert rows[0] == [str(vertex_total), "0"]
     assert [row[:2] for row in rows[1:]] == [
@@ -537,6 +561,218 @@ def test_disv_errors(tmp_path):
     assert output == ""
     assert "over 90" in errors
     assert "conforming Delaunay" in errors
+    base = write_mesh(tmp_path)
+    status, _, errors = run("disv", "-t", "0", "-b", "1", base)
+    assert status == 1
+    assert "cell 0 in layer 0 has a top of 0 and a bottom of 1" in errors
+
+
+def read_arrays(name):
+    """The arrays of a MODFLOW 6 file by name, each a list of its values (one
+    for a CONSTANT); a LAYERED array is a list of each layer's."""
+    arrays, layered, values, current = {}, set(), None, None
+    for words in (line.split() for line in open(name)):
+        if not words or words[0].startswith("#") or words[0] in ("BEGIN", "END"):
+            values = None
+        elif words[0] in ("CONSTANT", "INTERNAL"):
+            values = [float(word) for word in words[1:]]
+            arrays[current].append(values)
+        elif words[0][0].isalpha():
+            current, values = words[0], None
+            arrays[current] = []
+            if words[1:] == ["LAYERED"]:
+                layered.add(current)
+        elif values is not None:
+            values += [float(word) for word in words]
+    return {
+        key: values if key in layered else values[0]
+        for key, values in arrays.items()
+        if values
+    }
+
+
+def layer_files(tmp_path):
+    """A mesh of the box, its cells' centers, and the options of three layers:
+    a top from the mesh's vertices, a middle bottom from the cells that thins
+    to pass-through in a band, and a middle layer cut out of the northeast
+    corner."""
+    (tmp_path / "box.poly").write_text(BOX_POLY)
+    base = str(tmp_path / "box")
+    assert run("generate", "-a", "0.05", "-q", "28", "-D", base)[0] == 0
+    base += ".1"
+    assert run("disv", base)[0] == 0
+    centers = [(cell[1], cell[2]) for cell in read_disv(f"{base}.disv")[2]]
+    rows = [line.split() for line in open(f"{base}.node")][1:]
+    vertices = [(float(row[1]), float(row[2])) for row in rows if row and row[0] != "#"]
+    (tmp_path / "top.txt").write_text(
+        "# the top of each vertex\n" + "\n".join(f"{10 - x}" for x, _ in vertices)
+    )
+    middle = [4.95 if abs(x - 0.5) < 0.25 else 3.0 for x, _ in centers]
+    (tmp_path / "middle.txt").write_text(" ".join(map(str, middle)))
+    cut = [0 if x > 2.5 and y > 2.5 else 1 for x, y in centers]
+    (tmp_path / "idomain.txt").write_text(" ".join(map(str, cut)))
+    options = ["-t", str(tmp_path / "top.txt"), "-b", "5", "-b"]
+    options += [str(tmp_path / "middle.txt"), "-b", "0", "-i", "1", "-i"]
+    options += [str(tmp_path / "idomain.txt"), "-i", "1", "-m", "0.1"]
+    return base, centers, options
+
+
+def test_disv_layers(tmp_path):
+    base, centers, options = layer_files(tmp_path)
+    status, output, _ = run("disv", *options, base)
+    assert status == 0
+    arrays = read_arrays(f"{base}.disv")
+    count = len(centers)
+    band = [abs(x - 0.5) < 0.25 for x, _ in centers]
+    cut = [x > 2.5 and y > 2.5 for x, y in centers]
+    assert output == (
+        f"{base}.disv: {count} cells and {len(read_disv(f'{base}.disv')[1])} "
+        f"vertices in 3 layers, {sum(band)} pass-through\n"
+    )
+    assert read_disv(f"{base}.disv")[0]["NLAY"] == 3
+    # a Voronoi cell's top is its vertex's
+    assert arrays["TOP"] == pytest.approx([10 - x for x, _ in centers])
+    assert arrays["BOTM"][0] == [5.0]
+    assert arrays["BOTM"][2] == [0.0]
+    assert arrays["BOTM"][1] == [4.95 if b else 3.0 for b in band]
+    assert arrays["IDOMAIN"][0] == [1.0]
+    assert arrays["IDOMAIN"][1] == [
+        0.0 if c else -1.0 if b else 1.0 for b, c in zip(band, cut, strict=True)
+    ]
+    # a triangle grid has more cells than the mesh has vertices, so the top's
+    # file is interpolated, exactly for a plane
+    top = options[options.index("-t") + 1]
+    output_base = f"{base}.centroid"
+    status, _, _ = run("disv", "-g", "centroid", "-o", output_base, "-t", top, base)
+    assert status == 0
+    centroids = [(cell[1], cell[2]) for cell in read_disv(f"{output_base}.disv")[2]]
+    assert len(centroids) != len(centers)
+    assert read_arrays(f"{output_base}.disv")["TOP"] == pytest.approx(
+        [10 - x for x, _ in centroids]
+    )
+
+
+def test_disu(tmp_path):
+    base, centers, options = layer_files(tmp_path)
+    assert run("disv", *options, base)[0] == 0
+    idomain = read_arrays(f"{base}.disv")["IDOMAIN"]
+    count = len(centers)
+    active = [1.0] * count + idomain[1] + [1.0] * count
+    nodes = [(i // count + 1, i % count + 1) for i, a in enumerate(active) if a > 0]
+    status, output, _ = run("disu", *options, base)
+    assert status == 0
+    assert output.startswith(
+        f"{base}.disu: {len(nodes)} nodes and "
+    ) and output.endswith(
+        f" in 3 layers of {count} cells, {active.count(-1.0)} pass-through\n"
+    )
+    text = open(f"{base}.disu").read()
+    dimensions = read_disv(f"{base}.disu")[0]
+    assert dimensions["NODES"] == len(nodes)
+    arrays = read_arrays(f"{base}.disu")
+    assert len(arrays["IAC"]) == len(nodes)
+    assert sum(arrays["IAC"]) == dimensions["NJA"] == len(arrays["JA"])
+    # each node's row starts with the node itself
+    iac = [int(value) for value in arrays["IAC"]]
+    starts = list(itertools.accumulate(iac, initial=0))[:-1]
+    assert [arrays["JA"][s] for s in starts] == list(range(1, len(nodes) + 1))
+    assert "BEGIN CELL2D" in text
+    rows = [line.split() for line in open(f"{base}.nodes")]
+    assert rows[1] == [str(len(nodes))]
+    assert [(int(r[1]), int(r[2])) for r in rows[2:]] == nodes
+    assert len(open(f"{base}.cells").readlines()) == count + 2
+
+    status, output, _ = run("disu", "-f", "usg", "-o", f"{base}.usg", *options, base)
+    assert status == 0
+    lines = open(f"{base}.usg.disu").read().splitlines()
+    # IVSD 0, one period, undefined units, and CL12
+    assert lines[1] == f"{len(nodes)} 3 {dimensions['NJA']} 0 1 0 0 0"
+    assert lines[-1] == "1 1 1 SS"
+    # the arrays of the MODFLOW 6 file, with each horizontal face's area
+    usg = read_usg_arrays(f"{base}.usg.disu", 3, dimensions["NODES"], dimensions["NJA"])
+    assert usg["NODELAY"] == [sum(1 for n in nodes if n[0] == k) for k in (1, 2, 3)]
+    for name in ("TOP", "BOT", "AREA", "IAC", "JA", "CL12"):
+        assert usg[name] == pytest.approx(arrays[name]), name
+    rows = [n for n, count in enumerate(iac) for _ in range(count)]
+    thickness = [t - b for t, b in zip(arrays["TOP"], arrays["BOT"], strict=True)]
+    for c, (row, other) in enumerate(zip(rows, arrays["JA"], strict=True)):
+        mean = 0.5 * (thickness[row] + thickness[int(other) - 1])
+        width = arrays["HWVA"][c]
+        expected = width * mean if arrays["IHC"][c] == 1 else width
+        assert usg["FAHL"][c] == pytest.approx(expected)
+
+
+def read_usg_arrays(name, layer_count, node_count, connection_count):
+    """The arrays of a MODFLOW-USG DISU file, each layer's arrays joined."""
+    words = " ".join(open(name).read().splitlines()[3:]).split()
+    position = 0
+
+    def array(count):
+        nonlocal position
+        if words[position] == "CONSTANT":
+            values = [float(words[position + 1])] * count
+            position += 2
+        else:
+            assert words[position : position + 4] == ["INTERNAL", "1", "(FREE)", "-1"]
+            values = [
+                float(word) for word in words[position + 4 : position + 4 + count]
+            ]
+            position += 4 + count
+        return values
+
+    arrays = {"NODELAY": [int(value) for value in array(layer_count)]}
+    for key in ("TOP", "BOT", "AREA"):
+        arrays[key] = [v for count in arrays["NODELAY"] for v in array(count)]
+    arrays["IAC"] = array(node_count)
+    for key in ("JA", "CL12", "FAHL"):
+        arrays[key] = array(connection_count)
+    assert words[position:] == ["1", "1", "1", "SS"]
+    return arrays
+
+
+def test_disu_errors(tmp_path):
+    base, centers, _ = layer_files(tmp_path)
+    (tmp_path / "short.txt").write_text("1 2 3")
+    status, _, errors = run("disu", "-b", str(tmp_path / "short.txt"), base)
+    assert status == 1
+    assert "short.txt has 3 values, but the grid has " in errors
+    (tmp_path / "word.txt").write_text("1\ntwo\n")
+    status, _, errors = run("disu", "-t", str(tmp_path / "word.txt"), base)
+    assert status == 1
+    assert 'word.txt line 2: "two" is not a finite number' in errors
+    status, _, errors = run("disu", "-t", "nan", base)
+    assert status == 1
+    assert "nan is not a finite number" in errors
+    status, _, errors = run("disu", "-i", "1.5", base)
+    assert status == 1
+    assert "the idomain 1.5 is not an integer" in errors
+    (tmp_path / "half.txt").write_text("0.5\n" * len(centers))
+    status, _, errors = run("disu", "-i", str(tmp_path / "half.txt"), base)
+    assert status == 1
+    assert "the idomain 0.5 in " in errors and "half.txt is not an integer" in errors
+    # a layer of only pass-through cells, which MODFLOW-USG cannot read,
+    # leaving the files as they were
+    Path(f"{base}.disu").write_text("kept")
+    status, _, errors = run(
+        "disu",
+        "-f",
+        "usg",
+        "-t",
+        "10",
+        "-b",
+        "5",
+        "-b",
+        "5",
+        "-b",
+        "0",
+        "-m",
+        "1",
+        base,
+    )
+    assert status == 1
+    assert "layer 1 has no active cells, which MODFLOW-USG needs" in errors
+    assert Path(f"{base}.disu").read_text() == "kept"
+    assert not Path(f"{base}.nodes").exists()
 
 
 def read_cells(output):
@@ -592,31 +828,43 @@ def test_cells_errors(tmp_path):
     assert "no segment of the mesh has marker 7" in errors
 
 
-def test_guide_commands(tmp_path, monkeypatch):
+def test_guide_commands(tmp_path):
     guide = Path(__file__).resolve().parents[2] / "doc" / "UserGuide"
-    # valley_files.py imports valley.py from beside it
-    monkeypatch.syspath_prepend(str(guide))
-    files = runpy.run_path(str(guide / "valley_files.py"))
-    files["write_files"](tmp_path)
     valley = runpy.run_path(str(guide / "valley.py"))
-    commands = [
-        line.split()
-        for line in (guide / "valley_commands.txt").read_text().splitlines()
-    ]
+    lines = (guide / "valley_commands.txt").read_text().splitlines()
+    # the scripts of the guide's folder, which import valley.py from beside
+    # them, and the program
+    scripts = [line.split() for line in lines if line.startswith("python ")]
+    commands = [line.split() for line in lines if not line.startswith("python ")]
+    # the scripts find the module as the tests do
+    environment = {**os.environ, "PYTHONPATH": os.pathsep.join(sys.path)}
     outputs = {}
-    for command in commands:
-        assert command[0] == "triangle-utils"
+    for words in (line.split() for line in lines):
+        if words[0] == "python":
+            arguments = [sys.executable, str(guide / words[1]), *words[2:]]
+        else:
+            assert words[0] == "triangle-utils"
+            arguments = [PROGRAM, *words[1:]]
         result = subprocess.run(
-            [PROGRAM, *command[1:]],
+            arguments,
             capture_output=True,
             text=True,
             check=False,
             cwd=tmp_path,
+            env=environment,
         )
         assert result.returncode == 0, result.stderr
-        outputs[" ".join(command[1:])] = result.stdout
+        outputs[" ".join(words[1:])] = result.stdout
+    assert [script[1] for script in scripts] == ["valley_files.py"] * 2
     # the grid file, and the cells of each stream, the boundary, and the wells
     assert (tmp_path / "valley.2.disv").stat().st_size > 0
+    # the layers, from the surfaces at the mesh's vertices, with cells of the
+    # clay passing flow between the aquifers
+    disu = commands[[c[1] for c in commands].index("disu")]
+    layers = outputs[" ".join(disu[1:])]
+    assert layers.startswith("valley.2.disu: ")
+    assert " in 3 layers of " in layers
+    assert int(layers.split(", ")[-1].split()[0]) > 0
 
     def rows(command):
         output = outputs[f"cells {command} valley.2"]
@@ -658,3 +906,5 @@ def test_guide_commands(tmp_path, monkeypatch):
     assert float(options["refine", "-A"]) == valley["MAXIMUM_ANGLE"]
     assert float(options["improve", "-A"]) == valley["IMPROVE_ANGLE"]
     assert int(options["cells", "-m"]) == valley["BOUNDARY_MARKER"]
+    assert float(disu[disu.index("-b") + 1]) == valley["UPPER_BOTTOM"]
+    assert float(options["disu", "-m"]) == valley["MINIMUM_THICKNESS"]

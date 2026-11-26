@@ -36,6 +36,9 @@ test = { cmd = "meson test --verbose --no-rebuild -C builddir" }
 # download MODFLOW 6 (6.7.0) from release 30.0 of MODFLOW-ORG/executables into
 # the environment's bin
 get-mf6 = { cmd = "get-modflow :python --subset mf6 --release-id 30.0" }
+# and MODFLOW-USG (1.5.2) and MODFLOW-USG-Transport (2.8.1), which run the
+# MODFLOW-USG DISU files
+get-mfusg = { cmd = "get-modflow :python --subset mfusg,mfusgt --release-id 30.0" }
 
 # tests built with the address and undefined behavior sanitizers; any error
 # they report fails the test, and so does a leak where the leak sanitizer runs

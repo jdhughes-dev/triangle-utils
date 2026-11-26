@@ -1,6 +1,7 @@
 // The triangle-utils command line: reads Triangle's files, calls the C API,
 // and writes the results.
 
+#include <algorithm>
 #include <array>
 #include <cmath>
 #include <climits>
@@ -39,7 +40,8 @@ Commands:
   generate  mesh the geometry in a .poly file
   refine    refine a mesh in Triangle's files by area and angle
   improve   improve a mesh in Triangle's files by moving vertices
-  disv      write a MODFLOW 6 DISV grid of a mesh in Triangle's files
+  disv      write a layered MODFLOW 6 DISV grid of a mesh in Triangle's files
+  disu      write a layered MODFLOW 6 or MODFLOW-USG DISU grid of a mesh
   cells     find the cells a line or marked segments pass through
 
 Options:
@@ -141,7 +143,7 @@ Options:
 constexpr const char * DISV_USAGE = R"(usage: triangle-utils disv [options] <base>
 
 Build a grid from the mesh in <base>.node and <base>.ele and write it, with
-one layer, to <output>.disv for MODFLOW 6. The Voronoi grid has a cell
+its layers, to <output>.disv for MODFLOW 6. The Voronoi grid has a cell
 around each vertex, centered on it, so the line between two cells' centers
 is perpendicular to their shared face; its mesh must be conforming Delaunay
 (generate or refine with -D). A cell on the boundary is centered on its
@@ -151,13 +153,59 @@ attributes of the side with most of its area. A triangle grid has the
 triangles as its cells. Each cell's vertex or triangle, numbered as in
 <base>.node or <base>.ele, and its attributes are written to <output>.cells.
 
+The top and each bottom is a number, or a file of numbers separated by white
+space, with # comments: one for each cell, or one for each vertex of the
+mesh, interpolated at the cells' centers; a file with one value for each
+cell is read as such, and a Voronoi grid's cells are its vertices. Give -b
+once for each layer, from the top down; -i, if given, once for each layer as
+well, a whole number or a file of one for each cell: > 0 active, 0 not in the
+model, and < 0 a vertical pass-through cell. With -m above 0, an active cell
+thinner than the minimum thickness becomes a pass-through cell, and a bottom
+above its top moves up to it; otherwise an active cell not thicker than 0
+is an error.
+
 Options:
   -h, --help              show this help
   -o, --output <output>   the output base name (default <base>)
   -g, --grid <g>          voronoi (default), or centroid or circumcenter
                           for the triangles centered on either
-  -t, --top <top>         the top of the layer (default 1)
-  -b, --bottom <bottom>   the bottom of the layer (default 0)
+  -t, --top <top>         the top of the first layer (default 1)
+  -b, --bottom <bottom>   the bottom of a layer (default one layer, 0)
+  -i, --idomain <i>       the idomain of a layer (default 1)
+  -m, --minimum-thickness <t>
+                          the thinnest active cell (default 0, none)
+)";
+
+constexpr const char * DISU_USAGE = R"(usage: triangle-utils disu [options] <base>
+
+Build a grid from the mesh in <base>.node and <base>.ele, as disv does, and
+write its layers to <output>.disu: a node for each active cell, numbered
+layer by layer, connected to the active cells beside it in its layer and
+to the active cells above and below it, through any pass-through cells
+between, as MODFLOW 6 connects DISV cells. Each node's layer and cell,
+numbered as in the DISV file, are written to <output>.nodes, and each
+cell's vertex or triangle and its attributes to <output>.cells. The layers'
+options are those of disv.
+
+The MODFLOW 6 file has each node's cell in its VERTICES and CELL2D blocks.
+The MODFLOW-USG file, which MODFLOW-USG-Transport also reads, has one
+steady-state stress period, with a length of 1, and leaves the time and
+length units undefined. The angles of the horizontal connections, which
+anisotropy and dispersion need, go in MODFLOW-USG's flow and transport
+packages, in radians, rather than in DISU; ANGLDEGX of the MODFLOW 6 file
+gives them in degrees.
+
+Options:
+  -h, --help              show this help
+  -o, --output <output>   the output base name (default <base>)
+  -g, --grid <g>          voronoi (default), or centroid or circumcenter
+  -f, --format <f>        mf6 (default) for MODFLOW 6, or usg for
+                          MODFLOW-USG and MODFLOW-USG-Transport
+  -t, --top <top>         the top of the first layer (default 1)
+  -b, --bottom <bottom>   the bottom of a layer (default one layer, 0)
+  -i, --idomain <i>       the idomain of a layer (default 1)
+  -m, --minimum-thickness <t>
+                          the thinnest active cell (default 0, none)
 )";
 
 constexpr const char * CELLS_USAGE = R"(usage: triangle-utils cells [options] <base>
@@ -715,12 +763,249 @@ GridHandle build_grid(const TriangleUtilsMesh * mesh, const std::string & grid_n
     return GridHandle(built);
 }
 
+struct LayersFree
+{
+    void operator()(TriangleUtilsLayers * layers) const { triangle_utils_layers_free(layers); }
+};
+
+using LayersHandle = std::unique_ptr<TriangleUtilsLayers, LayersFree>;
+
+// A grid's cells, the mesh vertex or triangle of each, and their
+// attributes, through the C API.
+struct GridData
+{
+    triangle_utils::GridCells cells;
+    std::vector<int> sources;
+    int attribute_count = 0;
+    std::vector<double> attributes;
+};
+
+GridData grid_data(const TriangleUtilsGrid * grid)
+{
+    int vertex_count = 0, cell_count = 0, corner_count = 0;
+    check_status(triangle_utils_grid_counts(grid, &vertex_count, &cell_count, &corner_count));
+    std::vector<double> vertex_xy(2 * static_cast<std::size_t>(vertex_count));
+    check_status(triangle_utils_grid_vertices(grid, vertex_count, vertex_xy.data()));
+    std::vector<int> offsets(static_cast<std::size_t>(cell_count) + 1);
+    std::vector<int> corners(static_cast<std::size_t>(corner_count));
+    check_status(
+        triangle_utils_grid_cells(grid, cell_count, offsets.data(), corner_count, corners.data()));
+    std::vector<double> center_xy(2 * static_cast<std::size_t>(cell_count));
+    check_status(triangle_utils_grid_centers(grid, cell_count, center_xy.data()));
+    GridData data;
+    data.sources.resize(static_cast<std::size_t>(cell_count));
+    check_status(triangle_utils_grid_sources(grid, cell_count, data.sources.data()));
+    check_status(triangle_utils_grid_attribute_count(grid, &data.attribute_count));
+    data.attributes.resize(static_cast<std::size_t>(cell_count) * data.attribute_count);
+    check_status(triangle_utils_grid_attributes(grid, static_cast<int>(data.attributes.size()),
+                                                data.attributes.data()));
+    for (std::size_t vertex = 0; vertex < static_cast<std::size_t>(vertex_count); vertex++)
+        data.cells.vertices.push_back({vertex_xy[2 * vertex], vertex_xy[2 * vertex + 1]});
+    for (std::size_t cell = 0; cell < static_cast<std::size_t>(cell_count); cell++)
+    {
+        data.cells.cells.emplace_back(corners.begin() + offsets[cell],
+                                      corners.begin() + offsets[cell + 1]);
+        data.cells.centers.push_back({center_xy[2 * cell], center_xy[2 * cell + 1]});
+    }
+    return data;
+}
+
+// Write each cell's vertex or triangle, numbered as in Triangle's files,
+// and its attributes to <output_base>.cells.
+void write_cells(const std::string & output_base, const std::string & grid_name,
+                 const GridData & data, int first_number)
+{
+    std::ofstream file = open_output(output_base + ".cells");
+    file.precision(std::numeric_limits<double>::max_digits10);
+    const std::size_t cell_count = data.sources.size();
+    file << "# cell, " << (grid_name == "voronoi" ? "vertex" : "triangle") << ", and attributes\n"
+         << cell_count << " " << data.attribute_count << "\n";
+    for (std::size_t cell = 0; cell < cell_count; cell++)
+    {
+        file << cell + 1 << " " << data.sources[cell] + first_number;
+        for (int attribute = 0; attribute < data.attribute_count; attribute++)
+            file << " " << data.attributes[cell * data.attribute_count + attribute];
+        file << "\n";
+    }
+    if (!file) throw triangle_utils::Error("the cells file could not be written");
+}
+
+// The numbers of a file, separated by white space, with # comments.
+std::vector<double> read_numbers(const std::string & name)
+{
+    std::ifstream file = open_input(name);
+    std::vector<double> numbers;
+    std::string text;
+    int number = 0;
+    while (std::getline(file, text))
+    {
+        number++;
+        const std::size_t comment = text.find('#');
+        if (comment != std::string::npos) text.erase(comment);
+        std::istringstream words(text);
+        std::string word;
+        while (words >> word)
+        {
+            char * end = nullptr;
+            const double value = std::strtod(word.c_str(), &end);
+            if (end != word.c_str() + word.size() || !std::isfinite(value))
+                throw triangle_utils::Error(triangle_utils::message(
+                    name, " line ", number, ": \"", word, "\" is not a finite number"));
+            numbers.push_back(value);
+        }
+    }
+    return numbers;
+}
+
+// The text as a number, if it is one; throws Error if it is not finite.
+bool parse_number(const std::string & text, double & value)
+{
+    char * end = nullptr;
+    value = std::strtod(text.c_str(), &end);
+    if (text.empty() || end != text.c_str() + text.size()) return false;
+    if (!std::isfinite(value))
+        throw triangle_utils::Error(triangle_utils::message(text, " is not a finite number"));
+    return true;
+}
+
+// The layers as the options give them: the top, and each layer's bottom and
+// idomain, each a number or a file.
+struct LayerOptions
+{
+    std::string top = "1";
+    std::vector<std::string> bottoms;
+    std::vector<std::string> idomain;
+    double minimum_thickness = 0.0;
+
+    // Take the option if it is one of these; true if it was.
+    bool take(Options & options)
+    {
+        if (options.is("-t", "--top"))
+            top = options.value();
+        else if (options.is("-b", "--bottom"))
+            bottoms.push_back(options.value());
+        else if (options.is("-i", "--idomain"))
+            idomain.push_back(options.value());
+        else if (options.is("-m", "--minimum-thickness"))
+            minimum_thickness = options.number();
+        else
+            return false;
+        return true;
+    }
+
+    // Throw UsageError if the options do not give the same layers.
+    void check(const std::string & command)
+    {
+        if (bottoms.empty()) bottoms.push_back("0");
+        if (!idomain.empty() && idomain.size() != bottoms.size())
+            throw UsageError(triangle_utils::message(command, ": give -i once for each layer, ",
+                                                     bottoms.size(), ", not ", idomain.size(),
+                                                     " times"));
+        if (minimum_thickness < 0.0)
+            throw UsageError(triangle_utils::message(command, ": the minimum thickness (",
+                                                     minimum_thickness, ") must not be negative"));
+    }
+};
+
+// A value of each cell: a number, the values of a file with one for each
+// cell, or with one for each vertex of the mesh, interpolated at the cells'
+// centers.
+std::vector<double> cell_values(const std::string & text, const TriangleUtilsGrid * grid,
+                                const TriangleUtilsMesh * mesh, int cell_count)
+{
+    double number = 0.0;
+    if (parse_number(text, number))
+        return std::vector<double>(static_cast<std::size_t>(cell_count), number);
+    std::vector<double> values = read_numbers(text);
+    if (values.size() == static_cast<std::size_t>(cell_count)) return values;
+    const int vertex_count = mesh_counts(mesh).first;
+    if (values.size() != static_cast<std::size_t>(vertex_count))
+        throw triangle_utils::Error(
+            triangle_utils::message(text, " has ", values.size(), " values, but the grid has ",
+                                    cell_count, " cells and the mesh ", vertex_count, " vertices"));
+    std::vector<double> at_centers(static_cast<std::size_t>(cell_count));
+    check_status(triangle_utils_grid_vertex_values(grid, mesh, vertex_count, values.data(),
+                                                   cell_count, at_centers.data()));
+    return at_centers;
+}
+
+// An idomain of each cell: a whole number, or the values of a file with one
+// for each cell.
+std::vector<int> cell_idomain(const std::string & text, int cell_count)
+{
+    double number = 0.0;
+    const bool is_number = parse_number(text, number);
+    const std::vector<double> values =
+        is_number ? std::vector<double>(cell_count, number) : read_numbers(text);
+    if (values.size() != static_cast<std::size_t>(cell_count))
+        throw triangle_utils::Error(triangle_utils::message(text, " has ", values.size(),
+                                                            " idomain values, but the grid has ",
+                                                            cell_count, " cells"));
+    std::vector<int> idomain;
+    for (const double value : values)
+    {
+        if (value != std::floor(value) || std::abs(value) > INT_MAX)
+            throw triangle_utils::Error(triangle_utils::message(
+                "the idomain ", value, is_number ? "" : " in " + text, " is not an integer"));
+        idomain.push_back(static_cast<int>(value));
+    }
+    return idomain;
+}
+
+// The layers of a grid as the options give them, with the top of each cell,
+// and the bottoms and idomain after the minimum thickness.
+struct BuiltLayers
+{
+    LayersHandle layers;
+    int layer_count = 0;
+    std::vector<double> top;
+    std::vector<double> bottoms;
+    std::vector<int> idomain;
+};
+
+BuiltLayers build_layers(const LayerOptions & options, const TriangleUtilsGrid * grid,
+                         const TriangleUtilsMesh * mesh, int cell_count)
+{
+    BuiltLayers built;
+    built.layer_count = static_cast<int>(options.bottoms.size());
+    built.top = cell_values(options.top, grid, mesh, cell_count);
+    for (const std::string & bottom : options.bottoms)
+    {
+        const std::vector<double> values = cell_values(bottom, grid, mesh, cell_count);
+        built.bottoms.insert(built.bottoms.end(), values.begin(), values.end());
+    }
+    for (const std::string & idomain : options.idomain)
+    {
+        const std::vector<int> values = cell_idomain(idomain, cell_count);
+        built.idomain.insert(built.idomain.end(), values.begin(), values.end());
+    }
+    TriangleUtilsLayers * layers = nullptr;
+    check_status(triangle_utils_grid_layers(grid, built.layer_count, cell_count, built.top.data(),
+                                            built.bottoms.data(),
+                                            built.idomain.empty() ? nullptr : built.idomain.data(),
+                                            options.minimum_thickness, &layers));
+    built.layers.reset(layers);
+    const int value_count = static_cast<int>(built.bottoms.size());
+    built.idomain.resize(built.bottoms.size());
+    check_status(
+        triangle_utils_layers_idomain(built.layers.get(), value_count, built.idomain.data()));
+    check_status(
+        triangle_utils_layers_bottoms(built.layers.get(), value_count, built.bottoms.data()));
+    return built;
+}
+
+// The number of cells in the layers with idomain below 0.
+int pass_through_count(const std::vector<int> & idomain)
+{
+    return static_cast<int>(
+        std::count_if(idomain.begin(), idomain.end(), [](int value) { return value < 0; }));
+}
+
 int disv_command(const std::vector<std::string> & arguments)
 {
     std::string output_base;
     std::string grid_name = "voronoi";
-    double top = 1.0;
-    double bottom = 0.0;
+    LayerOptions layer_options;
     std::vector<std::string> bases;
     Options options("disv", arguments);
     while (options.next())
@@ -734,10 +1019,8 @@ int disv_command(const std::vector<std::string> & arguments)
             output_base = options.value();
         else if (options.is("-g", "--grid"))
             grid_name = options.value();
-        else if (options.is("-t", "--top"))
-            top = options.number();
-        else if (options.is("-b", "--bottom"))
-            bottom = options.number();
+        else if (layer_options.take(options))
+            continue;
         else if (options.is_option())
             options.unknown();
         else
@@ -745,9 +1028,7 @@ int disv_command(const std::vector<std::string> & arguments)
     }
     if (bases.size() != 1) throw UsageError("disv: give one <base>");
     check_grid_name("disv", grid_name);
-    if (!(top > bottom))
-        throw UsageError(triangle_utils::message("disv: the top (", top,
-                                                 ") must be above the bottom (", bottom, ")"));
+    layer_options.check("disv");
     const std::string & base = bases[0];
     if (output_base.empty()) output_base = base;
 
@@ -755,57 +1036,122 @@ int disv_command(const std::vector<std::string> & arguments)
     // the grid needs neither segments nor area limits
     const MeshHandle mesh = read_mesh(base, vertices, false);
     const GridHandle grid = build_grid(mesh.get(), grid_name);
-
-    int vertex_count = 0, cell_count = 0, corner_count = 0;
-    check_status(triangle_utils_grid_counts(grid.get(), &vertex_count, &cell_count, &corner_count));
-    std::vector<double> vertex_xy(2 * static_cast<std::size_t>(vertex_count));
-    check_status(triangle_utils_grid_vertices(grid.get(), vertex_count, vertex_xy.data()));
-    std::vector<int> offsets(static_cast<std::size_t>(cell_count) + 1);
-    std::vector<int> corners(static_cast<std::size_t>(corner_count));
-    check_status(triangle_utils_grid_cells(grid.get(), cell_count, offsets.data(), corner_count,
-                                           corners.data()));
-    std::vector<double> center_xy(2 * static_cast<std::size_t>(cell_count));
-    check_status(triangle_utils_grid_centers(grid.get(), cell_count, center_xy.data()));
-    std::vector<int> sources(static_cast<std::size_t>(cell_count));
-    check_status(triangle_utils_grid_sources(grid.get(), cell_count, sources.data()));
-    int attribute_count = 0;
-    check_status(triangle_utils_grid_attribute_count(grid.get(), &attribute_count));
-    std::vector<double> attributes(static_cast<std::size_t>(cell_count) * attribute_count);
-    check_status(triangle_utils_grid_attributes(grid.get(), static_cast<int>(attributes.size()),
-                                                attributes.data()));
+    GridData data = grid_data(grid.get());
+    const int cell_count = static_cast<int>(data.sources.size());
+    BuiltLayers built = build_layers(layer_options, grid.get(), mesh.get(), cell_count);
 
     triangle_utils::DisvFile disv;
-    disv.top = top;
-    disv.bottom = bottom;
-    for (std::size_t vertex = 0; vertex < static_cast<std::size_t>(vertex_count); vertex++)
-        disv.vertices.push_back({vertex_xy[2 * vertex], vertex_xy[2 * vertex + 1]});
-    for (std::size_t cell = 0; cell < static_cast<std::size_t>(cell_count); cell++)
-    {
-        disv.cells.emplace_back(corners.begin() + offsets[cell],
-                                corners.begin() + offsets[cell + 1]);
-        disv.centers.push_back({center_xy[2 * cell], center_xy[2 * cell + 1]});
-    }
+    disv.grid = std::move(data.cells);
+    disv.layer_count = built.layer_count;
+    disv.top = std::move(built.top);
+    disv.bottoms = std::move(built.bottoms);
+    disv.idomain = std::move(built.idomain);
+    // written in full before the file is opened, so an error leaves it as it was
+    std::ostringstream text;
+    triangle_utils::write_disv(text, disv);
     std::ofstream disv_file = open_output(output_base + ".disv");
-    triangle_utils::write_disv(disv_file, disv);
+    disv_file << text.str();
+    if (!disv_file) throw triangle_utils::Error("the DISV file could not be written");
+    write_cells(output_base, grid_name, data, vertices.first_number);
 
-    // each cell's vertex or triangle, numbered as in Triangle's files, and
-    // its attributes
-    std::ofstream cells_file = open_output(output_base + ".cells");
-    cells_file.precision(std::numeric_limits<double>::max_digits10);
-    cells_file << "# cell, " << (grid_name == "voronoi" ? "vertex" : "triangle")
-               << ", and attributes\n"
-               << cell_count << " " << attribute_count << "\n";
-    for (std::size_t cell = 0; cell < static_cast<std::size_t>(cell_count); cell++)
+    std::cout << output_base << ".disv: " << cell_count << " cells and "
+              << disv.grid.vertices.size() << " vertices in " << disv.layer_count
+              << (disv.layer_count == 1 ? " layer" : " layers") << ", "
+              << pass_through_count(disv.idomain) << " pass-through\n";
+    return EXIT_OK;
+}
+
+int disu_command(const std::vector<std::string> & arguments)
+{
+    std::string output_base;
+    std::string grid_name = "voronoi";
+    std::string format = "mf6";
+    LayerOptions layer_options;
+    std::vector<std::string> bases;
+    Options options("disu", arguments);
+    while (options.next())
     {
-        cells_file << cell + 1 << " " << sources[cell] + vertices.first_number;
-        for (int attribute = 0; attribute < attribute_count; attribute++)
-            cells_file << " " << attributes[cell * attribute_count + attribute];
-        cells_file << "\n";
+        if (options.is_flag("-h", "--help"))
+        {
+            std::cout << DISU_USAGE;
+            return EXIT_OK;
+        }
+        if (options.is("-o", "--output"))
+            output_base = options.value();
+        else if (options.is("-g", "--grid"))
+            grid_name = options.value();
+        else if (options.is("-f", "--format"))
+            format = options.value();
+        else if (layer_options.take(options))
+            continue;
+        else if (options.is_option())
+            options.unknown();
+        else
+            bases.push_back(options.argument());
     }
-    if (!cells_file) throw triangle_utils::Error("the cells file could not be written");
+    if (bases.size() != 1) throw UsageError("disu: give one <base>");
+    check_grid_name("disu", grid_name);
+    if (format != "mf6" && format != "usg")
+        throw UsageError(
+            triangle_utils::message("disu: the format must be mf6 or usg, not ", format));
+    layer_options.check("disu");
+    const std::string & base = bases[0];
+    if (output_base.empty()) output_base = base;
 
-    std::cout << output_base << ".disv: " << cell_count << " cells and " << vertex_count
-              << " vertices\n";
+    triangle_utils::VertexFile vertices;
+    const MeshHandle mesh = read_mesh(base, vertices, false);
+    const GridHandle grid = build_grid(mesh.get(), grid_name);
+    GridData data = grid_data(grid.get());
+    const int cell_count = static_cast<int>(data.sources.size());
+    const BuiltLayers built = build_layers(layer_options, grid.get(), mesh.get(), cell_count);
+
+    triangle_utils::DisuFile disu;
+    disu.layer_count = built.layer_count;
+    int node_count = 0, connection_count = 0;
+    check_status(
+        triangle_utils_layers_disu_count(built.layers.get(), &node_count, &connection_count));
+    const std::size_t nodes = static_cast<std::size_t>(node_count);
+    const std::size_t connections = static_cast<std::size_t>(connection_count);
+    disu.node_cells.resize(nodes);
+    disu.top.resize(nodes);
+    disu.bottom.resize(nodes);
+    disu.area.resize(nodes);
+    check_status(triangle_utils_layers_disu_nodes(built.layers.get(), node_count,
+                                                  disu.node_cells.data(), disu.top.data(),
+                                                  disu.bottom.data(), disu.area.data()));
+    disu.offsets.resize(nodes + 1);
+    disu.nodes.resize(connections);
+    disu.directions.resize(connections);
+    disu.distances.resize(connections);
+    disu.widths.resize(connections);
+    disu.angles.resize(connections);
+    check_status(triangle_utils_layers_disu_connections(
+        built.layers.get(), node_count, disu.offsets.data(), connection_count, disu.nodes.data(),
+        disu.directions.data(), disu.distances.data(), disu.widths.data(), disu.angles.data()));
+    disu.grid = std::move(data.cells);
+    // written in full before the file is opened, so an error leaves it as it was
+    std::ostringstream text;
+    if (format == "mf6")
+        triangle_utils::write_disu(text, disu);
+    else
+        triangle_utils::write_usg_disu(text, disu);
+    std::ofstream disu_file = open_output(output_base + ".disu");
+    disu_file << text.str();
+    if (!disu_file) throw triangle_utils::Error("the DISU file could not be written");
+    write_cells(output_base, grid_name, data, vertices.first_number);
+
+    // each node's layer and cell, numbered from 1
+    std::ofstream nodes_file = open_output(output_base + ".nodes");
+    nodes_file << "# node, layer, and cell\n" << node_count << "\n";
+    for (std::size_t node = 0; node < nodes; node++)
+        nodes_file << node + 1 << " " << disu.node_cells[node] / cell_count + 1 << " "
+                   << disu.node_cells[node] % cell_count + 1 << "\n";
+    if (!nodes_file) throw triangle_utils::Error("the nodes file could not be written");
+
+    std::cout << output_base << ".disu: " << node_count << " nodes and " << connection_count
+              << " connections in " << disu.layer_count
+              << (disu.layer_count == 1 ? " layer" : " layers") << " of " << cell_count
+              << " cells, " << pass_through_count(built.idomain) << " pass-through\n";
     return EXIT_OK;
 }
 
@@ -1056,6 +1402,7 @@ int run(const std::vector<std::string> & arguments)
     if (first == "refine") return refine_command(rest);
     if (first == "improve") return improve_command(rest);
     if (first == "disv") return disv_command(rest);
+    if (first == "disu") return disu_command(rest);
     if (first == "cells") return cells_command(rest);
     if (!first.empty() && first[0] == '-')
         throw UsageError(triangle_utils::message("unknown option ", first));

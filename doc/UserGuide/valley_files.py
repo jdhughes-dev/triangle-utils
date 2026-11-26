@@ -3,13 +3,15 @@
 Writes valley.poly, with the boundary, streams, and lake as segments with
 their markers, the wells as vertices, and a point inside each region with
 its attribute and area limit, and river.txt, tributary.txt, and wells.txt,
-the points the cells command maps; valley_commands.txt runs the program on
-them. Writes to the folder given, or the current one.
+the points the cells command maps; with --surfaces and a mesh's base name,
+writes the valley's surfaces at the mesh's vertices instead.
+valley_commands.txt runs the program on them. Writes to the current folder.
 """
 
 import sys
 from pathlib import Path
 
+import numpy as np
 from valley import (
     BOUNDARY,
     BOUNDARY_MARKER,
@@ -20,6 +22,7 @@ from valley import (
     RIVER_MARKER,
     TRIBUTARY,
     WELLS,
+    surfaces,
 )
 
 
@@ -59,5 +62,21 @@ def write_files(folder):
         (folder / f"{name}.txt").write_text("".join(f"{x} {y}\n" for x, y in points))
 
 
+def write_surfaces(folder, base):
+    """Write the land surface, the clay's base, and the aquifer's base at the
+    vertices of the mesh in base.node to land.txt, clay.txt, and base.txt in a
+    folder, one value to a line."""
+    node = np.loadtxt(folder / f"{base}.node", skiprows=1, comments="#", ndmin=2)
+    for name, values in zip(
+        ("land", "clay", "base"), surfaces(node[:, 1:3]), strict=True
+    ):
+        np.savetxt(folder / f"{name}.txt", values)
+
+
 if __name__ == "__main__":
-    write_files(Path(sys.argv[1]) if len(sys.argv) > 1 else Path.cwd())
+    if sys.argv[1:2] == ["--surfaces"]:
+        if len(sys.argv) != 3:
+            sys.exit("usage: python valley_files.py [--surfaces <base>]")
+        write_surfaces(Path.cwd(), sys.argv[2])
+    else:
+        write_files(Path.cwd())
