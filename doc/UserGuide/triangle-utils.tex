@@ -9,6 +9,7 @@
 \usepackage[T1]{fontenc}
 \usepackage{etoolbox}
 \usepackage{fancyvrb}
+\usepackage{needspace}
 
 \usepackage{hyperref}
 \hypersetup{
@@ -32,7 +33,9 @@
 \input{values.tex}
 
 % an excerpt of a script, numbered as in its listing in the appendix, and
-% the lines it spans there
+% the lines it spans there; \codelead starts the sentence that introduces
+% an excerpt on a page with room for the first lines of the excerpt
+\newcommand{\codelead}{\needspace{7\baselineskip}}
 \newcommand{\excerpt}[2]{\VerbatimInput[fontsize=\small,numbers=left,numbersep=6pt,firstnumber=\csname excerpt#1first\endcsname,firstline=\csname excerpt#1first\endcsname,lastline=\csname excerpt#1last\endcsname]{#2}}
 \newcommand{\excerptlines}[1]{lines~\csname excerpt#1first\endcsname--\csname excerpt#1last\endcsname}
 
@@ -104,15 +107,20 @@ Points are added along each polygon and line so that no two successive points ar
 
 Figure~\ref{fig:generated} shows a mesh of an example valley of \valleyarea\ square kilometers (km$^2$), with points every \boundaryspacing\ meters (m) along its boundary, every \riverspacing~m along the river and its tributary, and every \lakespacing~m around the lake. Triangles are no larger than \maximumarea\ square meters (m$^2$) in the aquifer and \lakearea~m$^2$ in the lake, and have no angle smaller than \minimumangle\ degrees. Each of the three wells is at the center of a ring with a radius of \wellradius~m and \wellpoints\ points, in which triangles are no larger than \wellarea~m$^2$. The river starts and ends on the boundary, between two of its points, and the tributary starts on it and ends on the river. Figures~\ref{fig:generated}\textit{B}--\textit{D} show the mesh in square windows \wellwindow~m, \riverwindow~m, and \lakewindow~m on a side around the well where the generated mesh has the most triangles with an angle over \maximumangle\ degrees (fig.~\ref{fig:refined}), at the confluence, where the tributary joins the river, and on the lake's shore. The mesh has \generatedvertices\ vertices and \generatedtriangles\ triangles.
 
+\codelead
 In Python, the valley's geometry is built from the coordinates of its features, each with the spacing of its points and the marker of its segments; the complete script, valley.py, is listed in appendix~\ref{appendix:listings}, where the coordinates and values these lines use are defined:
 
 \excerpt{geometry}{valley.py}
 
+\codelead
 \noindent A point inside each region, with its attribute and area limit, and a ring around each well are added the same way (\excerptlines{regions}), and the geometry is meshed:
 
 \excerpt{generate}{valley.py}
 
-Features drawn in a GIS are read with \texttt{read\_features}, from a shapefile, GeoPackage, or GeoJSON file, a GeoDataFrame, or shapely geometries; it needs geopandas, installed with the module as triangle-utils[gis]. It returns each part of each feature, with the points the functions of this guide take, the row of the table it came from, and its marker, spacing, region attribute, and area limit, each given as a number or as the name of the column that holds it. A polygon's holes are returned as hole polygons, and every polygon's points run counterclockwise, as in valley.py, although a shapefile stores an outer boundary clockwise. The mesh is in plain x and y, so the features must be in a projected coordinate system; a geographic coordinate system is an error, and features without one are taken to be projected. The script valley\_gis.py (appendix~\ref{appendix:listings}) writes the valley's features to shapefiles, with the values of valley.py in their columns, and builds the geometry from them:
+Features drawn in a GIS are read with \texttt{read\_features}, from a shapefile, GeoPackage, or GeoJSON file, a GeoDataFrame, or shapely geometries; it needs geopandas, installed with the module as triangle-utils[gis]. It returns each part of each feature, with the points the functions of this guide take, the row of the table it came from, and its marker, spacing, region attribute, and area limit, each given as a number or as the name of the column that holds it. A polygon's holes are returned as hole polygons, and every polygon's points run counterclockwise, as in valley.py, although a shapefile stores an outer boundary clockwise. The mesh is in plain x and y, so the features must be in a projected coordinate system; a geographic coordinate system is an error, and features without one are taken to be projected.
+
+\codelead
+The script valley\_gis.py (appendix~\ref{appendix:listings}) writes the valley's features to shapefiles, with the values of valley.py in their columns, and builds the geometry from them:
 
 \excerpt{gis}{valley_gis.py}
 
@@ -133,6 +141,7 @@ Refining by a maximum angle reduces the obtuse triangles of a mesh. Triangle can
 
 Figure~\ref{fig:refined} shows the mesh of Figure~\ref{fig:generated} refined to a maximum angle of \maximumangle\ degrees. In the generated mesh, \generatedover\ triangles have an angle over \maximumangle\ degrees, the largest \generatedlargest\ degrees. The refined mesh has \refinedtriangles\ triangles, of which \refinedover\ have an angle over \maximumangle\ degrees, the largest \refinedlargest\ degrees.
 
+\codelead
 The generated mesh is refined with the same smallest angle and a largest angle of \maximumangle\ degrees:
 
 \excerpt{refine}{valley.py}
@@ -161,6 +170,7 @@ By default, no move may make an angle smaller than the smallest angle of the mes
 
 Figure~\ref{fig:improved} shows the refined mesh of Figure~\ref{fig:refined} improved toward a maximum angle of \improveangle\ degrees. The refined mesh has \refinedoverninety\ triangles with an angle over \improveangle\ degrees and a smallest angle of \refinedsmallest\ degrees. Improved with that smallest angle kept, the mesh has \improvedoverninety\ triangles over \improveangle\ degrees: \improvedboundaryover\ with the angle at a point on the boundary where two triangles meet, \improvedfixedover\ at another point that does not move (on the river, the lake, or a ring), and \improvedfreeover\ at a vertex that moves. Improved with a minimum angle of \tradedangle\ degrees, the mesh has \tradedoverninety\ triangles over \improveangle\ degrees, \tradedfreeover\ of them at a vertex that moves, and a smallest angle of \tradedsmallest\ degrees, so keeping the smallest angle is what left the \improvedfreeover\ at vertices that move.
 
+\codelead
 The refined mesh is improved toward a largest angle of \improveangle\ degrees:
 
 \excerpt{improve}{valley.py}
@@ -189,6 +199,7 @@ Every line and polygon inside the model area runs through cell centers, since it
 
 Figure~\ref{fig:voronoi} shows the Voronoi grid of the example valley, built from a mesh generated and refined as in Figures~\ref{fig:generated} and~\ref{fig:refined} with conforming Delaunay triangles, \delaunaytriangles\ in all. The grid has \voronoicells\ cells and \voronoivertices\ cell corners.
 
+\codelead
 The mesh of the Voronoi grid is generated and refined as before, with conforming Delaunay triangles (\excerptlines{delaunay} of valley.py), and the grid's vertices and cells are returned in the form FloPy's DISV package takes:
 
 \excerpt{voronoi}{valley.py}
@@ -204,6 +215,7 @@ A grid can also be made of the triangles themselves, centered on their centroids
 
 The unstructured discretization (DISU) of MODFLOW 6 and MODFLOW-USG describes the grid by its connections, with its vertices optional in MODFLOW 6: for each face two cells share, the distance from each cell's center to the face, measured along the face's normal (CL12), the face's width (HWVA), and the direction of the normal out of each cell, as an angle counterclockwise from the x axis (ANGLDEGX), which MODFLOW 6 needs for horizontal anisotropy, the XT3D formulation, and specific discharge. triangle-utils calculates them for either grid (fig.~\ref{fig:connections}). In a Voronoi grid each face bisects the line between the two centers, so each distance is half the length of that line; the Voronoi grid of the valley has \voronoifaces\ faces between cells. In a triangle grid centered on centroids, the line between two centers is not perpendicular to their face, and the two distances, measured along the normal, sum to less than the distance between the centers. In a triangle grid centered on circumcenters, an obtuse triangle's circumcenter lies beyond its longest side, which makes the distance to that face negative, and a right triangle's lies on it, which makes the distance zero; triangle-utils reports such a face as an error, naming its two cells, rather than giving MODFLOW a distance that is not positive.
 
+\codelead
 The connections are calculated from the grid:
 
 \excerpt{connections}{valley.py}
@@ -223,6 +235,7 @@ A river network is often digitized as several lines, as a polyline shapefile giv
 
 Figure~\ref{fig:features} shows the cells of the streams and the boundary in the Voronoi grid of Figure~\ref{fig:voronoi}. The river's \riverlength~m pass through \rivercells\ cells and the tributary's \tributarylength~m through \tributarycells\ cells, each centered on the stream's vertices, and the boundary's \boundarylength~m through \boundarycells\ cells. A boundary cell's length is half the distance to the boundary vertex on each side of its own. Each well is the center of its ring, a vertex of the mesh, so its cell is centered on the well.
 
+\codelead
 Each stream's cells are found from its own line, the boundary's from the segments of the mesh with the boundary's marker, and the wells' from their points:
 
 \excerpt{features}{valley.py}
@@ -242,6 +255,7 @@ Elevations are often known at points, such as the land surface from a digital el
 
 The valley is given three layers (fig.~\ref{fig:layers}), after the synthetic valley of \citet{hughes2024flopy}. The land surface rises from \rivermouth~m at the river's mouth along the streams and up the valley's sides, over a ridge \ridgeheight~m high across the middle of the valley, which the river cuts through in a gap, and falls \lakedepth~m into a basin that follows the lake's shore; it reaches \landsurfacemax~m. An upper aquifer extends from the land surface to \upperbottom~m; a clay below it is \claythickness~m thick at the west boundary and thins to nothing \clayedge~m east of it; and the base of the lower aquifer dips from about \baseeast~m at the east boundary to about \basewest~m at the west, with a gentle relief along the valley. The land surface, the clay's base, and the aquifer's base are given at the mesh's vertices. With a minimum thickness of \minimumthickness~m, \passthroughcells\ cells of the clay pass flow between the aquifers. The DISV grid has \disvcells\ cells in its three layers; the DISU grid has \disunodes\ nodes, one for each active cell, and \disuconnections\ entries in its connection arrays, a node's connection to itself included.
 
+\codelead
 The surfaces are calculated at the mesh's vertices (\excerptlines{surfaces} of valley.py) and interpolated to the cell centers, and the grid is layered; the DISV and DISU arrays are returned as the arguments of FloPy's packages, used as \texttt{flopy.mf6.ModflowGwfdisv(model, **disv)}:
 
 \excerpt{layers}{valley.py}
