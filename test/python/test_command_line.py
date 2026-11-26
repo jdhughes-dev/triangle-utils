@@ -731,7 +731,7 @@ def read_usg_arrays(name, layer_count, node_count, connection_count):
 
 
 def test_disu_errors(tmp_path):
-    base, _, _ = layer_files(tmp_path)
+    base, centers, _ = layer_files(tmp_path)
     (tmp_path / "short.txt").write_text("1 2 3")
     status, _, errors = run("disu", "-b", str(tmp_path / "short.txt"), base)
     assert status == 1
@@ -745,7 +745,11 @@ def test_disu_errors(tmp_path):
     assert "nan is not a finite number" in errors
     status, _, errors = run("disu", "-i", "1.5", base)
     assert status == 1
-    assert "the idomain 1.5 of 1.5 is not an integer" in errors
+    assert "the idomain 1.5 is not an integer" in errors
+    (tmp_path / "half.txt").write_text("0.5\n" * len(centers))
+    status, _, errors = run("disu", "-i", str(tmp_path / "half.txt"), base)
+    assert status == 1
+    assert "the idomain 0.5 in " in errors and "half.txt is not an integer" in errors
     # a layer of only pass-through cells, which MODFLOW-USG cannot read,
     # leaving the files as they were
     Path(f"{base}.disu").write_text("kept")

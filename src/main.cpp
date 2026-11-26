@@ -934,8 +934,9 @@ std::vector<double> cell_values(const std::string & text, const TriangleUtilsGri
 std::vector<int> cell_idomain(const std::string & text, int cell_count)
 {
     double number = 0.0;
+    const bool is_number = parse_number(text, number);
     const std::vector<double> values =
-        parse_number(text, number) ? std::vector<double>(cell_count, number) : read_numbers(text);
+        is_number ? std::vector<double>(cell_count, number) : read_numbers(text);
     if (values.size() != static_cast<std::size_t>(cell_count))
         throw triangle_utils::Error(triangle_utils::message(text, " has ", values.size(),
                                                             " idomain values, but the grid has ",
@@ -944,8 +945,8 @@ std::vector<int> cell_idomain(const std::string & text, int cell_count)
     for (const double value : values)
     {
         if (value != std::floor(value) || std::abs(value) > INT_MAX)
-            throw triangle_utils::Error(
-                triangle_utils::message("the idomain ", value, " of ", text, " is not an integer"));
+            throw triangle_utils::Error(triangle_utils::message(
+                "the idomain ", value, is_number ? "" : " in " + text, " is not an integer"));
         idomain.push_back(static_cast<int>(value));
     }
     return idomain;
