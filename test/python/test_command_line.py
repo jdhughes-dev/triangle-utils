@@ -58,12 +58,8 @@ Cases:
   - test_generate_errors : a bad option value is a usage error (2), and a
                          boundary not closed and a missing file are errors
                          (1).
-  - test_guide_commands : the user guide's commands, on the files
-                         valley_files.py writes, exit 0, with the values of
-                         valley.py; the generated mesh has the wells as fixed
-                         vertices, the regions' attributes, and the
-                         features' markers, the grid file is written, and
-                         each stream, the boundary, and each well have cells.
+  - test_guide_commands : the guide's commands, with valley.py's values, give
+                         the valley's mesh, grid, and cells from its files.
 """
 
 import itertools
@@ -621,13 +617,20 @@ def test_guide_commands(tmp_path, monkeypatch):
         outputs[" ".join(command[1:])] = result.stdout
     # the grid file, and the cells of each stream, the boundary, and the wells
     assert (tmp_path / "valley.2.disv").stat().st_size > 0
-    for name, output in outputs.items():
-        if name.startswith("cells"):
-            rows = [line for line in output.splitlines() if not line.startswith("#")]
-            expected = len(valley["WELLS"]) if " -p " in f" {name} " else 1
-            assert len(rows) >= expected, name
-    wells = outputs["cells -p wells.txt valley.2"].splitlines()[1:]
-    assert all(int(line.split()[1]) > 0 for line in wells)
+
+    def rows(command):
+        output = outputs[f"cells {command} valley.2"]
+        return [line.split() for line in output.splitlines() if line[:1] != "#"]
+
+    # a line passes through a cell centered on each of its points, and the
+    # boundary through one on each corner
+    assert len(rows("-l river.txt")) >= len(valley["RIVER"])
+    assert len(rows("-l tributary.txt")) >= len(valley["TRIBUTARY"])
+    assert len(rows("-m 1")) >= len(valley["BOUNDARY"])
+    # each well in a cell of its own
+    wells = [int(row[1]) for row in rows("-p wells.txt")]
+    assert len(wells) == len(valley["WELLS"])
+    assert min(wells) > 0 and len(set(wells)) == len(wells)
     # the .poly file gave the wells, the regions, and the markers
     node = (tmp_path / "valley.1.node").read_text().split("\n")
     vertices = {

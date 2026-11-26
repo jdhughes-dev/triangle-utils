@@ -281,8 +281,10 @@ triangle-utils is used from Python, from the command line, and from C, C++, and 
     \hline
     Capability & Python & C & Command \\
     \hline
+    Build the geometry & \texttt{tu.Geometry} & \texttt{triangle\_utils\_geometry\_create} & .poly file \\
     Generate a mesh & \texttt{tu.generate} & \texttt{triangle\_utils\_mesh\_generate} & \texttt{generate} \\
     Refine a mesh & \texttt{tu.refine} & \texttt{triangle\_utils\_mesh\_refine} & \texttt{refine} \\
+    Count angles over a limit & \texttt{tu.count\_angles\_over} & \texttt{triangle\_utils\_mesh\_count\_angles\_over} & \texttt{refine -A} \\
     Improve a mesh & \texttt{tu.improve} & \texttt{triangle\_utils\_mesh\_improve} & \texttt{improve} \\
     Check a mesh & --- & --- & \texttt{check} \\
     Voronoi grid & \texttt{tu.voronoi} & \texttt{triangle\_utils\_mesh\_voronoi} & \texttt{disv} \\
@@ -305,7 +307,7 @@ The script valley\_files.py (appendix~\ref{appendix:listings}) writes the valley
 
 \VerbatimInput[fontsize=\small]{valley_commands.txt}
 
-\noindent mesh the valley with points every \boundaryspacing~m along all its segments, refine and improve the mesh, check the improved mesh, write the Voronoi grid of the refined mesh to valley.2.disv, and print the cells of each stream, the boundary, and the wells. Each command writes its mesh to files named as Triangle names them, valley.1 for valley and valley.2 for valley.1; \texttt{triangle-utils generate -h}, \texttt{refine -h}, \texttt{improve -h}, \texttt{check -h}, \texttt{disv -h}, and \texttt{cells -h} list the options of each.
+\noindent mesh the valley with points every \boundaryspacing~m along all its segments and conforming Delaunay triangles (\texttt{-D}), refine and improve the mesh, check the improved mesh, write the Voronoi grid of the refined mesh to valley.2.disv, and print the cells of each stream, the boundary, and the wells. Each command writes its mesh to files named as Triangle names them, valley.1 for valley and valley.2 for valley.1; \texttt{triangle-utils generate -h}, \texttt{refine -h}, \texttt{improve -h}, \texttt{check -h}, \texttt{disv -h}, and \texttt{cells -h} list the options of each.
 
 \REFSECTION
 \bibliographystyle{usgs}
