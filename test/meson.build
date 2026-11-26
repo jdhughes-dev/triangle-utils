@@ -44,5 +44,8 @@ if get_option('b_sanitize') == 'none'
     args: ['-m', 'pytest', '-p', 'no:cacheprovider', meson.current_source_dir() / 'python'],
     env: python_env,
     depends: [api_lib, program],
+    # the tests took 21 to 28 s on the macOS runners, against the default of
+    # 30 s, and one run of the layers pull request (#60) exceeded it
+    timeout: 120,
   )
 endif
