@@ -128,7 +128,8 @@ TEST(Layers, ElevationsAreChecked)
         std::string::npos);
     auto infinite = bottoms;
     infinite[n + 2] = INFINITY;
-    EXPECT_NE(error_of([&] { layer_grid(grid, 2, top, infinite, {}, 0.0); }).find("not finite"),
+    EXPECT_NE(error_of([&] { layer_grid(grid, 2, top, infinite, {}, 0.0); })
+                  .find("the bottom of cell 2 in layer 1 is not finite"),
               std::string::npos);
 
     // the second layer's bottom crosses the first's in cell 2, and meets it

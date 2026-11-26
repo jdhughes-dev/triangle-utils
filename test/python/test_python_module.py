@@ -299,6 +299,12 @@ def test_layers():
     np.testing.assert_array_equal(crossing.disu.top[crossing.disu.layers == 2], 6.0)
     with pytest.raises(tu.Error, match="is not active but has a bottom of 7"):
         tu.layer_grid(grid, 10.0, [6.0, 7.0, 0.0], idomain=[1, 0, 1])
+    obtuse = tu.Mesh(
+        np.array([(0.0, 0.0), (4.0, 0.0), (2.0, 2.0 / np.sqrt(3.0)), (2.0, -5.0)]),
+        np.array([(0, 1, 2), (1, 0, 3)]),
+    )
+    with pytest.raises(tu.Error, match="the layers' DISU connections: the center"):
+        tu.layer_grid(tu.triangle_grid(obtuse, center="circumcenter"), 10.0, 0.0)
     with pytest.raises(ValueError, match="botm must be"):
         tu.layer_grid(grid, 10.0, np.zeros((2, 3)))
     with pytest.raises(ValueError, match=r"botm must be .* not the shapes"):

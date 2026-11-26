@@ -890,7 +890,8 @@ class Layers:
     # the top of each cell, shape (cell count,)
     top: np.ndarray
     # the bottom of each cell in each layer, shape (layer count, cell count),
-    # with the bottoms of pass-through cells moved up to their tops
+    # with a bottom the minimum thickness made pass-through moved up to its
+    # top if it was above it
     botm: np.ndarray
     # > 0 active, 0 not in the model, < 0 vertical pass-through, with the
     # pass-through cells the minimum thickness made
@@ -983,7 +984,9 @@ def layer_grid(grid, top, botm, idomain=None, minimum_thickness=0.0):
     pass-through cell (idomain -1), and a bottom above its top moves up to
     it; otherwise an active cell that is not thicker than 0 raises Error,
     naming its cell and layer, as does a cell that is not active, above the
-    last layer, whose bottom is above its top."""
+    last layer, whose bottom is above its top, and a grid whose cells
+    connect_cells() cannot connect, such as a triangle grid centered on the
+    circumcenters of obtuse triangles."""
     cell_count = len(grid.cells)
     scalar = not isinstance(botm, (list, tuple)) and np.ndim(botm) == 0
     layer_count = 1 if scalar else len(botm)

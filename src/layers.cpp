@@ -61,7 +61,10 @@ Layers layer_grid(const Grid & grid, int layer_count, const std::vector<double> 
         throw Error(message(layer_count, " layers of ", cell_count, " cells need ", value_count,
                             " idomain values, not ", idomain.size()));
     check_finite(top, "top");
-    check_finite(bottoms, "bottom");
+    for (std::size_t i = 0; i < value_count; i++)
+        if (!std::isfinite(bottoms[i]))
+            throw Error(message("the bottom of cell ", i % cell_count, " in layer ", i / cell_count,
+                                " is not finite"));
     if (!std::isfinite(minimum_thickness) || minimum_thickness < 0.0)
         throw Error(message("the minimum thickness ", minimum_thickness,
                             " is not a finite number of at least 0"));

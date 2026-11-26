@@ -408,8 +408,9 @@ int triangle_utils_grid_vertex_values(const TriangleUtilsGrid * grid,
    up to it, so the cell below does not overlap the cells above. An error if
    a value is not finite, an active cell is not thicker than 0, or a cell
    that is not active, above the last layer, has a bottom above its top,
-   naming the cell and layer. triangle_utils_layers_bottoms() gives the
-   bottoms. *layers is NULL after a failure. */
+   naming the cell and layer, or if the grid's cells cannot be connected
+   for DISU (triangle_utils_grid_connections()). triangle_utils_layers_bottoms()
+   gives the bottoms. *layers is NULL after a failure. */
 int triangle_utils_grid_layers(const TriangleUtilsGrid * grid, int layer_count, int cell_count,
                                const double * top, const double * bottoms, const int * idomain,
                                double minimum_thickness, TriangleUtilsLayers ** layers);
@@ -423,8 +424,9 @@ void triangle_utils_layers_free(TriangleUtilsLayers * layers);
 int triangle_utils_layers_idomain(const TriangleUtilsLayers * layers, int value_count,
                                   int * idomain);
 
-/* The bottom of each cell in each layer, with the bottoms of pass-through
-   cells moved up to their tops; value_count must be the layer count times
+/* The bottom of each cell in each layer, with a bottom that the minimum
+   thickness made pass-through moved up to its top if it was above it;
+   value_count must be the layer count times
    the cell count. */
 int triangle_utils_layers_bottoms(const TriangleUtilsLayers * layers, int value_count,
                                   double * bottoms);

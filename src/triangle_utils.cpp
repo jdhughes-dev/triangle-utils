@@ -1119,8 +1119,17 @@ int triangle_utils_grid_layers(const TriangleUtilsGrid * grid, int layer_count, 
             stored->layers = triangle_utils::layer_grid(
                 grid->grid, layer_count, std::vector<double>(top, top + cells),
                 std::vector<double>(bottoms, bottoms + values), domain, minimum_thickness);
-            stored->disu = triangle_utils::layer_disu(
-                grid->grid, triangle_utils::connect_cells(grid->grid), stored->layers);
+            triangle_utils::Connections connections;
+            try
+            {
+                connections = triangle_utils::connect_cells(grid->grid);
+            }
+            catch (const triangle_utils::Error & error)
+            {
+                throw triangle_utils::Error(
+                    triangle_utils::message("the layers' DISU connections: ", error.what()));
+            }
+            stored->disu = triangle_utils::layer_disu(grid->grid, connections, stored->layers);
             *layers = stored.release();
         });
 }
