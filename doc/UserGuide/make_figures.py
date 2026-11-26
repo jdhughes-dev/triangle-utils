@@ -24,6 +24,8 @@ sys.path.insert(0, str(HERE.parents[1] / "python"))
 import triangle_utils as tu  # noqa: E402
 from valley import (  # noqa: E402
     AQUIFER,
+    BASE_EAST,
+    BASE_WEST,
     BOUNDARY,
     BOUNDARY_MARKER,
     BOUNDARY_SPACING,
@@ -31,17 +33,17 @@ from valley import (  # noqa: E402
     CLAY_THICKNESS,
     IMPROVE_ANGLE,
     LAKE_AREA,
+    LAKE_DEPTH,
     LAKE_MARKER,
     LAKE_REGION,
     LAKE_SPACING,
-    LAND_SURFACE_SLOPE,
-    LAND_SURFACE_SOUTH,
-    LOWER_BOTTOM,
     MAXIMUM_ANGLE,
     MAXIMUM_AREA,
     MINIMUM_ANGLE,
     MINIMUM_THICKNESS,
+    RIDGE_HEIGHT,
     RIVER_MARKER,
+    RIVER_MOUTH_ELEVATION,
     RIVER_SPACING,
     TRIBUTARY,
     UPPER_BOTTOM,
@@ -145,7 +147,7 @@ VALLEY_SECTIONS = {
     "grid": "# the Voronoi grid needs",
     "connections": "# the connections between",
     "features": "# each stream's cells",
-    "layers": "# three layers:",
+    "layers": "def distance_to_lines(",
 }
 
 
@@ -698,51 +700,104 @@ def connections_figure(grid, triangles):
         plt.close(fig)
 
 
-# the west-east line of the layers' section, in meters
-SECTION_Y = 3000.0
+# the west-east line of the layers' section, through the lake's basin, in
+# meters
+SECTION_Y = 5450.0
 SECTION = [(0.0, SECTION_Y), (5000.0, SECTION_Y)]
 LAYER_COLORS = ("#fdd49e", "#8c6d31", "#fdae6b")
 LAYER_NAMES = ("Upper aquifer", "Clay", "Lower aquifer")
 PASS_THROUGH_COLOR = "#bdbdbd"
+# the interval of the land surface's contours, in meters
+CONTOUR_INTERVAL = 2.0
 
 
-def layers_figure(grid, layers):
-    """The clay's thickness and its pass-through cells, and a west-east
-    section of the three layers."""
+def shade_cells(ax, grid, values, cmap, limits, label, fig):
+    """Shade the cells by a value, with a color bar below; cells whose value
+    is nan are pass-through cells."""
+    shading = PolyCollection(
+        [grid.vertices[cell] for cell in grid.cells],
+        array=values,
+        cmap=cmap,
+        edgecolors="face",
+        linewidths=0.2,
+    )
+    shading.set_clim(*limits)
+    shading.cmap.set_bad(PASS_THROUGH_COLOR)
+    ax.add_collection(shading)
+    ax.xaxis.set_major_formatter(THOUSANDS)
+    ax.yaxis.set_major_formatter(THOUSANDS)
+    ax.set_aspect("equal")
+    ax.set_xlim(*X_LIMITS)
+    ax.set_ylim(*Y_LIMITS)
+    bar = fig.colorbar(shading, ax=ax, location="bottom", shrink=0.9, pad=0.02)
+    bar.set_label(label)
+
+
+def draw_streams_and_lake(ax, mesh):
+    for segment, marker in zip(mesh.segments, mesh.segment_markers, strict=True):
+        if marker == RIVER_MARKER:
+            ax.plot(*mesh.vertices[segment].T, color="#1f78b4", lw=0.8)
+        elif marker == LAKE_MARKER:
+            ax.plot(*mesh.vertices[segment].T, color="#08306b", lw=0.6, ls="--")
+
+
+def layers_figure(grid, mesh, layers):
+    """The land surface, the clay's thickness with its pass-through cells,
+    the base of the lower aquifer, and a west-east section of the layers."""
     clay = layers.botm[0] - layers.botm[1]
     passing = layers.idomain[1] < 0
     with styles.USGSMap():
         fig, axd = plt.subplot_mosaic(
-            [["A", "B"]],
-            figsize=(6.7, 4.4),
+            [["A", "B", "C"], ["D", "D", "D"]],
+            figsize=(6.7, 7.6),
             layout="constrained",
-            width_ratios=(1.0, 1.4),
+            height_ratios=(2.2, 1.0),
         )
-        ax = axd["A"]
-        shading = PolyCollection(
-            [grid.vertices[cell] for cell in grid.cells],
-            array=np.where(passing, np.nan, clay),
-            cmap="YlOrBr",
-            edgecolors="0.35",
-            linewidths=0.1,
+        shade_cells(
+            axd["A"],
+            grid,
+            layers.top,
+            "terrain",
+            (0.0, np.ceil(layers.top.max())),
+            "Land surface, in meters",
+            fig,
         )
-        shading.set_clim(0.0, CLAY_THICKNESS)
-        shading.cmap.set_bad(PASS_THROUGH_COLOR)
-        ax.add_collection(shading)
-        ax.plot(*np.array(SECTION).T, color="black", lw=0.8)
-        ax.text(150.0, SECTION_Y + 120.0, "A", fontsize=7)
-        ax.text(4350.0, SECTION_Y + 120.0, "A\u2032", fontsize=7)
-        ax.xaxis.set_major_formatter(THOUSANDS)
-        ax.yaxis.set_major_formatter(THOUSANDS)
-        ax.set_aspect("equal")
-        ax.set_xlim(*X_LIMITS)
-        ax.set_ylim(*Y_LIMITS)
-        bar = fig.colorbar(shading, ax=ax, location="bottom", shrink=0.8, pad=0.02)
-        bar.set_label("Clay thickness, in meters")
-        styles.heading(ax=ax, letter="A", heading="Clay")
-        styles.ylabel(ax=ax, label="y, in meters")
+        levels = np.arange(0.0, layers.top.max(), CONTOUR_INTERVAL)
+        axd["A"].tricontour(
+            *grid.centers.T, layers.top, levels=levels, colors="0.3", linewidths=0.3
+        )
+        shade_cells(
+            axd["B"],
+            grid,
+            np.where(passing, np.nan, clay),
+            "YlOrBr",
+            (0.0, CLAY_THICKNESS),
+            "Clay thickness, in meters",
+            fig,
+        )
+        shade_cells(
+            axd["C"],
+            grid,
+            layers.botm[-1],
+            "viridis",
+            (np.floor(layers.botm[-1].min()), np.ceil(layers.botm[-1].max())),
+            "Base of lower aquifer, in meters",
+            fig,
+        )
+        for letter, heading in (
+            ("A", "Land surface"),
+            ("B", "Clay"),
+            ("C", "Base of lower aquifer"),
+        ):
+            ax = axd[letter]
+            draw_streams_and_lake(ax, mesh)
+            ax.plot(*np.array(SECTION).T, color="black", lw=0.6)
+            styles.heading(ax=ax, letter=letter, heading=heading)
+            if letter != "A":
+                ax.tick_params(labelleft=False)
+        styles.ylabel(ax=axd["A"], label="y, in meters")
 
-        ax = axd["B"]
+        ax = axd["D"]
         along = tu.cells_along_line(grid, SECTION)
         tops = np.vstack([layers.top, layers.botm[:-1]])
         for cell, start, length in zip(
@@ -762,33 +817,38 @@ def layers_figure(grid, layers):
                         linewidth=0.1,
                     )
                 )
-        ax.set_xlim(0.0, (along.starts + along.lengths).max())
-        ax.set_ylim(LOWER_BOTTOM - 5.0, layers.top.max() + 5.0)
+        ax.set_xlim(along.starts.min(), (along.starts + along.lengths).max())
+        ax.set_ylim(
+            np.floor(layers.botm[-1].min() / 10.0) * 10.0, layers.top.max() + 5.0
+        )
         ax.xaxis.set_major_formatter(THOUSANDS)
-        ax.text(0.01, 0.98, "A", transform=ax.transAxes, va="top", fontsize=7)
+        ax.text(0.01, 0.97, "A", transform=ax.transAxes, va="top", fontsize=7)
         ax.text(
             0.99,
-            0.98,
+            0.97,
             "A\u2032",
             transform=ax.transAxes,
             va="top",
             ha="right",
             fontsize=7,
         )
-        styles.heading(ax=ax, letter="B", heading="Section A\u2013A\u2032")
-        styles.xlabel(ax=ax, label="Distance from the west boundary, in meters")
+        styles.heading(ax=ax, letter="D", heading="Section A\u2013A\u2032")
+        styles.xlabel(ax=ax, label="x, in meters")
         styles.ylabel(ax=ax, label="Elevation, in meters")
         handles = [
             Patch(facecolor=color, edgecolor="0.35", label=name)
             for color, name in zip(LAYER_COLORS, LAYER_NAMES, strict=True)
         ]
-        handles.append(
+        handles += [
             Patch(
                 facecolor=PASS_THROUGH_COLOR,
                 edgecolor="0.35",
                 label="Pass-through cell",
-            )
-        )
+            ),
+            plt.Line2D([], [], color="#1f78b4", lw=0.8, label="Stream"),
+            plt.Line2D([], [], color="#08306b", lw=0.6, ls="--", label="Lake shore"),
+            plt.Line2D([], [], color="black", lw=0.6, label="Line of section"),
+        ]
         explanation(fig, handles, columns=4)
         save(fig, "layers.pdf")
         plt.close(fig)
@@ -822,6 +882,11 @@ def cover_figure(mesh):
         facecolor=fig.get_facecolor(),
     )
     plt.close(fig)
+
+
+def signed(value):
+    """A number for the text, with a minus sign rather than a hyphen."""
+    return f"{value:g}".replace("-", "$-$")
 
 
 def main():
@@ -869,7 +934,7 @@ def main():
         raise ValueError("the confluence's cell is not where the streams meet")
     features_figure(grid, delaunay, windows)
     connections_figure(grid, tu.triangle_grid(delaunay))
-    layers_figure(grid, layers)
+    layers_figure(grid, delaunay, layers)
     cover_figure(refined)
     # the class puts this page in place of the agency logo on the cover
     blank = plt.figure(figsize=(1, 1))
@@ -982,12 +1047,16 @@ def main():
                 windows["C"],
             ).sum()
         ),
-        "landsurfacesouth": f"{LAND_SURFACE_SOUTH:g}",
-        "landsurfacerise": f"{LAND_SURFACE_SLOPE * 1000:g}",
-        "upperbottom": f"{UPPER_BOTTOM:g}",
+        "rivermouth": f"{RIVER_MOUTH_ELEVATION:g}",
+        "landsurfacemax": f"{layers.top.max():.0f}",
+        "ridgeheight": f"{RIDGE_HEIGHT:g}",
+        "lakedepth": f"{LAKE_DEPTH:g}",
+        "upperbottom": signed(UPPER_BOTTOM),
+        "contourinterval": f"{CONTOUR_INTERVAL:g}",
         "claythickness": f"{CLAY_THICKNESS:g}",
         "clayedge": f"{CLAY_EDGE:,.0f}",
-        "lowerbottom": f"{LOWER_BOTTOM:g}",
+        "basewest": signed(BASE_WEST),
+        "baseeast": signed(BASE_EAST),
         "minimumthickness": f"{MINIMUM_THICKNESS:g}",
         "passthroughcells": int((layers.idomain < 0).sum()),
         "disvcells": f"{layers.idomain.size:,}",
