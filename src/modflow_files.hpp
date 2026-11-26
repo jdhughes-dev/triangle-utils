@@ -44,7 +44,7 @@ struct DisuFile
     std::vector<double> top;
     std::vector<double> bottom;
     std::vector<double> area;
-    // node count + 1 values; IAC is the difference of each pair
+    // node count + 1 values; IAC is each difference
     std::vector<int> offsets;
     // JA, IHC (0 vertical, 1 horizontal), CL12, HWVA, and ANGLDEGX
     std::vector<int> nodes;

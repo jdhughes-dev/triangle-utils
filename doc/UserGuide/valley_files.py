@@ -75,6 +75,8 @@ def write_surfaces(folder, base):
 
 if __name__ == "__main__":
     if sys.argv[1:2] == ["--surfaces"]:
+        if len(sys.argv) != 3:
+            sys.exit("usage: python valley_files.py [--surfaces <base>]")
         write_surfaces(Path.cwd(), sys.argv[2])
     else:
         write_files(Path.cwd())

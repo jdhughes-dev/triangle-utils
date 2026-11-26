@@ -639,6 +639,17 @@ def test_disv_layers(tmp_path):
     assert arrays["IDOMAIN"][1] == [
         0.0 if c else -1.0 if b else 1.0 for b, c in zip(band, cut, strict=True)
     ]
+    # a triangle grid has more cells than the mesh has vertices, so the top's
+    # file is interpolated, exactly for a plane
+    top = options[options.index("-t") + 1]
+    output_base = f"{base}.centroid"
+    status, _, _ = run("disv", "-g", "centroid", "-o", output_base, "-t", top, base)
+    assert status == 0
+    centroids = [(cell[1], cell[2]) for cell in read_disv(f"{output_base}.disv")[2]]
+    assert len(centroids) != len(centers)
+    assert read_arrays(f"{output_base}.disv")["TOP"] == pytest.approx(
+        [10 - x for x, _ in centroids]
+    )
 
 
 def test_disu(tmp_path):
@@ -677,6 +688,46 @@ def test_disu(tmp_path):
     # IVSD 0, one period, undefined units, and CL12
     assert lines[1] == f"{len(nodes)} 3 {dimensions['NJA']} 0 1 0 0 0"
     assert lines[-1] == "1 1 1 SS"
+    # the arrays of the MODFLOW 6 file, with each horizontal face's area
+    usg = read_usg_arrays(f"{base}.usg.disu", 3, dimensions["NODES"], dimensions["NJA"])
+    assert usg["NODELAY"] == [sum(1 for n in nodes if n[0] == k) for k in (1, 2, 3)]
+    for name in ("TOP", "BOT", "AREA", "IAC", "JA", "CL12"):
+        assert usg[name] == pytest.approx(arrays[name]), name
+    rows = [n for n, count in enumerate(iac) for _ in range(count)]
+    thickness = [t - b for t, b in zip(arrays["TOP"], arrays["BOT"], strict=True)]
+    for c, (row, other) in enumerate(zip(rows, arrays["JA"], strict=True)):
+        mean = 0.5 * (thickness[row] + thickness[int(other) - 1])
+        width = arrays["HWVA"][c]
+        expected = width * mean if arrays["IHC"][c] == 1 else width
+        assert usg["FAHL"][c] == pytest.approx(expected)
+
+
+def read_usg_arrays(name, layer_count, node_count, connection_count):
+    """The arrays of a MODFLOW-USG DISU file, each layer's arrays joined."""
+    words = " ".join(open(name).read().splitlines()[3:]).split()
+    position = 0
+
+    def array(count):
+        nonlocal position
+        if words[position] == "CONSTANT":
+            values = [float(words[position + 1])] * count
+            position += 2
+        else:
+            assert words[position : position + 4] == ["INTERNAL", "1", "(FREE)", "-1"]
+            values = [
+                float(word) for word in words[position + 4 : position + 4 + count]
+            ]
+            position += 4 + count
+        return values
+
+    arrays = {"NODELAY": [int(value) for value in array(layer_count)]}
+    for key in ("TOP", "BOT", "AREA"):
+        arrays[key] = [v for count in arrays["NODELAY"] for v in array(count)]
+    arrays["IAC"] = array(node_count)
+    for key in ("JA", "CL12", "FAHL"):
+        arrays[key] = array(connection_count)
+    assert words[position:] == ["1", "1", "1", "SS"]
+    return arrays
 
 
 def test_disu_errors(tmp_path):
@@ -689,10 +740,15 @@ def test_disu_errors(tmp_path):
     status, _, errors = run("disu", "-t", str(tmp_path / "word.txt"), base)
     assert status == 1
     assert 'word.txt line 2: "two" is not a finite number' in errors
+    status, _, errors = run("disu", "-t", "nan", base)
+    assert status == 1
+    assert "nan is not a finite number" in errors
     status, _, errors = run("disu", "-i", "1.5", base)
     assert status == 1
     assert "the idomain 1.5 of 1.5 is not an integer" in errors
-    # a layer of only pass-through cells, which MODFLOW-USG cannot read
+    # a layer of only pass-through cells, which MODFLOW-USG cannot read,
+    # leaving the files as they were
+    Path(f"{base}.disu").write_text("kept")
     status, _, errors = run(
         "disu",
         "-f",
@@ -711,6 +767,8 @@ def test_disu_errors(tmp_path):
     )
     assert status == 1
     assert "layer 1 has no active cells, which MODFLOW-USG needs" in errors
+    assert Path(f"{base}.disu").read_text() == "kept"
+    assert not Path(f"{base}.nodes").exists()
 
 
 def read_cells(output):

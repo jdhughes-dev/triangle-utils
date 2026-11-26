@@ -202,9 +202,9 @@ MODFLOW-ORG/triangle and MODFLOW-ORG/gridgen.
 
 ## Command line
 
-- **Form:** `triangle-utils <command> [options]`, with one command per utility
-  (`generate`, `refine`, `improve`, `disv`, `disu`, `cells`), and `check`, which checks
-  a mesh in Triangle's files.
+- **Form:** `triangle-utils <command> [options]`, with one command per
+  utility (`generate`, `refine`, `improve`, `disv`, `disu`, `cells`), and
+  `check`, which checks a mesh in Triangle's files.
 - **Information:** `-h` and `--help`, for the program and for each command;
   `--version`, which prints the triangle-utils version, Triangle's version,
   and the MODFLOW-ORG/triangle release; and `--license`, which prints the

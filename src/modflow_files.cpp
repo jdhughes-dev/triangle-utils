@@ -30,8 +30,7 @@ void check_cells(const GridCells & grid)
                                     ", but the grid has ", grid.vertices.size(), " vertices"));
 }
 
-// Write values as a CONSTANT if they are all the same, or INTERNAL; added
-// is 1 for indices written from 1.
+// Write values as a CONSTANT if all the same, or INTERNAL, plus added.
 template <typename T>
 void write_values(std::ostream & output, std::span<const T> values, T added = 0)
 {
@@ -57,7 +56,7 @@ void write_vertices(std::ostream & output, const GridCells & grid)
     output << "END VERTICES\n\n";
 }
 
-// A CELL2D line of cell, numbered number.
+// Write the CELL2D line of a cell, numbered number.
 void write_cell2d(std::ostream & output, const GridCells & grid, std::size_t number,
                   std::size_t cell)
 {
@@ -74,6 +73,8 @@ void check_disu(const DisuFile & disu)
     const std::size_t cell_count = disu.grid.cells.size();
     const std::size_t node_count = disu.node_cells.size();
     const std::size_t connection_count = disu.nodes.size();
+    if (disu.layer_count < 1)
+        throw Error(message("the DISU grid has ", disu.layer_count, " layers, not at least 1"));
     if (disu.top.size() != node_count || disu.bottom.size() != node_count ||
         disu.area.size() != node_count || disu.offsets.size() != node_count + 1 ||
         disu.directions.size() != connection_count || disu.distances.size() != connection_count ||
@@ -87,8 +88,7 @@ void check_disu(const DisuFile & disu)
                                 " layers of ", cell_count, " cells"));
 }
 
-// Write values as MODFLOW-USG reads an array: a CONSTANT if they are all the
-// same, or INTERNAL in free format; added is 1 for indices written from 1.
+// Write values as a MODFLOW-USG array, in free format, plus added.
 template <typename T>
 void write_usg_values(std::ostream & output, std::span<const T> values, T added = 0)
 {
@@ -207,9 +207,8 @@ void write_usg_disu(std::ostream & output, const DisuFile & disu)
     std::vector<int> iac(node_count);
     for (std::size_t node = 0; node < node_count; node++)
         iac[node] = disu.offsets[node + 1] - disu.offsets[node];
-    // FAHL is the area of each face: a vertical face's is HWVA, and a
-    // horizontal face's its width times the mean of the two nodes' thickness,
-    // which MODFLOW-USG divides by again
+    // FAHL is a face's area; MODFLOW-USG divides a horizontal one by the
+    // mean thickness of its two nodes
     std::vector<double> face_areas(connection_count);
     for (std::size_t node = 0; node < node_count; node++)
         for (int c = disu.offsets[node]; c < disu.offsets[node + 1]; c++)
@@ -222,8 +221,8 @@ void write_usg_disu(std::ostream & output, const DisuFile & disu)
         }
 
     output.precision(std::numeric_limits<double>::max_digits10);
-    // NODES NLAY NJAG IVSD (0, so MODFLOW-USG takes a connection to a later
-    // layer as vertical) NPER ITMUNI LENUNI IDSYMRD (0, CL12 given)
+    // NODES NLAY NJAG IVSD NPER ITMUNI LENUNI IDSYMRD; with IVSD 0, a
+    // connection to a later layer is vertical
     output << "# MODFLOW-USG DISU written by triangle-utils, " << disu.layer_count << " layers of "
            << cell_count << " cells\n"
            << node_count << " " << disu.layer_count << " " << connection_count << " 0 1 0 0 0\n";

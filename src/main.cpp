@@ -155,12 +155,14 @@ triangles as its cells. Each cell's vertex or triangle, numbered as in
 
 The top and each bottom is a number, or a file of numbers separated by white
 space, with # comments: one for each cell, or one for each vertex of the
-mesh, interpolated at the cells' centers. Give -b once for each layer, from
-the top down; -i, if given, once for each layer as well, a whole number or a
-file of one for each cell: > 0 active, 0 not in the model, and < 0 a
-vertical pass-through cell. An active cell thinner than the minimum
-thickness becomes a pass-through cell, and a bottom above its top moves up
-to it.
+mesh, interpolated at the cells' centers; a file with one value for each
+cell is read as such, and a Voronoi grid's cells are its vertices. Give -b
+once for each layer, from the top down; -i, if given, once for each layer as
+well, a whole number or a file of one for each cell: > 0 active, 0 not in the
+model, and < 0 a vertical pass-through cell. With -m above 0, an active cell
+thinner than the minimum thickness becomes a pass-through cell, and a bottom
+above its top moves up to it; otherwise an active cell not thicker than 0
+is an error.
 
 Options:
   -h, --help              show this help
@@ -855,12 +857,15 @@ std::vector<double> read_numbers(const std::string & name)
     return numbers;
 }
 
-// The text as a number, if it is one.
+// The text as a number, if it is one; throws Error if it is not finite.
 bool parse_number(const std::string & text, double & value)
 {
     char * end = nullptr;
     value = std::strtod(text.c_str(), &end);
-    return !text.empty() && end == text.c_str() + text.size() && std::isfinite(value);
+    if (text.empty() || end != text.c_str() + text.size()) return false;
+    if (!std::isfinite(value))
+        throw triangle_utils::Error(triangle_utils::message(text, " is not a finite number"));
+    return true;
 }
 
 // The layers as the options give them: the top, and each layer's bottom and
@@ -1040,8 +1045,12 @@ int disv_command(const std::vector<std::string> & arguments)
     disv.top = std::move(built.top);
     disv.bottoms = std::move(built.bottoms);
     disv.idomain = std::move(built.idomain);
+    // written in full before the file is opened, so an error leaves it as it was
+    std::ostringstream text;
+    triangle_utils::write_disv(text, disv);
     std::ofstream disv_file = open_output(output_base + ".disv");
-    triangle_utils::write_disv(disv_file, disv);
+    disv_file << text.str();
+    if (!disv_file) throw triangle_utils::Error("the DISV file could not be written");
     write_cells(output_base, grid_name, data, vertices.first_number);
 
     std::cout << output_base << ".disv: " << cell_count << " cells and "
@@ -1119,11 +1128,15 @@ int disu_command(const std::vector<std::string> & arguments)
         built.layers.get(), node_count, disu.offsets.data(), connection_count, disu.nodes.data(),
         disu.directions.data(), disu.distances.data(), disu.widths.data(), disu.angles.data()));
     disu.grid = std::move(data.cells);
-    std::ofstream disu_file = open_output(output_base + ".disu");
+    // written in full before the file is opened, so an error leaves it as it was
+    std::ostringstream text;
     if (format == "mf6")
-        triangle_utils::write_disu(disu_file, disu);
+        triangle_utils::write_disu(text, disu);
     else
-        triangle_utils::write_usg_disu(disu_file, disu);
+        triangle_utils::write_usg_disu(text, disu);
+    std::ofstream disu_file = open_output(output_base + ".disu");
+    disu_file << text.str();
+    if (!disu_file) throw triangle_utils::Error("the DISU file could not be written");
     write_cells(output_base, grid_name, data, vertices.first_number);
 
     // each node's layer and cell, numbered from 1

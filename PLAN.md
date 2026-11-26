@@ -89,7 +89,8 @@ appendix), #58 (layered DISV and DISU files from the command line).
 - **MODFLOW-USG DISU** (#58): the command line writes IVSD 0, so
   MODFLOW-USG takes each connection to a later layer as vertical, and FAHL
   as each face's area, a horizontal face's width times the mean thickness of
-  its two cells, which MODFLOW-USG divides by again. MODFLOW-USG-Transport
+  its two cells; MODFLOW-USG divides it by that mean thickness (`FILLGFU`),
+  which gives back the width MODFLOW 6 takes. MODFLOW-USG-Transport
   reads the same file (its DISU reader is MODFLOW-USG's), and is `mfusgt` in
   MODFLOW-ORG/executables from release 30.0 (`mfusg_gsi` before). The face
   angles go in the flow package (LPF or BCF, for anisotropy) and, in
