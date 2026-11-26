@@ -76,11 +76,25 @@ Layers layer_grid(const Grid & grid, int layer_count, const std::vector<double> 
         for (std::size_t cell = 0; cell < cell_count; cell++)
         {
             const std::size_t i = layer * cell_count + cell;
-            if (layers.idomain[i] <= 0) continue;
-            const double above = layer == 0 ? top[cell] : bottoms[i - cell_count];
-            const double thickness = above - bottoms[i];
+            const double above = layer == 0 ? top[cell] : layers.bottoms[i - cell_count];
+            const double thickness = above - layers.bottoms[i];
+            if (layers.idomain[i] <= 0)
+            {
+                // its bottom is the top of the cell below
+                if (thickness < 0.0 && layer + 1 < layer_count)
+                    throw Error(message("cell ", cell, " in layer ", layer,
+                                        " is not active but has a bottom of ", layers.bottoms[i],
+                                        " above its top of ", above,
+                                        ", so the cell below it would overlap the cells above"));
+                continue;
+            }
             if (minimum_thickness > 0.0 && thickness < minimum_thickness)
+            {
                 layers.idomain[i] = -1;
+                // a crossing bottom moves up to the top, so the cell below
+                // does not overlap the cells above
+                if (thickness < 0.0) layers.bottoms[i] = above;
+            }
             else if (thickness <= 0.0)
                 throw Error(message("cell ", cell, " in layer ", layer, " has a top of ", above,
                                     " and a bottom of ", bottoms[i],

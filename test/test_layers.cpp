@@ -153,6 +153,43 @@ TEST(Layers, ElevationsAreChecked)
         const bool made = i == n + 2 || i == n + 4 || i == n + 5;
         EXPECT_EQ(thin.idomain[i], made ? -1 : 1) << i;
     }
+    // the crossing bottom moves up to the top; the others stay
+    auto expected = crossing;
+    expected[n + 2] = 5.0;
+    EXPECT_EQ(thin.bottoms, expected);
+
+    // three layers: a pass-through cell whose bottom crosses moves up, so the
+    // cell below it starts at the bottom above
+    const std::vector<double> three = [&]
+    {
+        std::vector<double> values(3 * n, 5.0);
+        for (std::size_t cell = 0; cell < n; cell++)
+        {
+            values[n + cell] = 3.0;
+            values[2 * n + cell] = 0.0;
+        }
+        values[n + 1] = 7.0;
+        return values;
+    }();
+    const Layers moved = layer_grid(grid, 3, top, three, {}, 0.5);
+    EXPECT_EQ(moved.idomain[n + 1], -1);
+    EXPECT_EQ(moved.bottoms[n + 1], 5.0);
+    // a cell given as pass-through or inactive with a crossing bottom is an
+    // error, but not in the last layer
+    std::vector<int> given(3 * n, 1);
+    given[n + 1] = -1;
+    EXPECT_NE(error_of([&] { layer_grid(grid, 3, top, three, given, 0.0); })
+                  .find("cell 1 in layer 1 is not active but has a bottom of 7 above its top of 5"),
+              std::string::npos);
+    given[n + 1] = 0;
+    EXPECT_NE(error_of([&] { layer_grid(grid, 3, top, three, given, 0.0); }).find("not active"),
+              std::string::npos);
+    auto last = three;
+    last[n + 1] = 3.0;
+    last[2 * n + 1] = 9.0;
+    given[n + 1] = 1;
+    given[2 * n + 1] = 0;
+    EXPECT_EQ(layer_grid(grid, 3, top, last, given, 0.0).bottoms, last);
 }
 
 TEST(Layers, DisuConnectsActiveCells)

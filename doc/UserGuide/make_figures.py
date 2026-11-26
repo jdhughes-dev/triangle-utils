@@ -32,6 +32,7 @@ from valley import (  # noqa: E402
     CLAY_EDGE,
     CLAY_THICKNESS,
     IMPROVE_ANGLE,
+    LAKE,
     LAKE_AREA,
     LAKE_DEPTH,
     LAKE_MARKER,
@@ -702,7 +703,7 @@ def connections_figure(grid, triangles):
 
 # the west-east line of the layers' section, through the lake's basin, in
 # meters
-SECTION_Y = 5450.0
+SECTION_Y = float(np.mean(np.array(LAKE)[:, 1]))
 SECTION = [(0.0, SECTION_Y), (5000.0, SECTION_Y)]
 LAYER_COLORS = ("#fdd49e", "#8c6d31", "#fdae6b")
 LAYER_NAMES = ("Upper aquifer", "Clay", "Lower aquifer")

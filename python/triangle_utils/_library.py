@@ -167,6 +167,7 @@ SIGNATURES = {
     ),
     "layers_free": (None, [LAYERS_POINTER]),
     "layers_idomain": (INT, [LAYERS_POINTER, INT, INT_ARRAY]),
+    "layers_bottoms": (INT, [LAYERS_POINTER, INT, DOUBLE_ARRAY]),
     "layers_disu_count": (INT, [LAYERS_POINTER, INT_ARRAY, INT_ARRAY]),
     "layers_disu_nodes": (
         INT,

@@ -52,10 +52,11 @@ struct Disu
 // Layers of a grid, from the top of each cell and the bottom of each cell in
 // each layer; idomain is all 1 if empty. A cell's top is the bottom of the
 // cell above it, as in MODFLOW. An active cell thinner than
-// minimum_thickness, if it is positive, becomes a pass-through cell. Throws
-// Error if a size does not match, a value is not finite, minimum_thickness
-// is negative, or an active cell is not thicker than 0, naming the cell and
-// layer.
+// minimum_thickness, if it is positive, becomes a pass-through cell, and a
+// bottom above its top moves up to it. Throws Error if a size does not
+// match, a value is not finite, minimum_thickness is negative, an active
+// cell is not thicker than 0, or a cell that is not active, above the last
+// layer, has a bottom above its top, naming the cell and layer.
 Layers layer_grid(const Grid & grid, int layer_count, const std::vector<double> & top,
                   const std::vector<double> & bottoms, const std::vector<int> & idomain,
                   double minimum_thickness);

@@ -612,6 +612,11 @@ def test_layers(library):
             idomain = (ctypes.c_int * 4)()
             assert library.triangle_utils_layers_idomain(layers, 4, idomain) == OK
             assert list(idomain) == [1, 1, 1, 1]
+            bottoms = (ctypes.c_double * 4)()
+            assert library.triangle_utils_layers_bottoms(layers, 4, bottoms) == OK
+            assert list(bottoms) == [5, 5, 0, 0]
+            status = library.triangle_utils_layers_bottoms(layers, 5, bottoms)
+            assert status == INVALID_ARGUMENT
             d = disu(library, layers)
             assert d["cells"] == [0, 1, 2, 3]
             assert d["top"] == [10, 10, 5, 5]

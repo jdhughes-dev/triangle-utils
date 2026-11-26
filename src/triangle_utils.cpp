@@ -1144,6 +1144,20 @@ int triangle_utils_layers_idomain(const TriangleUtilsLayers * layers, int value_
         });
 }
 
+int triangle_utils_layers_bottoms(const TriangleUtilsLayers * layers, int value_count,
+                                  double * bottoms)
+{
+    return call(
+        [&]
+        {
+            check_pointer(layers, "layers");
+            const auto & values = layers->layers.bottoms;
+            check_matches(value_count, values.size(), "bottom value", "layers");
+            if (value_count > 0) check_pointer(bottoms, "bottom");
+            std::copy(values.begin(), values.end(), bottoms);
+        });
+}
+
 int triangle_utils_layers_disu_count(const TriangleUtilsLayers * layers, int * node_count,
                                      int * connection_count)
 {

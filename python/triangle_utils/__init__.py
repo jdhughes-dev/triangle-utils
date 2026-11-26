@@ -889,7 +889,8 @@ class Layers:
     grid: Grid
     # the top of each cell, shape (cell count,)
     top: np.ndarray
-    # the bottom of each cell in each layer, shape (layer count, cell count)
+    # the bottom of each cell in each layer, shape (layer count, cell count),
+    # with the bottoms of pass-through cells moved up to their tops
     botm: np.ndarray
     # > 0 active, 0 not in the model, < 0 vertical pass-through, with the
     # pass-through cells the minimum thickness made
@@ -973,13 +974,16 @@ def layer_grid(grid, top, botm, idomain=None, minimum_thickness=0.0):
     """Layers of a grid, from the top of its cells and the bottom of each
     layer, as DISV takes them: top is a number or a value for each cell, and
     botm has, for each layer, a number or a value for each cell, from which
-    the layer count is taken; idomain, if given, is a number or is given for
-    each layer as botm is.
+    the layer count is taken, so a one-dimensional array is a number for each
+    layer and one layer's values for each cell are [values]; idomain, if
+    given, is a number or is given for each layer as botm is.
 
     A cell's top is the bottom of the cell above it, as in MODFLOW. An active
     cell thinner than minimum_thickness, if it is positive, becomes a
-    pass-through cell (idomain -1); otherwise an active cell that is not
-    thicker than 0 raises Error, naming its cell and layer."""
+    pass-through cell (idomain -1), and a bottom above its top moves up to
+    it; otherwise an active cell that is not thicker than 0 raises Error,
+    naming its cell and layer, as does a cell that is not active, above the
+    last layer, whose bottom is above its top."""
     cell_count = len(grid.cells)
     scalar = not isinstance(botm, (list, tuple)) and np.ndim(botm) == 0
     layer_count = 1 if scalar else len(botm)
@@ -1024,6 +1028,8 @@ def layer_grid(grid, top, botm, idomain=None, minimum_thickness=0.0):
     try:
         result, result_pointer = _ints(np.zeros((layer_count, cell_count)))
         _check(api.triangle_utils_layers_idomain(handle, result.size, result_pointer))
+        bottoms, bottom_pointer = _doubles(np.zeros((layer_count, cell_count)))
+        _check(api.triangle_utils_layers_bottoms(handle, bottoms.size, bottom_pointer))
         node_count = ctypes.c_int()
         count = ctypes.c_int()
         _check(
@@ -1085,7 +1091,7 @@ def layer_grid(grid, top, botm, idomain=None, minimum_thickness=0.0):
     return Layers(
         grid,
         tops,
-        bottoms.reshape(layer_count, cell_count),
+        bottoms,
         result,
         nodes.reshape(layer_count, cell_count),
         disu,

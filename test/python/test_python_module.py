@@ -291,6 +291,14 @@ def test_layers():
 
     with pytest.raises(tu.Error, match="in layer 1 has a top of 6 and a bottom of 7"):
         tu.layer_grid(grid, 10.0, [6.0, 7.0])
+    # a crossing bottom made pass-through moves up, and the layer below starts
+    # at the bottom above
+    crossing = tu.layer_grid(grid, 10.0, [6.0, 7.0, 0.0], minimum_thickness=0.5)
+    np.testing.assert_array_equal(crossing.idomain[1], -1)
+    np.testing.assert_array_equal(crossing.botm[1], 6.0)
+    np.testing.assert_array_equal(crossing.disu.top[crossing.disu.layers == 2], 6.0)
+    with pytest.raises(tu.Error, match="is not active but has a bottom of 7"):
+        tu.layer_grid(grid, 10.0, [6.0, 7.0, 0.0], idomain=[1, 0, 1])
     with pytest.raises(ValueError, match="botm must be"):
         tu.layer_grid(grid, 10.0, np.zeros((2, 3)))
     with pytest.raises(ValueError, match=r"botm must be .* not the shapes"):
