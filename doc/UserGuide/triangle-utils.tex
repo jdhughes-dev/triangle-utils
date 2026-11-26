@@ -9,7 +9,6 @@
 \usepackage[T1]{fontenc}
 \usepackage{etoolbox}
 \usepackage{fancyvrb}
-\usepackage{needspace}
 
 \usepackage{hyperref}
 \hypersetup{
@@ -35,7 +34,9 @@
 % an excerpt of a script, numbered as in its listing in the appendix, and
 % the lines it spans there; \codelead starts the sentence that introduces
 % an excerpt on a page with room for the first lines of the excerpt
-\newcommand{\codelead}{\needspace{7\baselineskip}}
+% (a page break here unless the page has 7 more lines, as needspace's
+% approximate form)
+\newcommand{\codelead}{\par\vskip 0pt plus 7\baselineskip\penalty -250\vskip 0pt plus -7\baselineskip}
 \newcommand{\excerpt}[2]{\VerbatimInput[fontsize=\small,numbers=left,numbersep=6pt,firstnumber=\csname excerpt#1first\endcsname,firstline=\csname excerpt#1first\endcsname,lastline=\csname excerpt#1last\endcsname]{#2}}
 \newcommand{\excerptlines}[1]{lines~\csname excerpt#1first\endcsname--\csname excerpt#1last\endcsname}
 
