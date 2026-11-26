@@ -284,12 +284,16 @@ WINDOW_HEADINGS = {
 
 def valley_and_windows():
     """A figure with the valley in A and its three close-ups beside it."""
-    return plt.subplot_mosaic(
+    fig, axd = plt.subplot_mosaic(
         [["A", "B"], ["A", "C"], ["A", "D"]],
         figsize=(6.7, VALLEY_FIGURE_HEIGHT),
         width_ratios=[VALLEY_FIGURE_RATIO, 1.0],
         layout="constrained",
     )
+    # the valley keeps equal scales by widening its x range, so its panel is
+    # as tall as the three close-ups
+    axd["A"].set_adjustable("datalim")
+    return fig, axd
 
 
 def mesh_figure(mesh, windows):
