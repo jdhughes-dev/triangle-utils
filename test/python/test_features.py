@@ -5,8 +5,8 @@ The tests are skipped where geopandas, an optional dependency, is not
 installed.
 
 Cases:
-  - test_valley        : the user guide's valley read from shapefiles, with
-                         markers stored as doubles, and from GeoDataFrames
+  - test_valley        : the user guide's valley, read from shapefiles with
+                         markers stored as doubles or from GeoDataFrames,
                          meshes to the same mesh as its coordinates.
   - test_parts         : multi-part features and collections give one feature
                          per part with their row's values, a polygon's holes
@@ -340,6 +340,13 @@ def test_bad_values():
             [
                 tu.Feature("point", np.zeros((1, 2)), 0),
                 tu.Feature("ring", np.zeros((1, 2)), 0),
+            ]
+        )
+    with pytest.raises(ValueError, match="columns"):
+        geometry.add_features(
+            [
+                tu.Feature("polygon", np.eye(3, 2), 0),
+                tu.Feature("line", np.zeros((2, 3)), 1),
             ]
         )
     # nothing was added

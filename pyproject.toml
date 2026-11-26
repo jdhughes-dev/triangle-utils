@@ -44,6 +44,7 @@ test-requires = ["pytest"]
 test-extras = ["gis"]
 # every Python test except those of the program and MODFLOW 6, which need
 # the program; the Python 3.15 job in wheels.yml runs the same tests
+# without geopandas, so it skips test_features.py
 test-command = "pytest -p no:cacheprovider {project}/test/python --ignore={project}/test/python/test_command_line.py --ignore={project}/test/python/test_modflow.py"
 
 [tool.cibuildwheel.environment]
