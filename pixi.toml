@@ -18,6 +18,8 @@ flopy = "*"
 # the Python package's wheel (pyproject.toml)
 meson-python = ">=0.18"
 python-build = "*"
+# the optional reading of features from GIS files and GeoDataFrames
+geopandas = "*"
 
 [tasks]
 

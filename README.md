@@ -87,9 +87,12 @@ arrays.
 
 The module in `python/triangle_utils/` is packaged with the C API library
 beside it (`pyproject.toml`, built with meson-python); Triangle is linked
-into the library, and the package needs only NumPy. `pixi run wheel` builds
-the wheel for this platform and the pixi environment's Python in `dist/`, to
-install with `pip install`. CI builds and tests a wheel for each of Linux
+into the library, and the package needs only NumPy. `read_features()`,
+which reads features from shapefiles, GeoPackages, GeoJSON, GeoDataFrames,
+and shapely geometries, also needs geopandas, an optional dependency
+(`pip install triangle-utils[gis]`). `pixi run wheel` builds the wheel for
+this platform and the pixi environment's Python in `dist/`, to install with
+`pip install`. CI builds and tests a wheel for each of Linux
 (manylinux, x86_64 and aarch64), macOS (arm64), and Windows (x86_64), built
 for Python 3.11 and installable on CPython 3.11 and later, but not on
 free-threaded builds; macOS on Intel is not supported. The wheels will be

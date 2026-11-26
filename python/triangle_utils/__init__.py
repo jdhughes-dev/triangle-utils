@@ -12,6 +12,7 @@ from dataclasses import dataclass, field
 
 import numpy as np
 
+from ._features import KINDS, Feature, read_features
 from ._library import (
     CELL_LENGTHS_POINTER,
     CONNECTIONS_POINTER,
@@ -26,6 +27,7 @@ __all__ = [
     "CellLengths",
     "Connections",
     "Error",
+    "Feature",
     "Geometry",
     "Grid",
     "Mesh",
@@ -36,6 +38,7 @@ __all__ = [
     "count_angles_over",
     "generate",
     "improve",
+    "read_features",
     "refine",
     "triangle_grid",
     "version",
@@ -347,6 +350,44 @@ class Geometry:
                 _int(marker, "marker"),
             )
         )
+
+    def add_features(self, features, points="vertices"):
+        """Add features, such as those of read_features(), with point features
+        as "vertices", "regions", or "holes".
+
+        Polygons, hole polygons, and lines get their spacing and marker
+        whatever points is, and regions their attribute and area limit."""
+        if points not in ("vertices", "regions", "holes"):
+            raise ValueError(
+                f'points must be "vertices", "regions", or "holes", not {points!r}'
+            )
+        # added to a new geometry first, so an error adds nothing
+        staged = Geometry()
+        vertices = []
+        for feature in features:
+            if feature.kind not in KINDS:
+                raise ValueError(f"{feature.kind!r} is not a kind of feature")
+            if feature.kind != "point":
+                add = getattr(staged, f"add_{feature.kind}")
+                add(
+                    feature.points,
+                    spacing=float(feature.spacing),
+                    marker=feature.marker,
+                )
+                continue
+            for x, y in _rows(feature.points, 2, "points", np.float64):
+                if points == "vertices":
+                    vertices.append((x, y))
+                elif points == "regions":
+                    staged.add_region(
+                        x, y, float(feature.attribute), float(feature.area_limit)
+                    )
+                else:
+                    staged.add_hole(x, y)
+        # in one call, after the other features
+        if vertices:
+            staged.add_points(vertices)
+        self._features.extend(staged._features)
 
     def _handle(self):
         """A new geometry handle with the features; free it after use."""

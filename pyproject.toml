@@ -16,6 +16,10 @@ license = "CC0-1.0 AND LicenseRef-Triangle"
 license-files = ["LICENSE", "LICENSE-Triangle", "NOTICE"]
 dependencies = ["numpy"]
 
+[project.optional-dependencies]
+# reading features from GIS files and GeoDataFrames (read_features)
+gis = ["geopandas"]
+
 [project.urls]
 Source = "https://github.com/jdhughes-dev/triangle-utils"
 
@@ -37,8 +41,10 @@ skip = "*-musllinux_*"
 # 64-bit only, on each runner's own architecture
 archs = ["auto64"]
 test-requires = ["pytest"]
+test-extras = ["gis"]
 # every Python test except those of the program and MODFLOW 6, which need
 # the program; the Python 3.15 job in wheels.yml runs the same tests
+# without geopandas, so it skips test_features.py
 test-command = "pytest -p no:cacheprovider {project}/test/python --ignore={project}/test/python/test_command_line.py --ignore={project}/test/python/test_modflow.py"
 
 [tool.cibuildwheel.environment]
