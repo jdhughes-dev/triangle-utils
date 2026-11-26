@@ -1,8 +1,11 @@
+python valley_files.py
 triangle-utils generate -a 40000 -q 30 -s 200 -D valley
 triangle-utils refine -A 100 -D valley.1
 triangle-utils improve -A 90 valley.2
 triangle-utils check valley.3
 triangle-utils disv valley.2
+python valley_files.py --surfaces valley.2
+triangle-utils disu -t land.txt -b -5 -b clay.txt -b base.txt -m 1 valley.2
 triangle-utils cells -l river.txt valley.2
 triangle-utils cells -l tributary.txt valley.2
 triangle-utils cells -m 1 valley.2

@@ -16,6 +16,12 @@ Cases:
   - test_layers_run    : three layers of the Voronoi grid, with pass-through,
                          thin, and inactive cells, give the same heads in
                          DISV and DISU.
+  - test_layer_files_run : the DISV and DISU files the disv and disu commands
+                         write for those layers, lowered below the heads,
+                         from files of values, give
+                         the heads of the Python module's layers, and so does
+                         the MODFLOW-USG DISU file in mfusg and mfusgt, where
+                         installed (pixi run get-mfusg).
 """
 
 import itertools
@@ -200,10 +206,11 @@ def test_disu_runs(tmp_path):
     np.testing.assert_allclose(disv_discharge, discharge, atol=1e-7)
 
 
-def run_layers(workspace, layers, disu):
+def run_layers(workspace, layers, disu, dis_file=None):
     """The heads of a steady model of the layers, in DISV or DISU, with a
     fixed head at the west end of the top layer and the east end of the
-    bottom layer, as an array of layer by cell (nan where there is no node)."""
+    bottom layer, as an array of layer by cell (nan where there is no node);
+    FloPy's DISV or DISU file is replaced by dis_file if given."""
     simulation = flopy.mf6.MFSimulation(sim_ws=workspace, exe_name="mf6")
     flopy.mf6.ModflowTdis(simulation)
     flopy.mf6.ModflowIms(
@@ -237,6 +244,8 @@ def run_layers(workspace, layers, disu):
         model, head_filerecord="layers.hds", saverecord=[("HEAD", "ALL")]
     )
     simulation.write_simulation(silent=True)
+    if dis_file is not None:
+        shutil.copy(dis_file, workspace / f"layers.{'disu' if disu else 'disv'}")
     success, _ = simulation.run_simulation(silent=True)
     assert success
     heads = model.output.head().get_data().ravel()
@@ -272,3 +281,143 @@ def test_layers_run(tmp_path):
     np.testing.assert_allclose(disu, disv, atol=1e-8)
     # flow crosses the thin band only through its pass-through cells
     assert np.nanmax(disu) - np.nanmin(disu) > 0.5
+
+
+# the layers of test_layer_files_run are those of test_layers_run lowered by
+# 10, so the heads are above every bottom, which MODFLOW-USG needs and
+# MODFLOW 6 does not
+LOWERED = 10.0
+
+
+def lowered_layers(mesh, grid):
+    """The top of each mesh vertex, and the bottoms and idomain of each cell
+    in each layer, of test_layers_run lowered by LOWERED."""
+    x, y = grid.centers.T
+    top = 10.0 - 0.2 * mesh.vertices[:, 0] - LOWERED
+    middle = np.where(np.abs(x - 5.0) < 1.0, 5.0 - 0.01, 3.0)
+    botm = np.array([np.full_like(x, 5.0), middle, np.full_like(x, 0.0)]) - LOWERED
+    idomain = np.ones(botm.shape, dtype=int)
+    idomain[1, (x > 7.0) & (y > 2.0)] = 0
+    return top, botm, idomain
+
+
+def layer_options(tmp_path, mesh, grid):
+    """The options of the disv and disu commands for lowered_layers, with the
+    top in a file of the mesh's vertices and the middle layer's bottom and
+    idomain in files of the cells."""
+    top, botm, idomain = lowered_layers(mesh, grid)
+    np.savetxt(tmp_path / "top.txt", top)
+    np.savetxt(tmp_path / "middle.txt", botm[1])
+    np.savetxt(tmp_path / "idomain.txt", idomain[1], fmt="%d")
+    return [
+        *("-t", str(tmp_path / "top.txt"), "-b", str(botm[0, 0]), "-b"),
+        *(str(tmp_path / "middle.txt"), "-b", str(botm[2, 0]), "-i", "1", "-i"),
+        *(str(tmp_path / "idomain.txt"), "-i", "1", "-m", "0.1"),
+    ]
+
+
+def read_mesh(base):
+    """The mesh in Triangle's .node and .ele files, numbered from 1."""
+    node = np.loadtxt(f"{base}.node", skiprows=1, comments="#", ndmin=2)
+    ele = np.loadtxt(f"{base}.ele", skiprows=1, comments="#", dtype=int, ndmin=2)
+    return tu.Mesh(node[:, 1:3], ele[:, 1:4] - 1)
+
+
+def test_layer_files_run(tmp_path):
+    (tmp_path / "box.poly").write_text(
+        f"4 2 0 0\n1 0 0\n2 {LENGTH} 0\n3 {LENGTH} {WIDTH}\n4 0 {WIDTH}\n"
+        "4 0\n1 1 2\n2 2 3\n3 3 4\n4 4 1\n0\n"
+    )
+    program = os.environ["TRIANGLE_UTILS_PROGRAM"]
+    base = str(tmp_path / "box")
+    subprocess.run(
+        [program, "generate", "-a", "0.2", "-q", "28", "-D", base],
+        check=True,
+        capture_output=True,
+    )
+    base += ".1"
+    mesh = read_mesh(base)
+    grid = tu.voronoi(mesh)
+    options = layer_options(tmp_path, mesh, grid)
+    for command in ("disv", "disu"):
+        subprocess.run(
+            [program, command, *options, base], check=True, capture_output=True
+        )
+    top, botm, idomain = lowered_layers(mesh, grid)
+    top = tu.values_at_centers(grid, mesh, top)
+    layers = tu.layer_grid(grid, top, botm, idomain, minimum_thickness=0.1)
+    expected = run_layers(tmp_path / "python", layers, disu=False)
+    disv = run_layers(tmp_path / "disv", layers, False, f"{base}.disv")
+    disu = run_layers(tmp_path / "disu", layers, True, f"{base}.disu")
+    for heads in (disv, disu):
+        np.testing.assert_array_equal(np.isnan(heads), np.isnan(expected))
+        np.testing.assert_allclose(heads, expected, atol=1e-8)
+    for program_name in ("mfusg", "mfusgt"):
+        if shutil.which(program_name) is None:
+            continue
+        subprocess.run(
+            [program, "disu", "-f", "usg", "-o", f"{base}.usg", *options, base],
+            check=True,
+            capture_output=True,
+        )
+        heads = run_usg(
+            tmp_path / program_name, layers, f"{base}.usg.disu", program_name
+        )
+        np.testing.assert_array_equal(np.isnan(heads), np.isnan(expected))
+        np.testing.assert_allclose(heads, expected, atol=1e-6)
+
+
+def run_usg(workspace, layers, disu_file, program_name):
+    """The heads of the model of run_layers in MODFLOW-USG or
+    MODFLOW-USG-Transport, with FloPy's packages and disu_file for DISU."""
+    d = layers.disu
+    layer_count = len(layers.botm)
+    in_layer = [d.layers == layer for layer in range(layer_count)]
+    model = flopy.mfusg.MfUsg(
+        modelname="layers", model_ws=workspace, exe_name=program_name, structured=False
+    )
+    # replaced by disu_file; FloPy needs it for the other packages
+    flopy.mfusg.MfUsgDisU(
+        model,
+        nodes=len(d.cells),
+        nlay=layer_count,
+        njag=len(d.ja),
+        nodelay=[int(nodes.sum()) for nodes in in_layer],
+        top=[d.top[nodes] for nodes in in_layer],
+        bot=[d.bot[nodes] for nodes in in_layer],
+        area=[d.area[nodes] for nodes in in_layer],
+        iac=d.iac,
+        ja=d.ja,
+        cl12=d.cl12,
+        fahl=d.hwva,
+    )
+    x = layers.grid.centers[d.cells, 0]
+    west = (d.layers == 0) & (x == 0.0)
+    east = (d.layers == layer_count - 1) & (x == LENGTH)
+    ibound = np.where(west | east, -1, 1)
+    strt = np.where(west, WEST_HEAD, np.where(east, EAST_HEAD, 0.5))
+    flopy.mfusg.MfUsgBas(
+        model,
+        ibound=[ibound[nodes] for nodes in in_layer],
+        strt=[strt[nodes] for nodes in in_layer],
+        structured=False,
+    )
+    flopy.mfusg.MfUsgLpf(model, hk=1.0, vka=0.1)
+    flopy.mfusg.MfUsgSms(
+        model,
+        hclose=1e-8,
+        hiclose=1e-10,
+        mxiter=50,
+        iter1=2000,
+        linmeth=2,
+        rclosepcgu=1e-10,
+    )
+    flopy.modflow.ModflowOc(model, stress_period_data={(0, 0): ["save head"]})
+    model.write_input()
+    shutil.copy(disu_file, workspace / "layers.disu")
+    success, _ = model.run_model(silent=True)
+    assert success
+    heads = np.concatenate(flopy.utils.HeadUFile(workspace / "layers.hds").get_data())
+    result = np.full(layers.nodes.shape, np.nan)
+    result[d.layers, d.cells] = heads
+    return result

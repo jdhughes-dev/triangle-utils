@@ -10,6 +10,7 @@
 #include <limits>
 #include <memory>
 #include <new>
+#include <optional>
 #include <stdexcept>
 #include <string>
 #include <utility>
@@ -47,8 +48,10 @@ struct TriangleUtilsConnections
 
 struct TriangleUtilsLayers
 {
+    triangle_utils::Grid grid;
     triangle_utils::Layers layers;
-    triangle_utils::Disu disu;
+    // connected on the first DISU call, since DISV does not need it
+    mutable std::optional<triangle_utils::Disu> disu;
 };
 
 struct TriangleUtilsGeometry
@@ -1119,20 +1122,35 @@ int triangle_utils_grid_layers(const TriangleUtilsGrid * grid, int layer_count, 
             stored->layers = triangle_utils::layer_grid(
                 grid->grid, layer_count, std::vector<double>(top, top + cells),
                 std::vector<double>(bottoms, bottoms + values), domain, minimum_thickness);
-            triangle_utils::Connections connections;
-            try
-            {
-                connections = triangle_utils::connect_cells(grid->grid);
-            }
-            catch (const triangle_utils::Error & error)
-            {
-                throw triangle_utils::Error(
-                    triangle_utils::message("the layers' DISU connections: ", error.what()));
-            }
-            stored->disu = triangle_utils::layer_disu(grid->grid, connections, stored->layers);
+            stored->grid = grid->grid;
             *layers = stored.release();
         });
 }
+
+namespace
+{
+
+// The DISU data of layers, connected on the first call.
+const triangle_utils::Disu & layers_disu(const TriangleUtilsLayers * layers)
+{
+    if (!layers->disu)
+    {
+        triangle_utils::Connections connections;
+        try
+        {
+            connections = triangle_utils::connect_cells(layers->grid);
+        }
+        catch (const triangle_utils::Error & error)
+        {
+            throw triangle_utils::Error(
+                triangle_utils::message("the layers' DISU connections: ", error.what()));
+        }
+        layers->disu = triangle_utils::layer_disu(layers->grid, connections, layers->layers);
+    }
+    return *layers->disu;
+}
+
+} // namespace
 
 void triangle_utils_layers_free(TriangleUtilsLayers * layers)
 {
@@ -1177,8 +1195,9 @@ int triangle_utils_layers_disu_count(const TriangleUtilsLayers * layers, int * n
             check_pointer(node_count, "node count");
             check_pointer(connection_count, "connection count");
             // layer_grid and layer_disu limit both to what an int holds
-            *node_count = static_cast<int>(layers->disu.cells.size());
-            *connection_count = static_cast<int>(layers->disu.nodes.size());
+            const auto & d = layers_disu(layers);
+            *node_count = static_cast<int>(d.cells.size());
+            *connection_count = static_cast<int>(d.nodes.size());
         });
 }
 
@@ -1189,7 +1208,7 @@ int triangle_utils_layers_disu_nodes(const TriangleUtilsLayers * layers, int nod
         [&]
         {
             check_pointer(layers, "layers");
-            const auto & d = layers->disu;
+            const auto & d = layers_disu(layers);
             check_matches(node_count, d.cells.size(), "node", "layers");
             if (node_count > 0)
             {
@@ -1214,7 +1233,7 @@ int triangle_utils_layers_disu_connections(const TriangleUtilsLayers * layers, i
         [&]
         {
             check_pointer(layers, "layers");
-            const auto & d = layers->disu;
+            const auto & d = layers_disu(layers);
             check_matches(node_count, d.cells.size(), "node", "layers");
             check_matches(connection_count, d.nodes.size(), "connection", "layers");
             check_pointer(offsets, "offset");

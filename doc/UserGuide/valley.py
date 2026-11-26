@@ -179,28 +179,34 @@ def distance_to_lines(points, lines):
 # model or a geologic model, give each cell's top and the bottoms of the
 # clay and the lower aquifer; where the clay is thinner than the minimum,
 # its cells pass flow between the aquifers
-vertices = delaunay_refined.vertices
-x, y = vertices.T
-stream_distance = distance_to_lines(vertices, STREAMS)
-ridge = np.exp(-(((y - RIDGE_Y) / RIDGE_WIDTH) ** 2))
-gap = 1.0 - np.exp(-((distance_to_lines(vertices, [RIVER]) / GAP_WIDTH) ** 2))
-# the distance from the lake's shore, negative inside the lake
-shore_distance = distance_to_lines(vertices, [[*LAKE, LAKE[0]]])
-shore_distance[inside_polygon(vertices, LAKE)] *= -1.0
-basin = np.clip((LAKE_RIM - shore_distance) / (LAKE_RIM + LAKE_INSET), 0.0, 1.0)
-land_surface = (
-    RIVER_MOUTH_ELEVATION
-    + RIVER_GRADIENT * y
-    + VALLEY_SIDE_SLOPE * stream_distance
-    + RIDGE_HEIGHT * ridge * gap
-    - LAKE_DEPTH * basin
-)
-clay_base = UPPER_BOTTOM - CLAY_THICKNESS * np.clip(1.0 - x / CLAY_EDGE, 0.0, 1.0)
-aquifer_base = (
-    BASE_WEST
-    + (BASE_EAST - BASE_WEST) * x / np.max(x)
-    + BASE_RELIEF * np.sin(2.0 * np.pi * y / np.max(y))
-)
+def surfaces(vertices):
+    """The land surface, the clay's base, and the aquifer's base at each
+    (x, y) vertex of a mesh of the valley."""
+    x, y = vertices.T
+    stream_distance = distance_to_lines(vertices, STREAMS)
+    ridge = np.exp(-(((y - RIDGE_Y) / RIDGE_WIDTH) ** 2))
+    gap = 1.0 - np.exp(-((distance_to_lines(vertices, [RIVER]) / GAP_WIDTH) ** 2))
+    # the distance from the lake's shore, negative inside the lake
+    shore_distance = distance_to_lines(vertices, [[*LAKE, LAKE[0]]])
+    shore_distance[inside_polygon(vertices, LAKE)] *= -1.0
+    basin = np.clip((LAKE_RIM - shore_distance) / (LAKE_RIM + LAKE_INSET), 0.0, 1.0)
+    land_surface = (
+        RIVER_MOUTH_ELEVATION
+        + RIVER_GRADIENT * y
+        + VALLEY_SIDE_SLOPE * stream_distance
+        + RIDGE_HEIGHT * ridge * gap
+        - LAKE_DEPTH * basin
+    )
+    clay_base = UPPER_BOTTOM - CLAY_THICKNESS * np.clip(1.0 - x / CLAY_EDGE, 0.0, 1.0)
+    aquifer_base = (
+        BASE_WEST
+        + (BASE_EAST - BASE_WEST) * x / np.max(x)
+        + BASE_RELIEF * np.sin(2.0 * np.pi * y / np.max(y))
+    )
+    return land_surface, clay_base, aquifer_base
+
+
+land_surface, clay_base, aquifer_base = surfaces(delaunay_refined.vertices)
 top = tu.values_at_centers(grid, delaunay_refined, land_surface)
 clay_bottom = tu.values_at_centers(grid, delaunay_refined, clay_base)
 bottom = tu.values_at_centers(grid, delaunay_refined, aquifer_base)

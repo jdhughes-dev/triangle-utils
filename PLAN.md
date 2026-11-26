@@ -18,24 +18,23 @@ triangle grids for DISV), #12 (the cells of points, lines, and boundaries),
 tributary in the guide's example), #50 (features from GeoDataFrames and
 shapely geometries in Python), #19 (layers, with DISV and DISU arrays),
 #61 (the guide's code beside its sections, with the full listings in an
-appendix).
+appendix), #58 (layered DISV and DISU files from the command line).
 
-1. #58 write layered DISV and DISU files from the command line
-2. #59 recompute a layered grid's DISU data for new elevations
-3. #51 read shapefiles in the C++ library with shapelib
-4. #52 evaluate reading GeoPackage and FlatGeobuf in the C++ library
-5. #23 ghost-node correction
-6. #43 hybrid grid, Voronoi cells around features and triangles elsewhere
-7. #44 a point feature centered in a triangle cell, evaluated before the
+1. #59 recompute a layered grid's DISU data for new elevations
+2. #51 read shapefiles in the C++ library with shapelib
+3. #52 evaluate reading GeoPackage and FlatGeobuf in the C++ library
+4. #23 ghost-node correction
+5. #43 hybrid grid, Voronoi cells around features and triangles elsewhere
+6. #44 a point feature centered in a triangle cell, evaluated before the
    release: shipped as an option, or closed with its findings
-8. #14 grid quality report
-9. #18 model checks with MODFLOW 6, MODFLOW-USG, and MODFLOW-USG-Transport
-10. #20 different refinement by layer
-11. #15 structured grids, merging cells, and refinement by a field
-12. #21 user guide
-13. #22 Read the Docs
-14. #24 release notes
-15. #10 release and conda-forge package
+7. #14 grid quality report
+8. #18 model checks with MODFLOW 6, MODFLOW-USG, and MODFLOW-USG-Transport
+9. #20 different refinement by layer
+10. #15 structured grids, merging cells, and refinement by a field
+11. #21 user guide
+12. #22 Read the Docs
+13. #24 release notes
+14. #10 release and conda-forge package
 
 ## Triangle
 
@@ -87,6 +86,15 @@ appendix).
   connection stays perpendicular to its face; splitting the cell along the
   segment would need centers off the vertex and a correction, and faces on
   the shore need mirrored points, as in #43.
+- **MODFLOW-USG DISU** (#58): the command line writes IVSD 0, so
+  MODFLOW-USG takes each connection to a later layer as vertical, and FAHL
+  as each face's area, a horizontal face's width times the mean thickness of
+  its two cells, which MODFLOW-USG divides by again. MODFLOW-USG-Transport
+  reads the same file (its DISU reader is MODFLOW-USG's), and is `mfusgt` in
+  MODFLOW-ORG/executables from release 30.0 (`mfusg_gsi` before). The face
+  angles go in the flow package (LPF or BCF, for anisotropy) and, in
+  MODFLOW-USG-Transport, in the transport package for dispersion, which
+  the command line does not write.
 - **Corrections for triangle grids**, in order (#14, #21): a Voronoi grid
   or a triangle grid with circumcenters and no obtuse triangles needs none,
   so a grid with obtuse triangles is first refined by maximum angle (#7)

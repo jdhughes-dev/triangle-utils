@@ -408,9 +408,8 @@ int triangle_utils_grid_vertex_values(const TriangleUtilsGrid * grid,
    up to it, so the cell below does not overlap the cells above. An error if
    a value is not finite, an active cell is not thicker than 0, or a cell
    that is not active, above the last layer, has a bottom above its top,
-   naming the cell and layer, or if the grid's cells cannot be connected
-   for DISU (triangle_utils_grid_connections()). triangle_utils_layers_bottoms()
-   gives the bottoms. *layers is NULL after a failure. */
+   naming the cell and layer. triangle_utils_layers_bottoms() gives the
+   bottoms. *layers is NULL after a failure. */
 int triangle_utils_grid_layers(const TriangleUtilsGrid * grid, int layer_count, int cell_count,
                                const double * top, const double * bottoms, const int * idomain,
                                double minimum_thickness, TriangleUtilsLayers ** layers);
@@ -432,7 +431,9 @@ int triangle_utils_layers_bottoms(const TriangleUtilsLayers * layers, int value_
                                   double * bottoms);
 
 /* The number of DISU nodes, one for each active cell, and of DISU
-   connections (NJA), each node's connection to itself included. */
+   connections (NJA), each node's connection to itself included. The first
+   DISU call connects the grid's cells, an error if they cannot be connected
+   (triangle_utils_grid_connections()), so DISV needs no connections. */
 int triangle_utils_layers_disu_count(const TriangleUtilsLayers * layers, int * node_count,
                                      int * connection_count);
 

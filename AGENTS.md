@@ -34,7 +34,9 @@ MODFLOW-ORG/triangle and MODFLOW-ORG/gridgen.
   pixi environment): `pixi run wheel`
 - **Get MODFLOW 6** (6.7.0, into the pixi environment's `bin`, with flopy's
   `get-modflow`; `test_modflow.py` runs it on the grids, and skips without
-  it, as in CI until #18): `pixi run get-mf6`
+  it, as in CI until #18): `pixi run get-mf6`; MODFLOW-USG (`mfusg`) and
+  MODFLOW-USG-Transport (`mfusgt`), which it also runs where installed:
+  `pixi run get-mfusg`
 
 ## Repository orientation
 
@@ -80,7 +82,7 @@ MODFLOW-ORG/triangle and MODFLOW-ORG/gridgen.
   reads files into the core's types and calls only the C API for the rest,
   `triangle_files.hpp` and `.cpp`, which read and write Triangle's files, and
   `modflow_files.hpp` and `.cpp`,
-  which write MODFLOW 6's.
+  which write MODFLOW 6's DISV and DISU files and MODFLOW-USG's DISU file.
 - `python/triangle_utils/` — the Python module over the C API, meshes in
   and out as NumPy arrays (`_library.py` declares the C functions for
   ctypes, and `_features.py` reads features with geopandas, an optional
@@ -89,7 +91,8 @@ MODFLOW-ORG/triangle and MODFLOW-ORG/gridgen.
   usgslatex class as gridgen's release notes are; `valley.py`, the guide's
   example, which meshes the valley and builds its grid; `valley_gis.py`,
   which builds the valley's geometry from shapefiles; `valley_files.py` and
-  `valley_commands.txt`, the command-line example's files and commands; and
+  `valley_commands.txt`, the command-line example's files, with the valley's
+  surfaces at a mesh's vertices, and commands; and
   `make_figures.py`, which writes the figures from `valley.py` and
   `values.tex`, the numbers the text quotes and the lines of each excerpt.
 - `test/` — the GoogleTest tests; `test_c_header.c`, which builds the API
@@ -200,7 +203,7 @@ MODFLOW-ORG/triangle and MODFLOW-ORG/gridgen.
 ## Command line
 
 - **Form:** `triangle-utils <command> [options]`, with one command per utility
-  (`generate`, `refine`, `improve`, `disv`, `cells`), and `check`, which checks
+  (`generate`, `refine`, `improve`, `disv`, `disu`, `cells`), and `check`, which checks
   a mesh in Triangle's files.
 - **Information:** `-h` and `--help`, for the program and for each command;
   `--version`, which prints the triangle-utils version, Triangle's version,
@@ -330,12 +333,14 @@ MODFLOW-ORG/triangle and MODFLOW-ORG/gridgen.
     (including TeX Live, through `zauguin/install-texlive`, and
     MODFLOW-ORG/usgslatex at a pinned commit, for the user guide, and
     cibuildwheel, its manylinux images, and the Python packages it and the
-    wheel tests install with pip, for the wheels), and MODFLOW 6 from
-    MODFLOW-ORG/executables through `pixi run get-mf6`;
+    wheel tests install with pip, for the wheels), and MODFLOW 6,
+    MODFLOW-USG, and MODFLOW-USG-Transport from MODFLOW-ORG/executables
+    through `pixi run get-mf6` and `pixi run get-mfusg`;
   - programs run other than git, Meson, Ninja, the compilers, clang-format,
     ruff, codespell, the utilities themselves, pytest, pixi tasks, Python
-    for `scripts/clang_format.py` and `doc/UserGuide/make_figures.py`,
-    latexmk and the TeX programs it runs, flopy's `get-modflow`, mf6,
+    for `scripts/clang_format.py`, `doc/UserGuide/make_figures.py`, and
+    `doc/UserGuide/valley_files.py`, latexmk and the TeX programs it runs,
+    flopy's `get-modflow`, mf6, mfusg, mfusgt,
     cibuildwheel and the auditwheel and delocate it runs, pip in the wheel
     workflow, and readelf, otool, vswhere, and dumpbin from
     `scripts/check_wheel.py`;
