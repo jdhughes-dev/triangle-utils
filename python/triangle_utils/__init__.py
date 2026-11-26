@@ -12,6 +12,7 @@ from dataclasses import dataclass, field
 
 import numpy as np
 
+from ._features import KINDS, Feature, read_features
 from ._library import (
     CELL_LENGTHS_POINTER,
     CONNECTIONS_POINTER,
@@ -26,6 +27,7 @@ __all__ = [
     "CellLengths",
     "Connections",
     "Error",
+    "Feature",
     "Geometry",
     "Grid",
     "Mesh",
@@ -36,6 +38,7 @@ __all__ = [
     "count_angles_over",
     "generate",
     "improve",
+    "read_features",
     "refine",
     "triangle_grid",
     "version",
@@ -347,6 +350,30 @@ class Geometry:
                 _int(marker, "marker"),
             )
         )
+
+    def add_features(self, features, points="vertices"):
+        """Add features, such as those read_features() returns: polygons, hole
+        polygons, and lines with their spacing and marker, and points as
+        vertices, as regions with their attribute and area limit, or as holes
+        (points is "vertices", "regions", or "holes")."""
+        if points not in ("vertices", "regions", "holes"):
+            raise ValueError(
+                f'points must be "vertices", "regions", or "holes", not {points!r}'
+            )
+        for feature in features:
+            if feature.kind not in KINDS:
+                raise ValueError(f"{feature.kind!r} is not a kind of feature")
+            if feature.kind != "point":
+                add = getattr(self, f"add_{feature.kind}")
+                add(feature.points, spacing=feature.spacing, marker=feature.marker)
+                continue
+            for x, y in _rows(feature.points, 2, "points", np.float64):
+                if points == "vertices":
+                    self.add_points([(x, y)])
+                elif points == "regions":
+                    self.add_region(x, y, feature.attribute, feature.area_limit)
+                else:
+                    self.add_hole(x, y)
 
     def _handle(self):
         """A new geometry handle with the features; free it after use."""

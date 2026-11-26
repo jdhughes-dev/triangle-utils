@@ -81,7 +81,8 @@ MODFLOW-ORG/triangle and MODFLOW-ORG/gridgen.
   which write MODFLOW 6's.
 - `python/triangle_utils/` — the Python module over the C API, meshes in
   and out as NumPy arrays (`_library.py` declares the C functions for
-  ctypes); the user guide's figures and the Python tests use it.
+  ctypes, and `_features.py` reads features with geopandas, an optional
+  dependency); the user guide's figures and the Python tests use it.
 - `doc/UserGuide/` — the user guide: `triangle-utils.tex` and `.bib`, in the
   usgslatex class as gridgen's release notes are, `valley.py`, the guide's
   example, which meshes the valley and builds its grid and which the guide
@@ -90,7 +91,8 @@ MODFLOW-ORG/triangle and MODFLOW-ORG/gridgen.
 - `test/` — the GoogleTest tests; `test_c_header.c`, which builds the API
   header as C; and `python/`, the pytest tests of the C API through
   `ctypes` (declared in `python/triangle_utils/_library.py`), of the Python
-  module, of the installed package (`test_package.py`), of the user guide's
+  module, of reading features (`test_features.py`, skipped without
+  geopandas), of the installed package (`test_package.py`), of the user guide's
   example (`test_example.py`, which runs `doc/UserGuide/valley.py`), and of
   the program, which `meson test` runs except under the sanitizers; the
   wheels run all but the program's and MODFLOW 6's.

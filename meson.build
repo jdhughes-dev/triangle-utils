@@ -49,6 +49,7 @@ if python_package
   python = import('python').find_installation()
   python.install_sources(
     'python/triangle_utils/__init__.py',
+    'python/triangle_utils/_features.py',
     'python/triangle_utils/_library.py',
     pure: false,
     subdir: 'triangle_utils',
