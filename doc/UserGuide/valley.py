@@ -1,11 +1,13 @@
 """The example valley: meshed, refined, improved, made a Voronoi grid with its
-cells' connections, and its river, boundary, and wells mapped to the grid's
+cells' connections, and its streams, boundary, and wells mapped to the grid's
 cells."""
 
 import triangle_utils as tu
 
 # the valley, in meters: its boundary, a river that crosses it from north to
-# south, starting and ending on boundary edges, a lake, and three wells
+# south, starting and ending on boundary edges, a tributary that enters
+# across the east boundary and joins the river at its second bend, a lake,
+# and three wells
 BOUNDARY = [
     (0, 0),
     (4000, 0),
@@ -24,6 +26,10 @@ RIVER = [
     (2600, 1000),
     (2400, 0),
 ]
+TRIBUTARY = [(4300, 5050), (3700, 5550), (2900, 5500), (2300, 5200)]
+# the streams, each a line of its own, as the features of a polyline
+# shapefile give them
+STREAMS = [RIVER, TRIBUTARY]
 LAKE = [(700, 5200), (1300, 4700), (1500, 5400), (1200, 6200), (700, 6000)]
 WELLS = [(3300, 4400), (1000, 2000), (3400, 1500)]
 
@@ -50,12 +56,16 @@ BOUNDARY_MARKER, RIVER_MARKER, LAKE_MARKER, WELL_MARKER = 1, 2, 3, 4
 
 geometry = tu.Geometry()
 geometry.add_polygon(BOUNDARY, spacing=BOUNDARY_SPACING, marker=BOUNDARY_MARKER)
-geometry.add_line(RIVER, spacing=RIVER_SPACING, marker=RIVER_MARKER)
+# each stream with the river's spacing and marker; the point the tributary
+# shares with the river becomes one vertex of the mesh
+for stream in STREAMS:
+    geometry.add_line(stream, spacing=RIVER_SPACING, marker=RIVER_MARKER)
 geometry.add_polygon(LAKE, spacing=LAKE_SPACING, marker=LAKE_MARKER)
-# a point inside each region; the river divides the aquifer, so it needs one
-# on each side
+# a point inside each region; the streams divide the aquifer into three
+# parts, so it needs one in each
 geometry.add_region(500, 1000, attribute=AQUIFER)
 geometry.add_region(4000, 1000, attribute=AQUIFER)
+geometry.add_region(3500, 6500, attribute=AQUIFER)
 geometry.add_region(1100, 5400, attribute=LAKE_REGION, area_limit=LAKE_AREA)
 for x, y in WELLS:
     geometry.add_ring(
@@ -96,9 +106,9 @@ disv_cell2d = grid.disv_cell2d()
 # the direction of its normal
 connections = tu.connect_cells(grid)
 
-# the river's cells, in order, with the length of river in each, for
+# each stream's cells, in order, with the length of stream in each, for
 # streamflow routing reaches, the cells on the boundary, with the length of
 # boundary in each, for boundary conductances, and the wells' cells
-river_cells = tu.cells_along_line(grid, RIVER)
+stream_cells = [tu.cells_along_line(grid, stream) for stream in STREAMS]
 boundary_cells = tu.cells_on_segments(grid, delaunay_refined, BOUNDARY_MARKER)
 well_cells = tu.cells_at_points(grid, WELLS)

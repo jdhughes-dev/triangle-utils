@@ -8,7 +8,6 @@ values to values.tex, so the guide rebuilds from the repository alone.
 """
 
 import sys
-from itertools import pairwise
 from pathlib import Path
 
 import flopy.plot.styles as styles
@@ -36,9 +35,9 @@ from valley import (  # noqa: E402
     MAXIMUM_ANGLE,
     MAXIMUM_AREA,
     MINIMUM_ANGLE,
-    RIVER,
     RIVER_MARKER,
     RIVER_SPACING,
+    TRIBUTARY,
     WELL_AREA,
     WELL_POINTS,
     WELL_RADIUS,
@@ -51,7 +50,7 @@ from valley import (  # noqa: E402
     improved,
     mesh,
     refined,
-    river_cells,
+    stream_cells,
     well_cells,
 )
 
@@ -69,6 +68,8 @@ WELL_WINDOW = 600.0
 # a window on the lake's shore at its east corner, (x, y, side) in meters
 LAKE_WINDOW = (1500.0, 5400.0, 600.0)
 RIVER_WINDOW = 800.0
+# the window on the confluence, where the tributary joins the river
+CONFLUENCE_WINDOW = (*TRIBUTARY[-1], RIVER_WINDOW)
 
 REGION_NAMES = {AQUIFER: "Aquifer", LAKE_REGION: "Lake", WELL_REGION: "Well ring"}
 REGION_COLORS = {AQUIFER: "#e8e3d3", LAKE_REGION: "#a6cee3", WELL_REGION: "#fdbf6f"}
@@ -118,32 +119,12 @@ def in_window(points, window):
 
 
 def choose_windows(mesh):
-    """The close-up windows: the well, and the place along the river, whose
-    window holds the most triangles over the maximum angle, and the lake's
-    shore."""
+    """The close-up windows: the well whose window holds the most triangles
+    over the maximum angle, the confluence, and the lake's shore."""
     over = centroids(mesh)[mesh.largest_angles() > MAXIMUM_ANGLE]
     wells = [(x, y, WELL_WINDOW) for x, y in WELLS]
     well = max(wells, key=lambda window: in_window(over, window).sum())
-    # candidate centers every river spacing along the river
-    along = []
-    for start, end in pairwise(RIVER):
-        pieces = max(
-            1,
-            int(
-                np.ceil(np.hypot(end[0] - start[0], end[1] - start[1]) / RIVER_SPACING)
-            ),
-        )
-        for piece in range(pieces):
-            fraction = piece / pieces
-            along.append(
-                (
-                    start[0] + fraction * (end[0] - start[0]),
-                    start[1] + fraction * (end[1] - start[1]),
-                    RIVER_WINDOW,
-                )
-            )
-    river = max(along, key=lambda window: in_window(over, window).sum())
-    return {"B": well, "C": river, "D": LAKE_WINDOW}
+    return {"B": well, "C": CONFLUENCE_WINDOW, "D": LAKE_WINDOW}
 
 
 # the sections of valley.py the guide prints in turn, by the start of the
@@ -155,7 +136,7 @@ VALLEY_SECTIONS = {
     "meshing": "mesh = tu.generate(",
     "grid": "# the Voronoi grid needs",
     "connections": "# the connections between",
-    "features": "# the river's cells",
+    "features": "# each stream's cells",
 }
 
 
@@ -248,7 +229,7 @@ VALLEY_FIGURE_RATIO = 1.6
 # the headings of the close-up windows
 WINDOW_HEADINGS = {
     "B": "Around a well",
-    "C": "Along the river",
+    "C": "At the confluence",
     "D": "On the lake's shore",
 }
 
@@ -283,7 +264,7 @@ def mesh_figure(mesh, windows):
             Patch(facecolor=REGION_COLORS[region], edgecolor="0.35", label=name)
             for region, name in REGION_NAMES.items()
         ]
-        handles += [plt.Line2D([], [], color="#1f78b4", label="River"), well_handle()]
+        handles += [plt.Line2D([], [], color="#1f78b4", label="Stream"), well_handle()]
         explanation(fig, handles)
         save(fig, "generated_mesh.pdf")
         plt.close(fig)
@@ -302,7 +283,7 @@ def over_handles(limit, regions):
             )
             for region in regions
         ),
-        plt.Line2D([], [], color="#1f78b4", label="River"),
+        plt.Line2D([], [], color="#1f78b4", label="Stream"),
         well_handle(),
     ]
 
@@ -494,7 +475,7 @@ def voronoi_figure(grid, mesh, windows):
             for region, name in REGION_NAMES.items()
         ]
         handles += [
-            plt.Line2D([], [], color="#1f78b4", label="River"),
+            plt.Line2D([], [], color="#1f78b4", label="Stream"),
             plt.Line2D([], [], color="#08306b", lw=0.6, ls="--", label="Lake shore"),
             plt.Line2D(
                 [], [], color="0.2", marker=".", ms=3, ls="none", label="Cell center"
@@ -508,8 +489,10 @@ def voronoi_figure(grid, mesh, windows):
 
 # a window on the boundary at the valley's west corner, (x, y, side) in meters
 BOUNDARY_WINDOW = (300.0, 4000.0, 800.0)
-# the colors of the river's cells, in turn, and of the boundary's
-RIVER_CELL_COLORS = ("#6baed6", "#2171b5")
+# the colors of each stream's cells, in turn, of the cell where the
+# tributary joins the river, and of the boundary's cells
+STREAM_CELL_COLORS = (("#6baed6", "#2171b5"), ("#74c476", "#238b45"))
+CONFLUENCE_CELL_COLOR = "#e31a1c"
 BOUNDARY_CELL_COLOR = "#fd8d3c"
 WELL_CELL_COLOR = "#807dba"
 # the side of the close-up around a well, small enough to show its cell,
@@ -518,15 +501,18 @@ WELL_CELL_WINDOW = 150.0
 
 
 def draw_features(ax, grid, mesh):
-    """Draw the grid with the river's cells in alternating blues, in order,
-    the boundary's cells in orange, and the wells' cells in purple."""
+    """Draw the grid with each stream's cells in alternating shades, in
+    order, the confluence's cell in red, the boundary's cells in orange, and
+    the wells' cells in purple."""
     colors = ["#f0ece0"] * len(grid.cells)
     for cell in boundary_cells.cells:
         colors[cell] = BOUNDARY_CELL_COLOR
     for cell in well_cells:
         colors[cell] = WELL_CELL_COLOR
-    for reach, cell in enumerate(river_cells.cells):
-        colors[cell] = RIVER_CELL_COLORS[reach % 2]
+    for cells, shades in zip(stream_cells, STREAM_CELL_COLORS, strict=True):
+        for reach, cell in enumerate(cells.cells):
+            colors[cell] = shades[reach % 2]
+    colors[stream_cells[1].cells[-1]] = CONFLUENCE_CELL_COLOR
     ax.add_collection(
         PolyCollection(
             [grid.vertices[cell] for cell in grid.cells],
@@ -548,8 +534,8 @@ def draw_features(ax, grid, mesh):
 
 
 def features_figure(grid, mesh, windows):
-    """The river's, the boundary's, and the wells' cells in the Voronoi grid,
-    with close-ups along the river, on the boundary, and around a well."""
+    """The streams', the boundary's, and the wells' cells in the Voronoi grid,
+    with close-ups of the confluence, the boundary, and a well."""
     with styles.USGSMap():
         fig, axd = valley_and_windows()
         well_x, well_y, _ = windows["B"]
@@ -565,7 +551,7 @@ def features_figure(grid, mesh, windows):
         styles.ylabel(ax=axd["A"], label="y, in meters")
         styles.xlabel(ax=axd["A"], label="x, in meters")
         for letter, heading in (
-            ("B", "Along the river"),
+            ("B", "At the confluence"),
             ("C", "On the boundary"),
             ("D", "Around a well"),
         ):
@@ -573,18 +559,30 @@ def features_figure(grid, mesh, windows):
             zoom(axd[letter], close_ups[letter])
             styles.heading(ax=axd[letter], letter=letter, heading=heading)
         styles.xlabel(ax=axd["D"], label="x, in meters")
+        # the explanation fills by column: the river and the confluence, the
+        # tributary and the boundary, then the wells and the lines
+        (river_shades, tributary_shades) = STREAM_CELL_COLORS
         handles = [
-            Patch(facecolor=RIVER_CELL_COLORS[0], edgecolor="0.35", label="River cell"),
+            Patch(facecolor=river_shades[0], edgecolor="0.35", label="River cell"),
+            Patch(facecolor=river_shades[1], edgecolor="0.35", label="Next river cell"),
             Patch(
-                facecolor=RIVER_CELL_COLORS[1],
+                facecolor=CONFLUENCE_CELL_COLOR,
                 edgecolor="0.35",
-                label="Next river cell",
+                label="Confluence cell",
+            ),
+            Patch(
+                facecolor=tributary_shades[0], edgecolor="0.35", label="Tributary cell"
+            ),
+            Patch(
+                facecolor=tributary_shades[1],
+                edgecolor="0.35",
+                label="Next tributary cell",
             ),
             Patch(
                 facecolor=BOUNDARY_CELL_COLOR, edgecolor="0.35", label="Boundary cell"
             ),
             Patch(facecolor=WELL_CELL_COLOR, edgecolor="0.35", label="Well cell"),
-            plt.Line2D([], [], color="black", lw=0.8, label="River"),
+            plt.Line2D([], [], color="black", lw=0.8, label="Stream"),
             well_handle(),
         ]
         explanation(fig, handles, columns=3)
@@ -749,10 +747,21 @@ def main():
     # centered on it
     if not np.allclose(grid.centers[well_cells], WELLS):
         raise ValueError("a well's cell is not centered on the well")
-    # the river's marked segments give its cells in the order it was digitized
-    along_segments = tu.cells_on_segments(grid, delaunay, RIVER_MARKER)
-    if not np.array_equal(along_segments.cells, river_cells.cells):
-        raise ValueError("the river's segments are not in the order it was digitized")
+    # the streams' marked segments hold the same cells and length as the
+    # streams, though in chains that break at the confluence; the confluence
+    # is the tributary's last cell, centered on the point it shares with the
+    # river, and one of the river's
+    on_segments = tu.cells_on_segments(grid, delaunay, RIVER_MARKER)
+    along = np.concatenate([cells.cells for cells in stream_cells])
+    if set(on_segments.cells) != set(along) or not np.isclose(
+        on_segments.lengths.sum(), sum(cells.lengths.sum() for cells in stream_cells)
+    ):
+        raise ValueError("the streams' segments do not hold the streams' cells")
+    confluence = stream_cells[1].cells[-1]
+    if not np.allclose(grid.centers[confluence], TRIBUTARY[-1]) or (
+        confluence not in stream_cells[0].cells
+    ):
+        raise ValueError("the confluence's cell is not where the streams meet")
     features_figure(grid, delaunay, windows)
     connections_figure(grid, tu.triangle_grid(delaunay))
     cover_figure(refined)
@@ -808,8 +817,10 @@ def main():
         "welly": f"{windows['B'][1]:,.0f}",
         **valley_section_lines(),
         "boundarymarker": BOUNDARY_MARKER,
-        "rivercells": len(river_cells.cells),
-        "riverlength": f"{river_cells.lengths.sum():,.0f}",
+        "rivercells": len(stream_cells[0].cells),
+        "riverlength": f"{stream_cells[0].lengths.sum():,.0f}",
+        "tributarycells": len(stream_cells[1].cells),
+        "tributarylength": f"{stream_cells[1].lengths.sum():,.0f}",
         "boundarycells": len(boundary_cells.cells),
         "boundarylength": f"{boundary_cells.lengths.sum():,.0f}",
         "lakewindowover": over_in(mesh, MAXIMUM_ANGLE, windows["D"]),
