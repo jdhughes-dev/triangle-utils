@@ -147,7 +147,7 @@ VALLEY_SECTIONS = {
     "grid": "# the Voronoi grid needs",
     "connections": "# the connections between",
     "features": "# each stream's cells",
-    "layers": "def distance_to_lines(",
+    "layers": "def inside_polygon(",
 }
 
 

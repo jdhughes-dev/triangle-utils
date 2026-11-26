@@ -54,11 +54,11 @@ IMPROVE_ANGLE = 90.0
 # the layers, in meters, after the synthetic valley of Hughes and others
 # (2024). The land surface rises from the river's mouth along the streams
 # and up the valley's sides, over a ridge across the valley that the river
-# cuts through in a gap, and falls into a basin under the lake. Below it are
-# the bottom of an upper aquifer, a clay that thins from its greatest
-# thickness at the west boundary to nothing at CLAY_EDGE, and a lower
-# aquifer whose base dips to the west, with a relief of BASE_RELIEF along
-# the valley; the thinnest cell kept is MINIMUM_THICKNESS
+# cuts through in a gap, and falls into a basin shaped by the lake's shore.
+# Below it are the bottom of an upper aquifer, a clay that thins from its
+# greatest thickness at the west boundary to nothing at CLAY_EDGE, and a
+# lower aquifer whose base dips to the west, with a relief of BASE_RELIEF
+# along the valley; the thinnest cell kept is MINIMUM_THICKNESS
 RIVER_MOUTH_ELEVATION = 2.0
 RIVER_GRADIENT = 0.001
 VALLEY_SIDE_SLOPE = 0.004
@@ -66,9 +66,11 @@ RIDGE_Y = 3800.0
 RIDGE_HEIGHT = 12.0
 RIDGE_WIDTH = 500.0
 GAP_WIDTH = 250.0
-LAKE_CENTER = (1100.0, 5450.0)
+# the lake's basin: its depth below the land around it, reached LAKE_INSET
+# inside the shore, from which its sides rise to the land LAKE_RIM outside
 LAKE_DEPTH = 8.0
-LAKE_RADIUS = 500.0
+LAKE_INSET = 150.0
+LAKE_RIM = 200.0
 UPPER_BOTTOM = -5.0
 CLAY_THICKNESS = 11.0
 CLAY_EDGE = 3000.0
@@ -140,6 +142,20 @@ boundary_cells = tu.cells_on_segments(grid, delaunay_refined, BOUNDARY_MARKER)
 well_cells = tu.cells_at_points(grid, WELLS)
 
 
+def inside_polygon(points, polygon):
+    """Whether each (x, y) point is inside a polygon."""
+    x, y = np.asarray(points, dtype=float).T
+    corners = np.asarray(polygon, dtype=float)
+    inside = np.zeros(len(x), dtype=bool)
+    for (x1, y1), (x2, y2) in zip(corners, np.roll(corners, -1, axis=0), strict=True):
+        # an edge that a ray from the point to the east crosses
+        spans = (y1 > y) != (y2 > y)
+        with np.errstate(divide="ignore", invalid="ignore"):
+            crossing = x1 + (y - y1) * (x2 - x1) / (y2 - y1)
+        inside ^= spans & (x < crossing)
+    return inside
+
+
 def distance_to_lines(points, lines):
     """The distance from each (x, y) point to the nearest of the lines."""
     xy = np.asarray(points, dtype=float)[:, np.newaxis, :]
@@ -163,7 +179,10 @@ x, y = vertices.T
 stream_distance = distance_to_lines(vertices, STREAMS)
 ridge = np.exp(-(((y - RIDGE_Y) / RIDGE_WIDTH) ** 2))
 gap = 1.0 - np.exp(-((distance_to_lines(vertices, [RIVER]) / GAP_WIDTH) ** 2))
-basin = np.exp(-((np.hypot(x - LAKE_CENTER[0], y - LAKE_CENTER[1]) / LAKE_RADIUS) ** 2))
+# the distance from the lake's shore, negative inside the lake
+shore_distance = distance_to_lines(vertices, [[*LAKE, LAKE[0]]])
+shore_distance[inside_polygon(vertices, LAKE)] *= -1.0
+basin = np.clip((LAKE_RIM - shore_distance) / (LAKE_RIM + LAKE_INSET), 0.0, 1.0)
 land_surface = (
     RIVER_MOUTH_ELEVATION
     + RIVER_GRADIENT * y
