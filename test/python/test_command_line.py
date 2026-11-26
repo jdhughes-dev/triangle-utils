@@ -62,7 +62,8 @@ Cases:
                          valley_files.py writes, exit 0, with the values of
                          valley.py; the generated mesh has the wells as fixed
                          vertices, the regions' attributes, and the
-                         features' markers.
+                         features' markers, the grid file is written, and
+                         each stream, the boundary, and each well have cells.
 """
 
 import itertools
@@ -606,6 +607,7 @@ def test_guide_commands(tmp_path, monkeypatch):
         line.split()
         for line in (guide / "valley_commands.txt").read_text().splitlines()
     ]
+    outputs = {}
     for command in commands:
         assert command[0] == "triangle-utils"
         result = subprocess.run(
@@ -616,6 +618,16 @@ def test_guide_commands(tmp_path, monkeypatch):
             cwd=tmp_path,
         )
         assert result.returncode == 0, result.stderr
+        outputs[" ".join(command[1:])] = result.stdout
+    # the grid file, and the cells of each stream, the boundary, and the wells
+    assert (tmp_path / "valley.2.disv").stat().st_size > 0
+    for name, output in outputs.items():
+        if name.startswith("cells"):
+            rows = [line for line in output.splitlines() if not line.startswith("#")]
+            expected = len(valley["WELLS"]) if " -p " in f" {name} " else 1
+            assert len(rows) >= expected, name
+    wells = outputs["cells -p wells.txt valley.2"].splitlines()[1:]
+    assert all(int(line.split()[1]) > 0 for line in wells)
     # the .poly file gave the wells, the regions, and the markers
     node = (tmp_path / "valley.1.node").read_text().split("\n")
     vertices = {

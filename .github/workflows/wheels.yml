@@ -17,6 +17,7 @@ on:
       - 'README.md'
       - 'scripts/check_wheel.py'
       - 'doc/UserGuide/valley.py'
+      - 'doc/UserGuide/valley_gis.py'
       - '.github/workflows/wheels.yml'
   pull_request:
     branches:
@@ -35,6 +36,7 @@ on:
       - 'README.md'
       - 'scripts/check_wheel.py'
       - 'doc/UserGuide/valley.py'
+      - 'doc/UserGuide/valley_gis.py'
       - '.github/workflows/wheels.yml'
   workflow_dispatch:
 concurrency:

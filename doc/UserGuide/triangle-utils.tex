@@ -121,7 +121,7 @@ In Python, with the module imported as \texttt{tu} (\texttt{import triangle\_uti
 Features drawn in a GIS are read with \texttt{read\_features}, from a shapefile, GeoPackage, or GeoJSON file, a GeoDataFrame, or shapely geometries; it needs geopandas, installed with the module as triangle-utils[gis]. It returns each part of each feature, with the points the functions of this guide take, the row of the table it came from, and its marker, spacing, region attribute, and area limit, each given as a number or as the name of the column that holds it. A polygon's holes are returned as hole polygons, and every polygon's points run counterclockwise, as in valley.py, although a shapefile stores an outer boundary clockwise. The mesh is in plain x and y, so the features must be in a projected coordinate system; a geographic coordinate system is an error, and features without one are taken to be projected.
 
 \codelead
-The script valley\_gis.py (appendix~\ref{appendix:listings}) writes the valley's features to shapefiles, with the values of valley.py in their columns, and builds the geometry from them:
+The script valley\_gis.py (appendix~\ref{appendix:listings}) writes the valley's features to shapefiles in a temporary folder, \texttt{folder}, with the values of valley.py in their columns, and builds the geometry from them:
 
 \excerpt{gis}{valley_gis.py}
 
@@ -298,7 +298,10 @@ triangle-utils is used from Python, from the command line, and from C, C++, and 
   \end{tabular}
 \end{table}
 
-The \texttt{triangle-utils} program reads and writes the files of Triangle. The \texttt{generate} command meshes the segments, vertices, holes, and regions of a .poly file, the \texttt{refine} command refines the mesh in a .node file and an .ele file, with the segments of a .poly file and the area of each triangle in an .area file if they exist, the \texttt{improve} command moves the vertices of such a mesh, the \texttt{check} command checks a mesh, the \texttt{disv} command writes its Voronoi grid, or its triangles, as a MODFLOW 6 DISV file, and the \texttt{cells} command prints the cells of the grid that points contain or that a line or the segments with a marker pass through. A vertex with marker 1 in a .node file, as \texttt{generate} writes for the points of the .poly file, such as wells, stays in place. The script valley\_files.py (appendix~\ref{appendix:listings}) writes the valley's boundary, streams, lake, wells, and region points to valley.poly, and the points of each stream and of the wells to river.txt, tributary.txt, and wells.txt, one point to a line; the commands
+The \texttt{triangle-utils} program reads and writes the files of Triangle. The \texttt{generate} command meshes the segments, vertices, holes, and regions of a .poly file, the \texttt{refine} command refines the mesh in a .node file and an .ele file, with the segments of a .poly file and the area of each triangle in an .area file if they exist, the \texttt{improve} command moves the vertices of such a mesh, the \texttt{check} command checks a mesh, the \texttt{disv} command writes its Voronoi grid, or its triangles, as a MODFLOW 6 DISV file, and the \texttt{cells} command prints the cells of the grid that points contain or that a line or the segments with a marker pass through. A vertex with marker 1 in a .node file, as \texttt{generate} writes for the points of the .poly file, such as wells, stays in place.
+
+\codelead
+The script valley\_files.py (appendix~\ref{appendix:listings}) writes the valley's boundary, streams, lake, wells, and region points to valley.poly, and the points of each stream and of the wells to river.txt, tributary.txt, and wells.txt, one point to a line; the commands
 
 \VerbatimInput[fontsize=\small]{valley_commands.txt}
 
