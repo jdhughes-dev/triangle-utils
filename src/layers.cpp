@@ -83,7 +83,8 @@ Layers layer_grid(const Grid & grid, int layer_count, const std::vector<double> 
                 layers.idomain[i] = -1;
             else if (thickness <= 0.0)
                 throw Error(message("cell ", cell, " in layer ", layer, " has a top of ", above,
-                                    " and a bottom of ", bottoms[i], ", so it is not thicker than 0"));
+                                    " and a bottom of ", bottoms[i],
+                                    ", so it is not thicker than 0"));
         }
     return layers;
 }

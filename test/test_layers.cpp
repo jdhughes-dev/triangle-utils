@@ -123,9 +123,9 @@ TEST(Layers, ElevationsAreChecked)
               std::string::npos);
     EXPECT_NE(error_of([&] { layer_grid(grid, 2, top, bottoms, {1}, 0.0); }).find("idomain"),
               std::string::npos);
-    EXPECT_NE(error_of([&] { layer_grid(grid, 2, top, bottoms, {}, -1.0); })
-                  .find("minimum thickness"),
-              std::string::npos);
+    EXPECT_NE(
+        error_of([&] { layer_grid(grid, 2, top, bottoms, {}, -1.0); }).find("minimum thickness"),
+        std::string::npos);
     auto infinite = bottoms;
     infinite[n + 2] = INFINITY;
     EXPECT_NE(error_of([&] { layer_grid(grid, 2, top, infinite, {}, 0.0); }).find("not finite"),
