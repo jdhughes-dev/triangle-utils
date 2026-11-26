@@ -293,6 +293,10 @@ def test_layers():
         tu.layer_grid(grid, 10.0, [6.0, 7.0])
     with pytest.raises(ValueError, match="botm must be"):
         tu.layer_grid(grid, 10.0, np.zeros((2, 3)))
+    with pytest.raises(ValueError, match=r"botm must be .* not the shapes"):
+        tu.layer_grid(grid, 10.0, [np.zeros(cell_count), np.zeros(cell_count + 1)])
+    with pytest.raises(ValueError, match="at least one layer"):
+        tu.layer_grid(grid, 10.0, [])
     with pytest.raises(ValueError, match="top must be"):
         tu.layer_grid(grid, [10.0, 9.0], 0.0)
     with pytest.raises(ValueError, match="idomain must be"):

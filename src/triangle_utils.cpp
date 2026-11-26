@@ -7,6 +7,7 @@
 #include <cstddef>
 #include <cstring>
 #include <exception>
+#include <limits>
 #include <memory>
 #include <new>
 #include <stdexcept>
@@ -1101,6 +1102,10 @@ int triangle_utils_grid_layers(const TriangleUtilsGrid * grid, int layer_count, 
             if (layer_count < 1)
                 throw ArgumentError(
                     triangle_utils::message("the layer count is ", layer_count, ", not positive"));
+            // before the copies, which read layer_count * cell_count values
+            if (cell_count > 0 && layer_count > std::numeric_limits<int>::max() / cell_count)
+                throw ArgumentError(triangle_utils::message(layer_count, " layers of ", cell_count,
+                                                            " cells are too many"));
             const std::size_t cells = static_cast<std::size_t>(cell_count);
             const std::size_t values = static_cast<std::size_t>(layer_count) * cells;
             if (cells > 0)

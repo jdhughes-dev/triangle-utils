@@ -97,6 +97,11 @@ Disu layer_disu(const Grid & grid, const Connections & connections, const Layers
         throw Error(message("the layers have ", layers.cell_count, " cells and the connections ",
                             connections.offsets.size() - 1, ", but the grid has ", cell_count));
     const int layer_count = layers.layer_count;
+    const std::size_t value_count = static_cast<std::size_t>(layer_count) * cell_count;
+    if (layer_count < 1 || layers.top.size() != cell_count ||
+        layers.bottoms.size() != value_count || layers.idomain.size() != value_count)
+        throw Error(message("the layers' values do not match ", layer_count, " layers of ",
+                            cell_count, " cells"));
     const auto & idomain = layers.idomain;
 
     // the node of each cell in the layers, or -1

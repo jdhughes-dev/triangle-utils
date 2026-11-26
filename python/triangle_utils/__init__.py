@@ -959,9 +959,13 @@ def _layer_values(values, layer_count, cell_count, name, dtype):
                 array = array[:, np.newaxis]
         return np.ascontiguousarray(np.broadcast_to(array, (layer_count, cell_count)))
     except ValueError:
+        if isinstance(values, (list, tuple)):
+            shape = f"the shapes {[np.shape(v) for v in values]}"
+        else:
+            shape = f"shape {np.shape(values)}"
         raise ValueError(
             f"{name} must be a number, a value for each of {layer_count} layers, "
-            f"or shape ({layer_count}, {cell_count}), not shape {array.shape}"
+            f"or shape ({layer_count}, {cell_count}), not {shape}"
         ) from None
 
 
@@ -979,6 +983,8 @@ def layer_grid(grid, top, botm, idomain=None, minimum_thickness=0.0):
     cell_count = len(grid.cells)
     scalar = not isinstance(botm, (list, tuple)) and np.ndim(botm) == 0
     layer_count = 1 if scalar else len(botm)
+    if layer_count == 0:
+        raise ValueError("botm must have a bottom for at least one layer")
     bottoms = _layer_values(botm, layer_count, cell_count, "botm", np.float64)
     tops = np.asarray(top, dtype=np.float64)
     if tops.ndim == 0:

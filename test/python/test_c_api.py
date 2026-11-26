@@ -678,6 +678,8 @@ def test_layers(library):
             (grid, 0, 2, top, bottoms, None, 0.0),
             (grid, 2, 2, None, bottoms, None, 0.0),
             (None, 2, 2, top, bottoms, None, 0.0),
+            # more values than an int counts, refused before they are read
+            (grid, 2**30, 2, top, bottoms, None, 0.0),
         ):
             status = library.triangle_utils_grid_layers(
                 *arguments, ctypes.byref(layers)
