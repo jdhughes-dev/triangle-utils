@@ -43,17 +43,19 @@ private:
 // A shape's parts, each a list of points.
 using Parts = std::vector<std::vector<Point>>;
 
-// Write a shape of parts; no parts writes a null shape.
+// Write a shape of parts, with z rising by z_step from vertex to vertex; no
+// parts writes a null shape.
 void write_shape(SHPHandle file, int type, const Parts & parts,
-                 const std::vector<int> & part_types = {})
+                 const std::vector<int> & part_types = {}, double z_step = 0.0)
 {
     std::vector<int> starts;
-    std::vector<double> x, y;
+    std::vector<double> x, y, z;
     for (const auto & part : parts)
     {
         starts.push_back(static_cast<int>(x.size()));
         for (const Point & point : part)
         {
+            z.push_back(z_step * static_cast<double>(x.size()));
             x.push_back(point.x);
             y.push_back(point.y);
         }
@@ -63,7 +65,7 @@ void write_shape(SHPHandle file, int type, const Parts & parts,
             ? SHPCreateSimpleObject(SHPT_NULL, 0, nullptr, nullptr, nullptr)
             : SHPCreateObject(type, -1, static_cast<int>(parts.size()), starts.data(),
                               part_types.empty() ? nullptr : part_types.data(),
-                              static_cast<int>(x.size()), x.data(), y.data(), nullptr, nullptr);
+                              static_cast<int>(x.size()), x.data(), y.data(), z.data(), nullptr);
     ASSERT_GE(SHPWriteObject(file, -1, shape), 0);
     SHPDestroyObject(shape);
 }
@@ -169,6 +171,32 @@ TEST(Shapefile, PolygonsHolesAndValues)
     EXPECT_EQ(numbers[3].marker, 3);
 }
 
+TEST(Shapefile, RingsAreClassifiedInXAndY)
+{
+    const Folder folder("rings");
+    const std::string name = folder / "rings";
+    SHPHandle file = SHPCreate(name.c_str(), SHPT_POLYGONZ);
+    // a hole in a draped polygon, whose z varies along each ring
+    write_shape(
+        file, SHPT_POLYGONZ,
+        {{{0, 0}, {0, 4}, {4, 4}, {4, 0}, {0, 0}}, {{1, 1}, {2, 1}, {2, 2}, {1, 2}, {1, 1}}}, {},
+        0.5);
+    // a hole wound clockwise, like its outer ring
+    write_shape(file, SHPT_POLYGONZ,
+                {{{10, 0}, {10, 4}, {14, 4}, {14, 0}, {10, 0}},
+                 {{11, 1}, {11, 2}, {12, 2}, {12, 1}, {11, 1}}});
+    SHPClose(file);
+    const auto features = read_shapefile(name, fields("", "", "", 0.0));
+    ASSERT_EQ(features.size(), 4u);
+    for (std::size_t i = 0; i < features.size(); i++)
+        EXPECT_EQ(features[i].kind, i % 2 == 0 ? FeatureKind::POLYGON : FeatureKind::HOLE_POLYGON)
+            << i;
+    // the hole made counterclockwise from its first point
+    EXPECT_EQ(features[3].points[0].x, 11.0);
+    EXPECT_EQ(features[3].points[1].x, 12.0);
+    EXPECT_EQ(features[3].points[1].y, 1.0);
+}
+
 TEST(Shapefile, FieldErrors)
 {
     const Folder folder("fields");
@@ -193,6 +221,29 @@ TEST(Shapefile, FieldErrors)
               "the attribute field zone in row 2 is \"clay\", not a number");
     EXPECT_EQ(error_of([&] { read_shapefile(name, fields("", "spacing", "", 0.0)); }),
               "the spacing field spacing in row 0 has no value");
+
+    // a marker beyond an int, a field twice, and fewer rows than shapes
+    dbf = DBFOpen((name + ".dbf").c_str(), "rb+");
+    DBFWriteDoubleAttribute(dbf, 0, SPACING, 3e9);
+    DBFClose(dbf);
+    EXPECT_EQ(error_of([&] { read_shapefile(name, fields("spacing", "", "", 0.0)); }),
+              "the marker field spacing in row 0 is 3e+09, not a whole number");
+    const std::string twice = folder / "twice";
+    SHPHandle file = SHPCreate(twice.c_str(), SHPT_POINT);
+    write_shape(file, SHPT_POINT, {{{1, 1}}});
+    write_shape(file, SHPT_POINT, {{{2, 2}}});
+    SHPClose(file);
+    dbf = DBFCreate(twice.c_str());
+    DBFAddField(dbf, "zone", FTDouble, 10, 2);
+    DBFAddField(dbf, "zone", FTDouble, 10, 2);
+    DBFWriteDoubleAttribute(dbf, 0, 0, 1.0);
+    DBFClose(dbf);
+    EXPECT_EQ(error_of([&] { read_shapefile(twice, fields("", "", "zone", 0.0)); })
+                  .find("the .dbf file of "),
+              0u);
+    EXPECT_NE(error_of([&] { read_shapefile(twice, fields("", "", "zone", 0.0)); })
+                  .find(" has 1 rows, but the shapefile has 2 shapes"),
+              std::string::npos);
 
     // without the .dbf file, a field cannot be read, but numbers can
     std::filesystem::remove(name + ".dbf");
@@ -246,6 +297,18 @@ TEST(Shapefile, Multipatch)
     EXPECT_EQ(features[0].kind, FeatureKind::POLYGON);
     EXPECT_EQ(features[1].kind, FeatureKind::HOLE_POLYGON);
     EXPECT_EQ(features[1].points.size(), 3u);
+
+    // a first ring begins a polygon, and the rings after it are its holes
+    const std::string first = folder / "first";
+    file = SHPCreate(first.c_str(), SHPT_MULTIPATCH);
+    write_shape(file, SHPT_MULTIPATCH,
+                {{{0, 0}, {0, 4}, {4, 4}, {4, 0}, {0, 0}}, {{1, 1}, {2, 1}, {2, 2}, {1, 1}}},
+                {SHPP_FIRSTRING, SHPP_RING});
+    SHPClose(file);
+    const auto first_features = read_shapefile(first, fields("", "", "", 0.0));
+    ASSERT_EQ(first_features.size(), 2u);
+    EXPECT_EQ(first_features[0].kind, FeatureKind::POLYGON);
+    EXPECT_EQ(first_features[1].kind, FeatureKind::HOLE_POLYGON);
 
     const std::string triangles = folder / "triangles";
     file = SHPCreate(triangles.c_str(), SHPT_MULTIPATCH);

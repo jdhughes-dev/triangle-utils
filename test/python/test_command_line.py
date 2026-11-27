@@ -948,6 +948,8 @@ def test_generate_shapefiles(tmp_path):
         "wells": geopandas.GeoDataFrame(
             geometry=[Point(3, 3), Point(7, 2)], crs="EPSG:26916"
         ),
+        # a point in the hole the polygon's hole makes
+        "inside": geopandas.GeoDataFrame(geometry=[Point(7, 7)], crs="EPSG:26916"),
     }
     for name, frame in frames.items():
         frame.to_file(tmp_path / f"{name}.shp")
@@ -963,9 +965,10 @@ def test_generate_shapefiles(tmp_path):
             "-f",
             shapefile["areas"],
         ),
-        *("--marker", "marker", "-f", shapefile["river"]),
+        # the values are the areas' only, so the river's marker is 0
+        *("-f", shapefile["river"]),
         *("--attribute", "zone", "--area-limit", "area", "-r", shapefile["regions"]),
-        *("-f", shapefile["wells"], str(tmp_path / "none")),
+        *("-f", shapefile["wells"], "-H", shapefile["inside"], str(tmp_path / "none")),
     )
     assert status == 0, errors
     assert output.startswith(f"{base}: ")
@@ -973,12 +976,13 @@ def test_generate_shapefiles(tmp_path):
     geometry = tu.Geometry()
     values = {"marker": "marker", "spacing": "spacing"}
     geometry.add_features(tu.read_features(shapefile["areas"], **values))
-    geometry.add_features(tu.read_features(shapefile["river"], marker="marker"))
+    geometry.add_features(tu.read_features(shapefile["river"]))
     regions = tu.read_features(
         shapefile["regions"], attribute="zone", area_limit="area"
     )
     geometry.add_features(regions, points="regions")
     geometry.add_features(tu.read_features(shapefile["wells"]))
+    geometry.add_features(tu.read_features(shapefile["inside"]), points="holes")
     mesh = tu.generate(
         geometry, maximum_area=1, minimum_angle=28, conforming_delaunay=True
     )
@@ -990,8 +994,17 @@ def test_generate_shapefiles(tmp_path):
     # the wells are kept in place, and the regions are in the .poly file
     wells = [tuple(row[1:3]) for row in node if row[3] == 1]
     assert set(wells) == {(3.0, 3.0), (7.0, 2.0)}
-    poly = open(f"{base}.poly").read().split("\n")
-    assert any(line.split()[1:] == ["2", "8", "1", "0.5"] for line in poly if line)
+    # the segments and their markers, and the regions and the hole
+    rows = [line.split() for line in open(f"{base}.poly") if line.strip()]
+    segment_count = int(rows[1][0])
+    segments = np.array(rows[2 : 2 + segment_count], dtype=float)
+    np.testing.assert_array_equal(segments[:, 1:3] - 1, mesh.segments)
+    np.testing.assert_array_equal(segments[:, 3], mesh.segment_markers)
+    assert 0 in mesh.segment_markers and 1 in mesh.segment_markers
+    holes = rows[2 + segment_count]
+    assert holes[0] == "1"
+    assert rows[3 + segment_count][1:] == ["7", "7"]
+    assert rows[5 + segment_count][1:] == ["2", "8", "1", "0.5"]
 
     status, output, _ = run("cells", "-l", shapefile["river"], base)
     assert status == 0
@@ -1020,3 +1033,7 @@ def test_generate_shapefiles(tmp_path):
     status, _, errors = run("cells", "-l", shapefile["wells"], base)
     assert status == 1
     assert "has no lines" in errors
+    # a value after the last shapefile is for none
+    status, _, errors = run("generate", "-f", shapefile["areas"], "--marker", "2", base)
+    assert status == 2
+    assert "give --marker, --feature-spacing, --attribute, and --area-limit" in errors

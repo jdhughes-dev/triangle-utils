@@ -78,8 +78,8 @@ A shapefile's polygons are boundaries or internal boundaries the mesh
 follows, its polygons' holes are not meshed, and its lines, such as rivers,
 are followed; its points are vertices (-f), regions (-r), or points inside
 holes (-H). --marker, --feature-spacing, --attribute, and --area-limit set
-the values of the next shapefile, each a number or the name of a field of
-its .dbf file: the marker of the segments, the spacing of the
+the values of the next shapefile, each a number, or else the name of a
+field of its .dbf file: the marker of the segments, the spacing of the
 points added along them, and a region's attribute and area limit (0, none).
 Coordinates are taken as given; the .prj file is not read.
 
@@ -236,9 +236,10 @@ cell, numbered from 1 as in the DISV file, or 0 outside the grid; a point on
 a face or corner is in the lowest-numbered cell there. For a line or
 segments, print each cell, where its part starts along the line or segments,
 and its length. A .shp file of lines prints the cells of each line in turn,
-and a .shp file of points those of its points. Along a line, such as a river, the cells are in order, and a
-cell the line enters twice is printed twice; a part along a face is in the
-cell on the line's left, or on its right where none is on the left. On
+and a .shp file of points those of its points. Along a line, such as a
+river, the cells are in order, and a cell the line enters twice is printed
+twice; a part along a face is in the cell on the line's left, or on its
+right where none is on the left. On
 segments, such as a boundary, each cell is printed once, with its length of
 segment summed, in the order the segments were digitized; a segment between
 two cells is in only one of them.
@@ -1201,6 +1202,8 @@ struct ShapefileValues
     std::string spacing = "0";
     std::string attribute = "0";
     std::string area_limit = "0";
+    // whether an option set a value
+    bool given = false;
 
     // Take the option if it is one of these; true if it was.
     bool take(Options & options)
@@ -1215,6 +1218,7 @@ struct ShapefileValues
             area_limit = options.value();
         else
             return false;
+        given = true;
         return true;
     }
 };
@@ -1488,6 +1492,9 @@ int generate_command(const std::vector<std::string> & arguments)
             bases.push_back(options.argument());
     }
     if (bases.size() != 1) throw UsageError("generate: give one <base>");
+    if (values.given)
+        throw UsageError("generate: give --marker, --feature-spacing, --attribute, and "
+                         "--area-limit before the shapefile they are for");
     const std::string & base = bases[0];
     if (output_base.empty()) output_base = next_base(base);
     check_output("generate", output_base, base);

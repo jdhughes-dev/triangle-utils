@@ -420,21 +420,32 @@ def test_read_shapefile(tmp_path):
             ),
             None,
             Polygon(small),
+            # draped, with z varying along the hole
+            Polygon(
+                [(40, 0, 1), (50, 0, 2), (50, 10, 3), (40, 10, 4)],
+                [[(44, 4, 5), (44, 6, 6), (46, 6, 7), (46, 4, 8)]],
+            ),
         ],
         "lines": [
             MultiLineString([[(0, 0, 5), (1, 1, 5)], [(2, 2, 5), (3, 3, 5)]]),
             None,
             LineString([(7, 8, 5), (9, 9, 5)]),
+            LineString([(1, 1, 5), (2, 1, 6)]),
         ],
-        "points": [MultiPoint([(1, 2), (3, 4)]), None, MultiPoint([(5, 6)])],
+        "points": [
+            MultiPoint([(1, 2), (3, 4)]),
+            None,
+            MultiPoint([(5, 6)]),
+            MultiPoint([(7, 8)]),
+        ],
     }
     for name, geometries in frames.items():
         # an integer, a decimal, and a text field, missing for the null shape
         frame = geopandas.GeoDataFrame(
             {
-                "marker": [1, None, 3],
-                "spacing": [1.5, np.nan, 3.5],
-                "zone": ["2.5", None, "7"],
+                "marker": [1, None, 3, 4],
+                "spacing": [1.5, np.nan, 3.5, 4.5],
+                "zone": ["2.5", None, "7", "8"],
             },
             geometry=geometries,
             crs="EPSG:26916",

@@ -225,9 +225,9 @@ int triangle_utils_geometry_add_ring(TriangleUtilsGeometry * geometry, double x,
    in their multi-part and Z and M forms, and multipatch rings, in the order
    of its shapes, with a polygon's holes as hole polygons and every polygon
    counterclockwise. Null and empty shapes are skipped. Each value is read
-   from the .dbf field named, or is the number given when the field is NULL
-   or empty; a field of integers, decimals, or text that is a number can be
-   read, and a marker must be a whole number. Coordinates are taken as
+   from the .dbf field named, or is the number given if the field name is
+   NULL or ""; a field of integers, decimals, or text that is a number can
+   be read, and a marker must be a whole number. Coordinates are taken as
    given, in one projected coordinate system; the .prj file is not read. An
    error if a file cannot be read, a field is not found, is not a number,
    or has no value in a row with a shape, or a multipatch has triangles.

@@ -204,7 +204,13 @@ std::vector<Feature> read_shapefile(const std::string & name, const FeatureValue
         const bool polygon = type == SHPT_POLYGON || type == SHPT_POLYGONZ || type == SHPT_POLYGONM;
         // a polygon's outer rings clockwise and its holes counterclockwise,
         // as a shapefile should have them
-        if (polygon) SHPRewindObject(shapes.get(), shape.get());
+        if (polygon)
+        {
+            // as a plain polygon, since shapelib does not test a ring whose z
+            // varies for being inside another, and the mesh is in x and y
+            shape->nSHPType = SHPT_POLYGON;
+            SHPRewindObject(shapes.get(), shape.get());
+        }
 
         // the points of each part, or of each point
         std::vector<std::pair<FeatureKind, std::vector<Point>>> parts;
