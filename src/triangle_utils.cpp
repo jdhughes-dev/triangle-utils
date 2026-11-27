@@ -25,6 +25,7 @@
 #include "layers.hpp"
 #include "mesh.hpp"
 #include "refine.hpp"
+#include "shapefile.hpp"
 
 struct TriangleUtilsMesh
 {
@@ -54,6 +55,11 @@ struct TriangleUtilsLayers
     // kept for layers with new elevations
     mutable std::optional<triangle_utils::Connections> connections;
     mutable std::optional<triangle_utils::Disu> disu;
+};
+
+struct TriangleUtilsFeatures
+{
+    std::vector<triangle_utils::Feature> features;
 };
 
 struct TriangleUtilsGeometry
@@ -174,7 +180,31 @@ const char * triangle_utils_license(void)
            "Creative Commons CC0 1.0 Universal:\n"
            "https://creativecommons.org/publicdomain/zero/1.0/\n"
            "It contains Triangle, which is under its own terms\n"
-           "(triangle_utils_triangle_copyright()).\n";
+           "(triangle_utils_triangle_copyright()), and shapelib, which it uses\n"
+           "under the MIT license:\n"
+           "\n"
+           "MIT License\n"
+           "\n"
+           "Copyright (c) 2011-2024, Even Rouault\n"
+           "Copyright (c) 1999-2013, Frank Warmerdam\n"
+           "\n"
+           "Permission is hereby granted, free of charge, to any person obtaining a copy\n"
+           "of this software and associated documentation files (the \"Software\"), to deal\n"
+           "in the Software without restriction, including without limitation the rights\n"
+           "to use, copy, modify, merge, publish, distribute, sublicense, and/or sell\n"
+           "copies of the Software, and to permit persons to whom the Software is\n"
+           "furnished to do so, subject to the following conditions:\n"
+           "\n"
+           "The above copyright notice and this permission notice shall be included in all\n"
+           "copies or substantial portions of the Software.\n"
+           "\n"
+           "THE SOFTWARE IS PROVIDED \"AS IS\", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR\n"
+           "IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,\n"
+           "FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE\n"
+           "AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER\n"
+           "LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,\n"
+           "OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE\n"
+           "SOFTWARE.\n";
 }
 
 const char * triangle_utils_triangle_copyright(void)
@@ -503,6 +533,136 @@ int triangle_utils_geometry_add_points(TriangleUtilsGeometry * geometry, int poi
             const auto points = copy_points(point_count, point_xy);
             geometry->geometry.points.insert(geometry->geometry.points.end(), points.begin(),
                                              points.end());
+        });
+}
+
+int triangle_utils_shapefile_read(const char * name, const char * marker_field, int marker,
+                                  const char * spacing_field, double spacing,
+                                  const char * attribute_field, double attribute,
+                                  const char * area_limit_field, double area_limit,
+                                  TriangleUtilsFeatures ** features)
+{
+    return call(
+        [&]
+        {
+            check_pointer(features, "features");
+            *features = nullptr;
+            check_pointer(name, "name");
+            const auto value = [](const char * field, double number)
+            { return triangle_utils::FeatureValue{field == nullptr ? "" : field, number}; };
+            auto read = std::make_unique<TriangleUtilsFeatures>();
+            read->features = triangle_utils::read_shapefile(
+                name, {value(marker_field, marker), value(spacing_field, spacing),
+                       value(attribute_field, attribute), value(area_limit_field, area_limit)});
+            *features = read.release();
+        });
+}
+
+void triangle_utils_features_free(TriangleUtilsFeatures * features)
+{
+    delete features;
+}
+
+namespace
+{
+
+// the C API's numbers for the kinds of features and for what points add
+static_assert(static_cast<int>(triangle_utils::FeatureKind::POLYGON) == TRIANGLE_UTILS_POLYGON);
+static_assert(static_cast<int>(triangle_utils::FeatureKind::HOLE_POLYGON) ==
+              TRIANGLE_UTILS_HOLE_POLYGON);
+static_assert(static_cast<int>(triangle_utils::FeatureKind::LINE) == TRIANGLE_UTILS_LINE);
+static_assert(static_cast<int>(triangle_utils::FeatureKind::POINT) == TRIANGLE_UTILS_POINT);
+static_assert(static_cast<int>(triangle_utils::PointsAs::VERTICES) == TRIANGLE_UTILS_VERTICES);
+static_assert(static_cast<int>(triangle_utils::PointsAs::REGIONS) == TRIANGLE_UTILS_REGIONS);
+static_assert(static_cast<int>(triangle_utils::PointsAs::HOLES) == TRIANGLE_UTILS_HOLES);
+
+// The number of points of features.
+std::size_t point_total(const TriangleUtilsFeatures * features)
+{
+    std::size_t total = 0;
+    for (const auto & feature : features->features) total += feature.points.size();
+    return total;
+}
+
+} // namespace
+
+int triangle_utils_features_count(const TriangleUtilsFeatures * features, int * feature_count,
+                                  int * point_count)
+{
+    return call(
+        [&]
+        {
+            check_pointer(features, "features");
+            check_pointer(feature_count, "feature count");
+            check_pointer(point_count, "point count");
+            const std::size_t points = point_total(features);
+            constexpr auto INT_LIMIT = static_cast<std::size_t>(std::numeric_limits<int>::max());
+            if (features->features.size() > INT_LIMIT || points > INT_LIMIT)
+                throw triangle_utils::Error("the features have more points than an int counts");
+            *feature_count = static_cast<int>(features->features.size());
+            *point_count = static_cast<int>(points);
+        });
+}
+
+int triangle_utils_features(const TriangleUtilsFeatures * features, int feature_count, int * kinds,
+                            int * rows, int * offsets, int point_count, double * point_xy,
+                            int * markers, double * spacings, double * attributes,
+                            double * area_limits)
+{
+    return call(
+        [&]
+        {
+            check_pointer(features, "features");
+            check_matches(feature_count, features->features.size(), "feature", "features");
+            check_matches(point_count, point_total(features), "point", "features");
+            check_pointer(offsets, "offset");
+            if (feature_count > 0)
+            {
+                check_pointer(kinds, "kind");
+                check_pointer(rows, "row");
+                check_pointer(markers, "marker");
+                check_pointer(spacings, "spacing");
+                check_pointer(attributes, "attribute");
+                check_pointer(area_limits, "area limit");
+            }
+            if (point_count > 0) check_pointer(point_xy, "point");
+            int offset = 0;
+            for (std::size_t i = 0; i < features->features.size(); i++)
+            {
+                const auto & feature = features->features[i];
+                kinds[i] = static_cast<int>(feature.kind);
+                rows[i] = feature.row;
+                markers[i] = feature.marker;
+                spacings[i] = feature.spacing;
+                attributes[i] = feature.attribute;
+                area_limits[i] = feature.area_limit;
+                offsets[i] = offset;
+                for (const auto & point : feature.points)
+                {
+                    point_xy[2 * offset] = point.x;
+                    point_xy[2 * offset + 1] = point.y;
+                    offset++;
+                }
+            }
+            offsets[features->features.size()] = offset;
+        });
+}
+
+int triangle_utils_geometry_add_features(TriangleUtilsGeometry * geometry,
+                                         const TriangleUtilsFeatures * features, int points)
+{
+    return call(
+        [&]
+        {
+            check_pointer(geometry, "geometry");
+            check_pointer(features, "features");
+            if (points < TRIANGLE_UTILS_VERTICES || points > TRIANGLE_UTILS_HOLES)
+                throw ArgumentError(triangle_utils::message(
+                    "points is ", points,
+                    ", not TRIANGLE_UTILS_VERTICES, TRIANGLE_UTILS_REGIONS, or "
+                    "TRIANGLE_UTILS_HOLES"));
+            triangle_utils::add_features(geometry->geometry, features->features,
+                                         static_cast<triangle_utils::PointsAs>(points));
         });
 }
 

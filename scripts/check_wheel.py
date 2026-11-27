@@ -16,7 +16,7 @@ import zipfile
 from pathlib import Path
 
 REPOSITORY = Path(__file__).resolve().parents[1]
-LICENSES = ("LICENSE", "LICENSE-Triangle", "NOTICE")
+LICENSES = ("LICENSE", "LICENSE-Triangle", "LICENSE-shapelib", "NOTICE")
 # the libraries a library in a wheel may link: the C library and the
 # loader on Linux, the system and C++ libraries and its own name on macOS,
 # and the kernel on Windows

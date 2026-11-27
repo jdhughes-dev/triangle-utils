@@ -9,7 +9,8 @@ Cases:
   - test_help          : -h and --help print the usage and exit 0.
   - test_version       : --version prints the triangle-utils and Triangle
                          versions and exits 0.
-  - test_license       : --license prints CC0 and Triangle's terms and exits 0.
+  - test_license       : --license prints CC0, Triangle's terms, and
+                         shapelib's MIT license, and exits 0.
   - test_usage_errors  : no arguments, an unknown option or command,
                          arguments after --version or --license, and check
                          without one base or with an unknown option exit 2
@@ -67,6 +68,13 @@ Cases:
                          and points print their cells, 0 outside the box.
   - test_cells_errors  : a bad line file and a marker no segment has exit 1
                          with the reason.
+  - test_generate_shapefiles : polygons with a hole, a line, regions, and
+                         wells in shapefiles, with values from fields and
+                         numbers for the next shapefile only, mesh as the
+                         Python module meshes the same features; cells reads
+                         a shapefile's lines and points; a missing field, a
+                         marker that is not whole, and a shapefile with no
+                         lines exit 1 (skipped without geopandas).
   - test_generate_errors : a bad option value is a usage error (2), and a
                          boundary not closed and a missing file are errors
                          (1).
@@ -134,6 +142,9 @@ def test_license():
     assert "CC0 1.0" in output
     assert "Jonathan Richard Shewchuk" in output
     assert "commercial system" in output
+    # shapelib's license, as LICENSE-shapelib has it
+    shapelib = Path(__file__).resolve().parents[2] / "LICENSE-shapelib"
+    assert shapelib.read_text().strip() in output
 
 
 @pytest.mark.parametrize(
@@ -908,3 +919,121 @@ def test_guide_commands(tmp_path):
     assert int(options["cells", "-m"]) == valley["BOUNDARY_MARKER"]
     assert float(disu[disu.index("-b") + 1]) == valley["UPPER_BOTTOM"]
     assert float(options["disu", "-m"]) == valley["MINIMUM_THICKNESS"]
+
+
+def test_generate_shapefiles(tmp_path):
+    geopandas = pytest.importorskip("geopandas")
+    import numpy as np
+    import triangle_utils as tu
+    from shapely.geometry import LineString, MultiPoint, Point, Polygon
+
+    square = [(0, 0), (10, 0), (10, 10), (0, 10)]
+    hole = [(6, 6), (8, 6), (8, 8), (6, 8)]
+    frames = {
+        "areas": geopandas.GeoDataFrame(
+            {"marker": [1], "spacing": [2.0]},
+            geometry=[Polygon(square, [hole])],
+            crs="EPSG:26916",
+        ),
+        "river": geopandas.GeoDataFrame(
+            {"marker": [2]},
+            geometry=[LineString([(1, 5), (5, 3), (9, 5)])],
+            crs="EPSG:26916",
+        ),
+        "regions": geopandas.GeoDataFrame(
+            {"zone": [1.0, 2.0], "area": [0.5, 0.0]},
+            geometry=[MultiPoint([(2, 8)]), MultiPoint([(5, 1)])],
+            crs="EPSG:26916",
+        ),
+        "wells": geopandas.GeoDataFrame(
+            geometry=[Point(3, 3), Point(7, 2)], crs="EPSG:26916"
+        ),
+        # a point in the hole the polygon's hole makes
+        "inside": geopandas.GeoDataFrame(geometry=[Point(7, 7)], crs="EPSG:26916"),
+    }
+    for name, frame in frames.items():
+        frame.to_file(tmp_path / f"{name}.shp")
+    shapefile = {name: str(tmp_path / f"{name}.shp") for name in frames}
+    base = str(tmp_path / "model")
+    status, output, errors = run(
+        *("generate", "-a", "1", "-q", "28", "-D", "-o", base),
+        *(
+            "--marker",
+            "marker",
+            "--feature-spacing",
+            "spacing",
+            "-f",
+            shapefile["areas"],
+        ),
+        # the values are the areas' only, so the river's marker is 0
+        *("-f", shapefile["river"]),
+        *("--attribute", "zone", "--area-limit", "area", "-r", shapefile["regions"]),
+        *("-f", shapefile["wells"], "-H", shapefile["inside"], str(tmp_path / "none")),
+    )
+    assert status == 0, errors
+    assert output.startswith(f"{base}: ")
+
+    geometry = tu.Geometry()
+    values = {"marker": "marker", "spacing": "spacing"}
+    geometry.add_features(tu.read_features(shapefile["areas"], **values))
+    geometry.add_features(tu.read_features(shapefile["river"]))
+    regions = tu.read_features(
+        shapefile["regions"], attribute="zone", area_limit="area"
+    )
+    geometry.add_features(regions, points="regions")
+    geometry.add_features(tu.read_features(shapefile["wells"]))
+    geometry.add_features(tu.read_features(shapefile["inside"]), points="holes")
+    mesh = tu.generate(
+        geometry, maximum_area=1, minimum_angle=28, conforming_delaunay=True
+    )
+    node = np.loadtxt(f"{base}.node", skiprows=1, comments="#", ndmin=2)
+    ele = np.loadtxt(f"{base}.ele", skiprows=1, comments="#", ndmin=2)
+    np.testing.assert_array_equal(node[:, 1:3], mesh.vertices)
+    np.testing.assert_array_equal(ele[:, 1:4] - 1, mesh.triangles)
+    np.testing.assert_array_equal(ele[:, 4:], mesh.attributes)
+    # the wells are kept in place, and the regions are in the .poly file
+    wells = [tuple(row[1:3]) for row in node if row[3] == 1]
+    assert set(wells) == {(3.0, 3.0), (7.0, 2.0)}
+    # the segments and their markers, and the regions and the hole
+    rows = [line.split() for line in open(f"{base}.poly") if line.strip()]
+    segment_count = int(rows[1][0])
+    segments = np.array(rows[2 : 2 + segment_count], dtype=float)
+    np.testing.assert_array_equal(segments[:, 1:3] - 1, mesh.segments)
+    np.testing.assert_array_equal(segments[:, 3], mesh.segment_markers)
+    assert 0 in mesh.segment_markers and 1 in mesh.segment_markers
+    holes = rows[2 + segment_count]
+    assert holes[0] == "1"
+    assert rows[3 + segment_count][1:] == ["7", "7"]
+    assert rows[5 + segment_count][1:] == ["2", "8", "1", "0.5"]
+
+    status, output, _ = run("cells", "-l", shapefile["river"], base)
+    assert status == 0
+    assert output.splitlines()[0] == (
+        f"# cell, start, and length along {shapefile['river']} line 1, from row 0"
+    )
+    cells = read_cells(output)
+    assert sum(length for _, _, length in cells) == pytest.approx(2 * math.hypot(4, 2))
+    status, output, _ = run("cells", "-p", shapefile["wells"], base)
+    assert status == 0
+    assert [line.split()[0] for line in output.splitlines()[1:]] == ["1", "2"]
+
+    for arguments, reason in (
+        (
+            ("--marker", "zone", "-f", shapefile["areas"]),
+            "the marker field zone is not in the .dbf file",
+        ),
+        (
+            ("--marker", "1.5", "-f", shapefile["areas"]),
+            "the marker 1.5 is not a whole",
+        ),
+    ):
+        status, _, errors = run("generate", "-o", base, *arguments, str(tmp_path / "x"))
+        assert status == 1
+        assert reason in errors
+    status, _, errors = run("cells", "-l", shapefile["wells"], base)
+    assert status == 1
+    assert "has no lines" in errors
+    # a value after the last shapefile is for none
+    status, _, errors = run("generate", "-f", shapefile["areas"], "--marker", "2", base)
+    assert status == 2
+    assert "give --marker, --feature-spacing, --attribute, and --area-limit" in errors

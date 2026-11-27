@@ -5,3 +5,10 @@ src/triangle.c. Triangle's terms are in LICENSE-Triangle. The source of the
 Triangle built here, free of charge:
 
 https://github.com/MODFLOW-ORG/triangle/archive/7890e2724586cb0c20a221afb403e9df7627a849.tar.gz
+
+triangle-utils also links shapelib 1.6.3, by Frank Warmerdam and Even
+Rouault, which reads shapefiles, into its library, unmodified from its
+release archive (src/shapelib/README.md). shapelib is used under the MIT
+license, in LICENSE-shapelib:
+
+https://github.com/OSGeo/shapelib/releases/tag/v1.6.3

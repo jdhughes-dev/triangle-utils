@@ -12,7 +12,9 @@ Cases:
                    leave them out of the DISU nodes; a raised clay base
                    makes more pass-through, and the first restores them.
   - test_gis     : the valley's geometry read from shapefiles meshes to the
-                   same mesh as its coordinates (skipped without geopandas).
+                   same mesh as its coordinates, and the library's reader
+                   gives the streams geopandas does (skipped without
+                   geopandas).
 """
 
 import runpy
@@ -20,6 +22,7 @@ from pathlib import Path
 
 import numpy as np
 import pytest
+import triangle_utils as tu
 
 REPOSITORY = Path(__file__).resolve().parents[2]
 GUIDE = REPOSITORY / "doc" / "UserGuide"
@@ -96,3 +99,13 @@ def test_gis(monkeypatch):
     np.testing.assert_array_equal(mesh.triangles, expected.triangles)
     np.testing.assert_array_equal(mesh.attributes, expected.attributes)
     np.testing.assert_array_equal(mesh.segment_markers, expected.segment_markers)
+    # the library's reader gives the streams geopandas does
+    streams = tu.read_features(gis["folder"] / "streams.shp", **gis["columns"])
+    assert len(gis["streams"]) == len(streams) == 2
+    for feature, other in zip(gis["streams"], streams, strict=True):
+        assert (feature.kind, feature.marker, feature.spacing) == (
+            other.kind,
+            other.marker,
+            other.spacing,
+        )
+        np.testing.assert_array_equal(feature.points, other.points)

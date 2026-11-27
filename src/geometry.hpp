@@ -4,6 +4,7 @@
 #ifndef TRIANGLE_UTILS_GEOMETRY_HPP
 #define TRIANGLE_UTILS_GEOMETRY_HPP
 
+#include <string>
 #include <vector>
 
 #include "mesh.hpp"
@@ -61,6 +62,36 @@ struct Geometry
     std::vector<Ring> rings;
 };
 
+// The kind of a feature read from a GIS.
+enum class FeatureKind
+{
+    POLYGON,
+    HOLE_POLYGON,
+    LINE,
+    POINT,
+};
+
+// One part of a feature: its points, the row of the source it came from, and
+// its values; a polygon's points are counterclockwise.
+struct Feature
+{
+    FeatureKind kind = FeatureKind::POINT;
+    std::vector<Point> points;
+    int row = 0;
+    int marker = 0;
+    double spacing = 0.0;
+    double attribute = 0.0;
+    double area_limit = 0.0;
+};
+
+// What point features add to geometry.
+enum class PointsAs
+{
+    VERTICES,
+    REGIONS,
+    HOLES,
+};
+
 // Options for meshing.
 struct MeshOptions
 {
@@ -87,6 +118,11 @@ struct MeshOptions
 // or rings. Throws Error if the geometry or options are not valid, Triangle
 // cannot mesh them, or no triangle is left.
 Mesh generate_mesh(const Geometry & geometry, const MeshOptions & options);
+
+// Add features to geometry: polygons, hole polygons, and lines with their
+// spacing and marker, and points as vertices, regions with their attribute
+// and area limit, or holes; generate_mesh() checks them.
+void add_features(Geometry & geometry, const std::vector<Feature> & features, PointsAs points);
 
 // The points of a chain with points added so no step is longer than its
 // spacing.

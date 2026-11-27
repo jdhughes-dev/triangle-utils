@@ -1,4 +1,4 @@
 [codespell]
-skip = ./.pixi,./builddir*,./subprojects,./bin,./include,./lib,pixi.lock,./doc/UserGuide/*.log,./doc/UserGuide/*.aux,./doc/UserGuide/*.pdf,./doc/UserGuide/Figures
+skip = ./src/shapelib,./.pixi,./builddir*,./subprojects,./bin,./include,./lib,pixi.lock,./doc/UserGuide/*.log,./doc/UserGuide/*.aux,./doc/UserGuide/*.pdf,./doc/UserGuide/Figures
 # MODFLOW package names
 ignore-words-list = wel

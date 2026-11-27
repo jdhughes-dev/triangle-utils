@@ -11,9 +11,10 @@ description = "Meshes and grids for MODFLOW from Triangle"
 readme = "README.md"
 requires-python = ">=3.11"
 # triangle-utils is CC0 1.0; Triangle, linked into the library, has its own
-# terms (LICENSE-Triangle), and NOTICE says where its modified source is
-license = "CC0-1.0 AND LicenseRef-Triangle"
-license-files = ["LICENSE", "LICENSE-Triangle", "NOTICE"]
+# terms (LICENSE-Triangle), and NOTICE says where its modified source is;
+# shapelib, also linked in, is used under the MIT license (LICENSE-shapelib)
+license = "CC0-1.0 AND LicenseRef-Triangle AND MIT"
+license-files = ["LICENSE", "LICENSE-Triangle", "LICENSE-shapelib", "NOTICE"]
 dependencies = ["numpy"]
 
 [project.optional-dependencies]

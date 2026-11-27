@@ -40,12 +40,17 @@ class Layers(ctypes.Structure):
     """The opaque layers."""
 
 
+class Features(ctypes.Structure):
+    """The opaque features."""
+
+
 MESH_POINTER = ctypes.POINTER(Mesh)
 GEOMETRY_POINTER = ctypes.POINTER(Geometry)
 GRID_POINTER = ctypes.POINTER(Grid)
 CELL_LENGTHS_POINTER = ctypes.POINTER(CellLengths)
 CONNECTIONS_POINTER = ctypes.POINTER(Connections)
 LAYERS_POINTER = ctypes.POINTER(Layers)
+FEATURES_POINTER = ctypes.POINTER(Features)
 
 INT = ctypes.c_int
 DOUBLE = ctypes.c_double
@@ -209,6 +214,40 @@ SIGNATURES = {
     "geometry_add_hole": (INT, [GEOMETRY_POINTER, DOUBLE, DOUBLE]),
     "geometry_add_region": (INT, [GEOMETRY_POINTER, DOUBLE, DOUBLE, DOUBLE, DOUBLE]),
     "geometry_add_points": (INT, [GEOMETRY_POINTER, INT, DOUBLE_ARRAY]),
+    "shapefile_read": (
+        INT,
+        [
+            ctypes.c_char_p,
+            ctypes.c_char_p,
+            INT,
+            ctypes.c_char_p,
+            DOUBLE,
+            ctypes.c_char_p,
+            DOUBLE,
+            ctypes.c_char_p,
+            DOUBLE,
+            ctypes.POINTER(FEATURES_POINTER),
+        ],
+    ),
+    "features_free": (None, [FEATURES_POINTER]),
+    "features_count": (INT, [FEATURES_POINTER, INT_ARRAY, INT_ARRAY]),
+    "features": (
+        INT,
+        [
+            FEATURES_POINTER,
+            INT,
+            INT_ARRAY,
+            INT_ARRAY,
+            INT_ARRAY,
+            INT,
+            DOUBLE_ARRAY,
+            INT_ARRAY,
+            DOUBLE_ARRAY,
+            DOUBLE_ARRAY,
+            DOUBLE_ARRAY,
+        ],
+    ),
+    "geometry_add_features": (INT, [GEOMETRY_POINTER, FEATURES_POINTER, INT]),
     "geometry_add_ring": (
         INT,
         [GEOMETRY_POINTER, DOUBLE, DOUBLE, DOUBLE, INT, DOUBLE, DOUBLE, INT],

@@ -159,6 +159,7 @@ EXCERPTS = {
     "layers": ("valley.py", "land_surface, clay_base", "disu = layers.disu"),
     "revised": ("valley.py", "revised = layers.with_elevations(", "revised ="),
     "gis": ("valley_gis.py", "columns = {", "for well in tu.read_features("),
+    "shapefile": ("valley_gis.py", "streams = tu.read_shapefile(", "streams ="),
 }
 
 

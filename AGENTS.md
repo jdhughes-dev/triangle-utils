@@ -48,7 +48,8 @@ MODFLOW-ORG/triangle and MODFLOW-ORG/gridgen.
 - `LICENSE` — CC0 1.0 for the code in this repository; Triangle has its own
   terms (see Licenses below), copied in `LICENSE-Triangle`, which
   `test_package.py` checks against the subproject's; `NOTICE` gives the
-  source of the modified Triangle that is built, the wrap's archive.
+  source of the modified Triangle that is built, the wrap's archive, and
+  of the vendored shapelib, whose MIT license is `LICENSE-shapelib`.
 - `pyproject.toml` — the Python package, built by meson-python with the
   `python` option (`meson.options`), which installs the module and the C API
   library beside it, without the program, headers, or tests, and the
@@ -73,7 +74,8 @@ MODFLOW-ORG/triangle and MODFLOW-ORG/gridgen.
   DISV), `features.hpp` and `.cpp` (the cells of points, and along a line or
   marked segments), `connections.hpp` and `.cpp` (the faces cells share, for
   DISU), `layers.hpp` and `.cpp` (layers of a grid, their DISU nodes and
-  connections, and values at cell centers), `run_triangle.hpp` (calls
+  connections, and values at cell centers), `shapefile.hpp` and `.cpp`
+  (features read from shapefiles, with shapelib), `run_triangle.hpp` (calls
   Triangle and throws its reason for an error), and `error.hpp` (the one
   error type it throws, and `message()`); the C API: `triangle_utils.h`,
   its documentation, and `triangle_utils.cpp`. Add a new API function to
@@ -104,8 +106,13 @@ MODFLOW-ORG/triangle and MODFLOW-ORG/gridgen.
   and `valley_gis.py`), and of the program (`test_command_line.py`, which
   also runs the guide's commands), which `meson test` runs except under the
   sanitizers; the wheels run all but the program's and MODFLOW 6's.
+- `src/shapelib/` — shapelib, vendored unmodified from a release archive
+  (its `README.md` gives the version, source, and hash), which
+  `src/meson.build` builds into the core; clang-format and codespell skip
+  it.
 - `scripts/clang_format.py` — runs clang-format on the tracked C and C++
-  files, for `pixi run check-format` and `fix-format`.
+  files but the vendored shapelib, for `pixi run check-format` and
+  `fix-format`.
 - `scripts/check_wheel.py` — checks that a wheel holds only the package's
   files and metadata, that its library links only the system libraries
   (read with readelf, otool, or dumpbin), and, on macOS, that it runs on
@@ -135,8 +142,10 @@ MODFLOW-ORG/triangle and MODFLOW-ORG/gridgen.
   triangulating again, and convert a triangular mesh to a Voronoi mesh
   clipped to the domain, written as a MODFLOW 6 DISV grid.
 - **Layers:** a C++ core that works only on meshes in memory and does no
-  file I/O; a thin C API over the core; and a thin command-line program that
-  reads files, calls the C API, and writes files. A feature is added to the
+  file I/O but reading shapefiles (#51), so a C or Fortran caller can read
+  a model area from a GIS; a thin C API over the core; and a thin
+  command-line program that reads files, calls the C API, and writes files.
+  A feature is added to the
   core first, then exposed through the C API, then the command line.
 - **C API:** the only interface callers see, so Python (`ctypes`), Fortran
   (`iso_c_binding`), C, and C++ can call it. No C++ exception crosses it:
@@ -169,6 +178,10 @@ MODFLOW-ORG/triangle and MODFLOW-ORG/gridgen.
 - **Changes:** never copy or modify Triangle's source here; a change to
   Triangle is a pull request to MODFLOW-ORG/triangle, under the rules in its
   `AGENTS.md`.
+- **shapelib:** keep `src/shapelib/` as distributed. Update it only by
+  replacing its files from a later OSGeo/shapelib release archive whose
+  hash matches the release's, with its `README.md`, `LICENSE-shapelib`, and
+  `NOTICE`; a fix to shapelib goes upstream.
 
 ## Licenses
 
@@ -179,10 +192,16 @@ MODFLOW-ORG/triangle and MODFLOW-ORG/gridgen.
   commercial system needs an arrangement with Triangle's author. The
   command-line program prints Triangle's copyright notice and terms with
   `--license` (see Command line), since the library has no `triangle -h` to
-  print it; the Python package installs `LICENSE`, `LICENSE-Triangle`, and
-  `NOTICE` beside the module and in its metadata. Update `NOTICE` with
+  print it; the Python package installs `LICENSE`, `LICENSE-Triangle`,
+  `LICENSE-shapelib`, and `NOTICE` beside the module and in its metadata.
+  Update `NOTICE` with
   `subprojects/triangle.wrap`; `test_package.py` checks that it names the
   wrap's archive.
+- shapelib, also in every program and library built from it, is used under
+  the MIT license, whose notice must go with each copy: `--license` prints
+  it (`triangle_utils_license()`), and `test_command_line.py` and
+  `test_package.py` check it against `LICENSE-shapelib` and its version
+  against the vendored header.
 
 ## Versioning
 
@@ -360,6 +379,8 @@ MODFLOW-ORG/triangle and MODFLOW-ORG/gridgen.
     calls, inline assembly, code that runs before `main` (a static
     initializer with side effects, `__attribute__((constructor))`), and
     files written anywhere but where the caller names them;
+  - in `src/shapelib/`, any change that is not a whole release replaced as
+    its `README.md` says;
   - in the `meson.build` files, `run_command`, `custom_target`,
     `generator`, or `configure_file` with a `command`, new link arguments or
     libraries, and in `subprojects/`, a new wrap or a changed `url`,
