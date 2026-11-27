@@ -1,4 +1,4 @@
-foreach name : ['connections', 'features', 'geometry', 'grid', 'improve', 'layers', 'mesh', 'refine', 'triangulate', 'version']
+foreach name : ['connections', 'features', 'geometry', 'grid', 'improve', 'layers', 'mesh', 'refine', 'shapefile', 'triangulate', 'version']
   test(
     name,
     executable(

@@ -12,11 +12,13 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 PATTERNS = ("*.c", "*.cpp", "*.h", "*.hpp")
+# vendored source, kept as distributed
+EXCLUDED = (":!src/shapelib",)
 
 
 def source_files():
     out = subprocess.run(
-        ["git", "ls-files", "-z", *PATTERNS],
+        ["git", "ls-files", "-z", "--", *PATTERNS, *EXCLUDED],
         cwd=ROOT,
         check=True,
         capture_output=True,

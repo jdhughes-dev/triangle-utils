@@ -54,6 +54,21 @@ typedef struct TriangleUtilsConnections TriangleUtilsConnections;
    them with triangle_utils_layers_free(). */
 typedef struct TriangleUtilsLayers TriangleUtilsLayers;
 
+/* Features read from a GIS file, one for each part of each shape; free them
+   with triangle_utils_features_free(). */
+typedef struct TriangleUtilsFeatures TriangleUtilsFeatures;
+
+/* the kind of a feature */
+#define TRIANGLE_UTILS_POLYGON 0
+#define TRIANGLE_UTILS_HOLE_POLYGON 1
+#define TRIANGLE_UTILS_LINE 2
+#define TRIANGLE_UTILS_POINT 3
+
+/* what point features add to geometry */
+#define TRIANGLE_UTILS_VERTICES 0
+#define TRIANGLE_UTILS_REGIONS 1
+#define TRIANGLE_UTILS_HOLES 2
+
 /* The reason for the last status other than TRIANGLE_UTILS_OK, or an empty
    string after a function that returns a status succeeded; valid until the
    next such call. */
@@ -73,7 +88,8 @@ const char * triangle_utils_triangle_version(void);
    from a commit after a release reports that release. */
 const char * triangle_utils_triangle_release(void);
 
-/* The license of triangle-utils (CC0 1.0). */
+/* The license of triangle-utils (CC0 1.0), and the MIT license of shapelib,
+   which the library contains. */
 const char * triangle_utils_license(void);
 
 /* Triangle's copyright notice and terms of use, which a program that
@@ -203,6 +219,49 @@ int triangle_utils_geometry_add_points(TriangleUtilsGeometry * geometry, int poi
 int triangle_utils_geometry_add_ring(TriangleUtilsGeometry * geometry, double x, double y,
                                      double radius, int point_count, double attribute,
                                      double area_limit, int marker);
+
+/* Read the features of a shapefile (.shp, .shx, and .dbf), named with or
+   without .shp: a feature for each part of its points, lines, and polygons,
+   in their multi-part and Z and M forms, and multipatch rings, in the order
+   of its shapes, with a polygon's holes as hole polygons and every polygon
+   counterclockwise. Null and empty shapes are skipped. Each value is read
+   from the .dbf field named, or is the number given when the field is NULL
+   or empty; a field of integers, decimals, or text that is a number can be
+   read, and a marker must be a whole number. Coordinates are taken as
+   given, in one projected coordinate system; the .prj file is not read. An
+   error if a file cannot be read, a field is not found, is not a number,
+   or has no value in a row with a shape, or a multipatch has triangles.
+   *features is NULL after a failure. */
+int triangle_utils_shapefile_read(const char * name, const char * marker_field, int marker,
+                                  const char * spacing_field, double spacing,
+                                  const char * attribute_field, double attribute,
+                                  const char * area_limit_field, double area_limit,
+                                  TriangleUtilsFeatures ** features);
+
+/* Free features; NULL is ignored. */
+void triangle_utils_features_free(TriangleUtilsFeatures * features);
+
+/* The number of features and of their points. */
+int triangle_utils_features_count(const TriangleUtilsFeatures * features, int * feature_count,
+                                  int * point_count);
+
+/* The points of feature i are offsets[i] up to offsets[i + 1] of point_xy,
+   so offsets has feature_count + 1 values. For each feature: its kind
+   (TRIANGLE_UTILS_POLYGON, TRIANGLE_UTILS_HOLE_POLYGON, TRIANGLE_UTILS_LINE,
+   or TRIANGLE_UTILS_POINT), the row of the shape it came from, and its
+   marker, spacing, attribute, and area limit. Points and lines can be given
+   to the mapping functions, such as triangle_utils_grid_line_cells(). */
+int triangle_utils_features(const TriangleUtilsFeatures * features, int feature_count, int * kinds,
+                            int * rows, int * offsets, int point_count, double * point_xy,
+                            int * markers, double * spacings, double * attributes,
+                            double * area_limits);
+
+/* Add features to geometry: polygons, hole polygons, and lines with their
+   spacing and marker, and points as vertices (TRIANGLE_UTILS_VERTICES),
+   regions with their attribute and area limit (TRIANGLE_UTILS_REGIONS), or
+   holes (TRIANGLE_UTILS_HOLES). */
+int triangle_utils_geometry_add_features(TriangleUtilsGeometry * geometry,
+                                         const TriangleUtilsFeatures * features, int points);
 
 /* Mesh the geometry. Triangles are at most maximum_area in area and have no
    angle under minimum_angle degrees (at most 34), each with no limit if 0;

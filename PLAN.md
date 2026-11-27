@@ -19,22 +19,22 @@ tributary in the guide's example), #50 (features from GeoDataFrames and
 shapely geometries in Python), #19 (layers, with DISV and DISU arrays),
 #61 (the guide's code beside its sections, with the full listings in an
 appendix), #58 (layered DISV and DISU files from the command line), #59
-(layers with new elevations).
+(layers with new elevations), #51 (shapefiles read in the library, with
+shapelib).
 
-1. #51 read shapefiles in the C++ library with shapelib
-2. #52 evaluate reading GeoPackage and FlatGeobuf in the C++ library
-3. #23 ghost-node correction
-4. #43 hybrid grid, Voronoi cells around features and triangles elsewhere
-5. #44 a point feature centered in a triangle cell, evaluated before the
+1. #52 evaluate reading GeoPackage and FlatGeobuf in the C++ library
+2. #23 ghost-node correction
+3. #43 hybrid grid, Voronoi cells around features and triangles elsewhere
+4. #44 a point feature centered in a triangle cell, evaluated before the
    release: shipped as an option, or closed with its findings
-6. #14 grid quality report
-7. #18 model checks with MODFLOW 6, MODFLOW-USG, and MODFLOW-USG-Transport
-8. #20 different refinement by layer
-9. #15 structured grids, merging cells, and refinement by a field
-10. #21 user guide
-11. #22 Read the Docs
-12. #24 release notes
-13. #10 release and conda-forge package
+5. #14 grid quality report
+6. #18 model checks with MODFLOW 6, MODFLOW-USG, and MODFLOW-USG-Transport
+7. #20 different refinement by layer
+8. #15 structured grids, merging cells, and refinement by a field
+9. #21 user guide
+10. #22 Read the Docs
+11. #24 release notes
+12. #10 release and conda-forge package
 
 ## Triangle
 
@@ -86,6 +86,13 @@ appendix), #58 (layered DISV and DISU files from the command line), #59
   connection stays perpendicular to its face; splitting the cell along the
   segment would need centers off the vertex and a correction, and faces on
   the shore need mirrored points, as in #43.
+- **Shapefiles** (#51): shapelib 1.6.3, the OSGeo release of 2026-03-18,
+  is vendored unmodified in `src/shapelib/` rather than gridgen's copy,
+  which is of 2008 and was converted to C++. The library reads shapefiles
+  as the Python module's `read_features()` does with geopandas (#50), and
+  `test_features.py` checks that the two give the same features. A file
+  name is passed to `fopen` as given, so a name outside the system's code
+  page may not open on Windows.
 - **MODFLOW-USG DISU** (#58): the command line writes IVSD 0, so
   MODFLOW-USG takes each connection to a later layer as vertical, and FAHL
   as each face's area, a horizontal face's width times the mean thickness of
@@ -116,7 +123,9 @@ appendix), #58 (layered DISV and DISU files from the command line), #59
   wheels go to PyPI, as `triangle-utils`, only with the first release
   (#10), from the same tag as the release archives and the conda-forge
   package. #10 also decides how a wheel's Triangle source is made available:
-  `NOTICE` gives the wrap's archive URL, and there is no sdist yet.
+  `NOTICE` gives the wrap's archive URL, and there is no sdist yet. The
+  release archives (#10) carry `LICENSE-shapelib` beside `LICENSE` and
+  `LICENSE-Triangle`, as the wheels do.
 - **Wheel platforms:** Linux (manylinux) x86_64 and aarch64, macOS arm64,
   and Windows x86_64, each an abi3 wheel for CPython 3.11 and later. macOS
   on Intel is not supported (decided in #46): Triangle's CI does not test it.

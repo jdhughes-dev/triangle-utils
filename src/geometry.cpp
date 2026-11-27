@@ -595,4 +595,29 @@ Mesh generate_mesh(const Geometry & geometry, const MeshOptions & options)
     return mesh;
 }
 
+void add_features(Geometry & geometry, const std::vector<Feature> & features, PointsAs points)
+{
+    for (const Feature & feature : features)
+    {
+        const Chain chain{feature.points, feature.spacing, feature.marker};
+        switch (feature.kind)
+        {
+            case FeatureKind::POLYGON: geometry.polygons.push_back(chain); break;
+            case FeatureKind::HOLE_POLYGON: geometry.hole_polygons.push_back(chain); break;
+            case FeatureKind::LINE: geometry.lines.push_back(chain); break;
+            case FeatureKind::POINT:
+                for (const Point & point : feature.points)
+                {
+                    if (points == PointsAs::VERTICES)
+                        geometry.points.push_back(point);
+                    else if (points == PointsAs::REGIONS)
+                        geometry.regions.push_back({point, feature.attribute, feature.area_limit});
+                    else
+                        geometry.holes.push_back(point);
+                }
+                break;
+        }
+    }
+}
+
 } // namespace triangle_utils

@@ -3,6 +3,7 @@
 
 #include <algorithm>
 #include <array>
+#include <cctype>
 #include <cmath>
 #include <climits>
 #include <cstdlib>
@@ -67,10 +68,20 @@ constexpr const char * GENERATE_USAGE = R"(usage: triangle-utils generate [optio
 
 Mesh the geometry in <base>.poly (with its vertices in <base>.node if the
 .poly file has none): its segments, which the mesh follows, its vertices,
-holes, and regions. Write the mesh to <output>.node, .ele, .neigh, and
-.poly, without vertex attributes; the vertices of the .poly file, such as
-wells, have marker 1, so improving keeps them in place, and the vertices
-Triangle adds have 0.
+holes, and regions; and the features of shapefiles. Write the mesh to
+<output>.node, .ele, .neigh, and .poly, without vertex attributes; the
+vertices of the .poly file and the shapefiles' points, such as wells, have
+marker 1, so improving keeps them in place, and the vertices Triangle adds
+have 0. With a shapefile, <base>.poly is read only if it exists.
+
+A shapefile's polygons are boundaries or internal boundaries the mesh
+follows, its polygons' holes are not meshed, and its lines, such as rivers,
+are followed; its points are vertices (-f), regions (-r), or points inside
+holes (-H). --marker, --feature-spacing, --attribute, and --area-limit set
+the values of the next shapefile, each a number or the name of a field of
+its .dbf file: the marker of the segments, the spacing of the
+points added along them, and a region's attribute and area limit (0, none).
+Coordinates are taken as given; the .prj file is not read.
 
 Options:
   -h, --help                show this help
@@ -86,6 +97,14 @@ Options:
                             the largest coordinate)
   -D, --conforming-delaunay make every triangle Delaunay, as a Voronoi grid
                             needs
+  -f, --features <shp>      add a shapefile's features, its points as
+                            vertices
+  -r, --regions <shp>       add a shapefile's points as regions
+  -H, --holes <shp>         add a shapefile's points as holes
+  --marker <m>              the marker of the next shapefile (default 0)
+  --feature-spacing <s>     its spacing (default 0, none)
+  --attribute <a>           its regions' attribute (default 0)
+  --area-limit <l>          its regions' area limit (default 0, none)
 )";
 
 constexpr const char * REFINE_USAGE = R"(usage: triangle-utils refine [options] <base>
@@ -216,7 +235,8 @@ pass through. For points, such as wells, print each point's number and its
 cell, numbered from 1 as in the DISV file, or 0 outside the grid; a point on
 a face or corner is in the lowest-numbered cell there. For a line or
 segments, print each cell, where its part starts along the line or segments,
-and its length. Along a line, such as a river, the cells are in order, and a
+and its length. A .shp file of lines prints the cells of each line in turn,
+and a .shp file of points those of its points. Along a line, such as a river, the cells are in order, and a
 cell the line enters twice is printed twice; a part along a face is in the
 cell on the line's left, or on its right where none is on the left. On
 segments, such as a boundary, each cell is printed once, with its length of
@@ -228,9 +248,9 @@ Options:
   -g, --grid <g>          voronoi (default), or centroid or circumcenter
                           for the triangles, as for disv
   -l, --line <file>       a line: x and y of a point on each line of the
-                          file, with # comments
+                          file, with # comments, or a shapefile's lines
   -p, --points <file>     points: x and y of a point on each line of the
-                          file, with # comments
+                          file, with # comments, or a shapefile's points
   -m, --marker <m>        the segments of <base>.poly with marker m
 )";
 
@@ -1163,6 +1183,107 @@ struct CellLengthsFree
     }
 };
 
+struct FeaturesFree
+{
+    void operator()(TriangleUtilsFeatures * features) const
+    {
+        triangle_utils_features_free(features);
+    }
+};
+
+using FeaturesHandle = std::unique_ptr<TriangleUtilsFeatures, FeaturesFree>;
+
+// The values of a shapefile's features as the options give them, each a
+// number or the name of a .dbf field.
+struct ShapefileValues
+{
+    std::string marker = "0";
+    std::string spacing = "0";
+    std::string attribute = "0";
+    std::string area_limit = "0";
+
+    // Take the option if it is one of these; true if it was.
+    bool take(Options & options)
+    {
+        if (options.is("--marker", "--marker"))
+            marker = options.value();
+        else if (options.is("--feature-spacing", "--feature-spacing"))
+            spacing = options.value();
+        else if (options.is("--attribute", "--attribute"))
+            attribute = options.value();
+        else if (options.is("--area-limit", "--area-limit"))
+            area_limit = options.value();
+        else
+            return false;
+        return true;
+    }
+};
+
+// Whether a file name ends with .shp, in any case.
+bool is_shapefile(const std::string & name)
+{
+    std::string extension = std::filesystem::path(name).extension().string();
+    for (char & character : extension)
+        character = static_cast<char>(std::tolower(static_cast<unsigned char>(character)));
+    return extension == ".shp";
+}
+
+FeaturesHandle read_shapefile(const std::string & name, const ShapefileValues & values)
+{
+    // a value that is a number is the number, and otherwise names a field
+    std::array<std::string, 4> fields;
+    std::array<double, 4> numbers{};
+    const std::array<const std::string *, 4> texts = {&values.marker, &values.spacing,
+                                                      &values.attribute, &values.area_limit};
+    for (std::size_t i = 0; i < texts.size(); i++)
+        if (!parse_number(*texts[i], numbers[i])) fields[i] = *texts[i];
+    if (fields[0].empty() &&
+        (numbers[0] != std::floor(numbers[0]) || std::abs(numbers[0]) > INT_MAX))
+        throw triangle_utils::Error(
+            triangle_utils::message("the marker ", values.marker, " is not a whole number"));
+    const auto field = [&](std::size_t i)
+    { return fields[i].empty() ? nullptr : fields[i].c_str(); };
+    TriangleUtilsFeatures * read = nullptr;
+    check_status(triangle_utils_shapefile_read(name.c_str(), field(0), static_cast<int>(numbers[0]),
+                                               field(1), numbers[1], field(2), numbers[2], field(3),
+                                               numbers[3], &read));
+    return FeaturesHandle(read);
+}
+
+// The kinds, offsets, and points of features, through the C API.
+struct FeatureData
+{
+    std::vector<int> kinds;
+    std::vector<int> rows;
+    std::vector<int> offsets;
+    std::vector<double> xy;
+    std::vector<int> markers;
+    std::vector<double> spacings;
+    std::vector<double> attributes;
+    std::vector<double> area_limits;
+};
+
+FeatureData feature_data(const TriangleUtilsFeatures * features)
+{
+    int feature_count = 0, point_count = 0;
+    check_status(triangle_utils_features_count(features, &feature_count, &point_count));
+    const std::size_t n = static_cast<std::size_t>(feature_count);
+    FeatureData data;
+    data.kinds.resize(n);
+    data.rows.resize(n);
+    data.offsets.resize(n + 1);
+    data.xy.resize(2 * static_cast<std::size_t>(point_count));
+    data.markers.resize(n);
+    data.spacings.resize(n);
+    data.attributes.resize(n);
+    data.area_limits.resize(n);
+    check_status(triangle_utils_features(features, feature_count, data.kinds.data(),
+                                         data.rows.data(), data.offsets.data(), point_count,
+                                         data.xy.data(), data.markers.data(), data.spacings.data(),
+                                         data.attributes.data(), data.area_limits.data()));
+    return data;
+}
+
 // The points of a line file: x and y on each line, with # comments.
 std::vector<double> read_line(const std::string & name)
 {
@@ -1238,7 +1359,21 @@ int cells_command(const std::vector<std::string> & arguments)
     std::cout.precision(std::numeric_limits<double>::max_digits10);
     if (!points_name.empty())
     {
-        const std::vector<double> xy = read_line(points_name);
+        std::vector<double> xy;
+        if (is_shapefile(points_name))
+        {
+            // each point of the point features, in order
+            const FeaturesHandle features = read_shapefile(points_name, {});
+            const FeatureData data = feature_data(features.get());
+            for (std::size_t i = 0; i < data.kinds.size(); i++)
+                if (data.kinds[i] == TRIANGLE_UTILS_POINT)
+                    xy.insert(xy.end(), data.xy.begin() + 2 * data.offsets[i],
+                              data.xy.begin() + 2 * data.offsets[i + 1]);
+            if (xy.empty())
+                throw triangle_utils::Error(triangle_utils::message(points_name, " has no points"));
+        }
+        else
+            xy = read_line(points_name);
         std::vector<int> cells(xy.size() / 2);
         check_status(triangle_utils_grid_point_cells(grid.get(), static_cast<int>(cells.size()),
                                                      xy.data(), cells.data()));
@@ -1248,27 +1383,52 @@ int cells_command(const std::vector<std::string> & arguments)
             std::cout << point + 1 << " " << cells[point] + 1 << "\n";
         return EXIT_OK;
     }
+    // print the cells found along a line or segments, described
+    const auto print = [](TriangleUtilsCellLengths * found, const std::string & along)
+    {
+        const std::unique_ptr<TriangleUtilsCellLengths, CellLengthsFree> result(found);
+        int count = 0;
+        check_status(triangle_utils_cell_lengths_count(result.get(), &count));
+        std::vector<int> cells(static_cast<std::size_t>(count));
+        std::vector<double> starts(cells.size()), lengths(cells.size());
+        check_status(triangle_utils_cell_lengths(result.get(), count, cells.data(), starts.data(),
+                                                 lengths.data()));
+        std::cout << "# cell, start, and length along " << along << "\n";
+        for (std::size_t i = 0; i < cells.size(); i++)
+            std::cout << cells[i] + 1 << " " << starts[i] << " " << lengths[i] << "\n";
+    };
     TriangleUtilsCellLengths * found = nullptr;
     if (has_marker)
+    {
         check_status(triangle_utils_grid_segment_cells(grid.get(), mesh.get(), marker, &found));
+        print(found, "the segments with marker " + std::to_string(marker));
+    }
+    else if (is_shapefile(line_name))
+    {
+        // each line of the shapefile in turn
+        const FeaturesHandle features = read_shapefile(line_name, {});
+        const FeatureData data = feature_data(features.get());
+        int line = 0;
+        for (std::size_t i = 0; i < data.kinds.size(); i++)
+        {
+            if (data.kinds[i] != TRIANGLE_UTILS_LINE) continue;
+            line++;
+            check_status(
+                triangle_utils_grid_line_cells(grid.get(), data.offsets[i + 1] - data.offsets[i],
+                                               data.xy.data() + 2 * data.offsets[i], &found));
+            print(found,
+                  triangle_utils::message(line_name, " line ", line, ", from row ", data.rows[i]));
+        }
+        if (line == 0)
+            throw triangle_utils::Error(triangle_utils::message(line_name, " has no lines"));
+    }
     else
     {
         const std::vector<double> xy = read_line(line_name);
         check_status(triangle_utils_grid_line_cells(grid.get(), static_cast<int>(xy.size() / 2),
                                                     xy.data(), &found));
+        print(found, line_name);
     }
-    const std::unique_ptr<TriangleUtilsCellLengths, CellLengthsFree> result(found);
-    int count = 0;
-    check_status(triangle_utils_cell_lengths_count(result.get(), &count));
-    std::vector<int> cells(static_cast<std::size_t>(count));
-    std::vector<double> starts(cells.size()), lengths(cells.size());
-    check_status(triangle_utils_cell_lengths(result.get(), count, cells.data(), starts.data(),
-                                             lengths.data()));
-    std::cout << "# cell, start, and length along "
-              << (has_marker ? "the segments with marker " + std::to_string(marker) : line_name)
-              << "\n";
-    for (std::size_t i = 0; i < cells.size(); i++)
-        std::cout << cells[i] + 1 << " " << starts[i] << " " << lengths[i] << "\n";
     return EXIT_OK;
 }
 
@@ -1281,6 +1441,15 @@ int generate_command(const std::vector<std::string> & arguments)
     double merge_distance = 0.0;
     bool conforming_delaunay = false;
     std::vector<std::string> bases;
+    // each shapefile, what its points add, and its values
+    struct Shapefile
+    {
+        std::string name;
+        int points;
+        ShapefileValues values;
+    };
+    std::vector<Shapefile> shapefiles;
+    ShapefileValues values;
     Options options("generate", arguments);
     while (options.next())
     {
@@ -1301,6 +1470,18 @@ int generate_command(const std::vector<std::string> & arguments)
             merge_distance = options.number();
         else if (options.is_flag("-D", "--conforming-delaunay"))
             conforming_delaunay = true;
+        else if (options.is("-f", "--features") || options.is("-r", "--regions") ||
+                 options.is("-H", "--holes"))
+        {
+            const int points = options.is("-f", "--features")  ? TRIANGLE_UTILS_VERTICES
+                               : options.is("-r", "--regions") ? TRIANGLE_UTILS_REGIONS
+                                                               : TRIANGLE_UTILS_HOLES;
+            // the values are the next shapefile's only
+            shapefiles.push_back({options.value(), points, values});
+            values = {};
+        }
+        else if (values.take(options))
+            continue;
         else if (options.is_option())
             options.unknown();
         else
@@ -1316,6 +1497,9 @@ int generate_command(const std::vector<std::string> & arguments)
     const std::string poly_name = base + ".poly";
     triangle_utils::VertexFile node;
     const triangle_utils::VertexFile * separate_vertices = nullptr;
+    triangle_utils::PolyFile poly;
+    const bool has_poly = shapefiles.empty() || std::filesystem::exists(poly_name);
+    if (has_poly)
     {
         std::ifstream poly_vertices = open_input(poly_name);
         if (triangle_utils::read_node(poly_vertices, poly_name).vertices.empty())
@@ -1326,9 +1510,11 @@ int generate_command(const std::vector<std::string> & arguments)
             separate_vertices = &node;
         }
     }
-    std::ifstream poly_file = open_input(poly_name);
-    const triangle_utils::PolyFile poly =
-        triangle_utils::read_poly(poly_file, poly_name, separate_vertices);
+    if (has_poly)
+    {
+        std::ifstream poly_file = open_input(poly_name);
+        poly = triangle_utils::read_poly(poly_file, poly_name, separate_vertices);
+    }
     const triangle_utils::VertexFile & vertices =
         poly.vertices.vertices.empty() ? node : poly.vertices;
 
@@ -1362,13 +1548,36 @@ int generate_command(const std::vector<std::string> & arguments)
         check_status(triangle_utils_geometry_add_region(
             geometry.get(), region.point.x, region.point.y, region.attribute, region.area_limit));
     }
+    // the shapefiles' regions and holes are written to the output's .poly
+    // file, as the input's are
+    triangle_utils::PolyFile output_poly = poly;
+    for (const Shapefile & shapefile : shapefiles)
+    {
+        const FeaturesHandle features = read_shapefile(shapefile.name, shapefile.values);
+        check_status(
+            triangle_utils_geometry_add_features(geometry.get(), features.get(), shapefile.points));
+        if (shapefile.points == TRIANGLE_UTILS_VERTICES) continue;
+        const FeatureData data = feature_data(features.get());
+        for (std::size_t i = 0; i < data.kinds.size(); i++)
+        {
+            if (data.kinds[i] != TRIANGLE_UTILS_POINT) continue;
+            for (int point = data.offsets[i]; point < data.offsets[i + 1]; point++)
+            {
+                const triangle_utils::Point xy{data.xy[2 * point], data.xy[2 * point + 1]};
+                if (shapefile.points == TRIANGLE_UTILS_REGIONS)
+                    output_poly.regions.push_back({xy, data.attributes[i], data.area_limits[i]});
+                else
+                    output_poly.holes.push_back(xy);
+            }
+        }
+    }
 
     TriangleUtilsMesh * generated = nullptr;
     check_status(triangle_utils_mesh_generate(geometry.get(), maximum_area, minimum_angle,
                                               merge_distance, conforming_delaunay ? 1 : 0,
                                               &generated));
     const MeshHandle mesh(generated);
-    write_mesh(mesh.get(), output_base, vertices.first_number, poly);
+    write_mesh(mesh.get(), output_base, has_poly ? vertices.first_number : 1, output_poly);
     std::cout << output_base << ": " << mesh_summary(mesh.get()) << "\n";
     return EXIT_OK;
 }

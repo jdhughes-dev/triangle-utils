@@ -19,8 +19,20 @@ version_dep = declare_dependency(
   sources: version_header,
 )
 
-# the core, which works on meshes in memory; the C API and the command line
-# are built on it
+# shapelib (shapelib/README.md), vendored and built as distributed, with the
+# floating-point options of the C++ and without its warnings
+c = meson.get_compiler('c')
+shapelib_lib = static_library(
+  'shapelib',
+  'shapelib/dbfopen.c',
+  'shapelib/safileio.c',
+  'shapelib/shpopen.c',
+  c_args: c.get_supported_arguments(compile_args),
+  override_options: ['warning_level=0'],
+)
+
+# the core, which works on meshes in memory, and reads shapefiles; the C API
+# and the command line are built on it
 core_lib = static_library(
   'triangle_utils_core',
   'connections.cpp',
@@ -32,7 +44,9 @@ core_lib = static_library(
   'mesh.cpp',
   'refine.cpp',
   'run_triangle.cpp',
+  'shapefile.cpp',
   dependencies: triangle_dep,
+  link_with: shapelib_lib,
 )
 core_dep = declare_dependency(
   include_directories: include_directories('.'),

@@ -6,8 +6,9 @@ installed.
 
 Cases:
   - test_valley        : the user guide's valley, read from shapefiles with
-                         markers stored as doubles or from GeoDataFrames,
-                         meshes to the same mesh as its coordinates.
+                         markers stored as doubles, by geopandas or the
+                         library, or from GeoDataFrames, meshes to the same
+                         mesh as its coordinates.
   - test_parts         : multi-part features and collections give one feature
                          per part with their row's values, a polygon's holes
                          are hole polygons, rings are counterclockwise, z is
@@ -21,6 +22,15 @@ Cases:
                          of triangle strips raises ValueError.
   - test_crs           : a geographic CRS raises ValueError; a projected one
                          or none is read.
+  - test_read_shapefile : the library's reader gives the features geopandas
+                         does from shapefiles of polygons with holes, lines
+                         with z, and points, with integer, decimal, and text
+                         fields and null shapes, and from multipatch rings;
+                         a missing field or file, a marker that is not whole,
+                         and a multipatch of triangles raise.
+  - test_c_api_features : the C API reads a shapefile's points and values
+                         and adds them to geometry; wrong counts, null
+                         pointers, and a missing file are errors.
   - test_bad_values    : a missing column or value, a value that is not a
                          finite number, a marker that is not a whole number,
                          a column name for shapely geometries, a layer of a
@@ -82,11 +92,10 @@ def valley_frames(valley):
     return boundary, streams, lake, regions, wells
 
 
-def valley_mesh(valley, boundary, streams, lake, regions, wells):
-    """The valley's mesh from its features, read from files or frames."""
-
-    def read(source, **values):
-        return tu.read_features(source, **values)
+def valley_mesh(valley, boundary, streams, lake, regions, wells, read=None):
+    """The valley's mesh from its features, read from files or frames by
+    read_features(), or by read if given."""
+    read = read or tu.read_features
 
     columns = {"marker": "marker", "spacing": "spacing"}
     geometry = tu.Geometry()
@@ -131,6 +140,10 @@ def test_valley(valley, tmp_path):
         frame.to_file(path)
         paths.append(path)
     assert_same_mesh(valley_mesh(valley, *paths), valley["mesh"])
+    # the library's reader, without geopandas
+    assert_same_mesh(
+        valley_mesh(valley, *paths, read=tu.read_shapefile), valley["mesh"]
+    )
     # each stream's points, ready for cells_along_line()
     streams = tu.read_features(paths[1])
     assert [feature.kind for feature in streams] == ["line", "line"]
@@ -369,3 +382,157 @@ def test_bad_values():
         )
     # nothing was added
     assert geometry == tu.Geometry()
+
+
+def assert_same_features(features, expected):
+    assert len(features) == len(expected)
+    for feature, other in zip(features, expected, strict=True):
+        assert (feature.kind, feature.row, feature.marker) == (
+            other.kind,
+            other.row,
+            other.marker,
+        )
+        assert (feature.spacing, feature.attribute, feature.area_limit) == (
+            other.spacing,
+            other.attribute,
+            other.area_limit,
+        )
+        np.testing.assert_array_equal(feature.points, other.points)
+
+
+def test_read_shapefile(tmp_path):
+    from shapely.geometry import (
+        LineString,
+        MultiLineString,
+        MultiPoint,
+        MultiPolygon,
+        Polygon,
+    )
+
+    square = [(0, 0), (10, 0), (10, 10), (0, 10)]
+    hole = [(4, 4), (4, 6), (6, 6), (6, 4)]
+    corner = np.array([500000.123, 4500000.456])
+    small = corner + 0.001 * np.array(square[::-1], dtype=float) / 10
+    frames = {
+        "polygons": [
+            MultiPolygon(
+                [Polygon(square, [hole]), Polygon([(20, 0), (30, 0), (20, 10)])]
+            ),
+            None,
+            Polygon(small),
+        ],
+        "lines": [
+            MultiLineString([[(0, 0, 5), (1, 1, 5)], [(2, 2, 5), (3, 3, 5)]]),
+            None,
+            LineString([(7, 8, 5), (9, 9, 5)]),
+        ],
+        "points": [MultiPoint([(1, 2), (3, 4)]), None, MultiPoint([(5, 6)])],
+    }
+    for name, geometries in frames.items():
+        # an integer, a decimal, and a text field, missing for the null shape
+        frame = geopandas.GeoDataFrame(
+            {
+                "marker": [1, None, 3],
+                "spacing": [1.5, np.nan, 3.5],
+                "zone": ["2.5", None, "7"],
+            },
+            geometry=geometries,
+            crs="EPSG:26916",
+        )
+        path = tmp_path / f"{name}.shp"
+        frame.to_file(path)
+        values = {"marker": "marker", "spacing": "spacing", "attribute": "zone"}
+        assert_same_features(
+            tu.read_shapefile(path, **values, area_limit=0.25),
+            tu.read_features(path, **values, area_limit=0.25),
+        )
+        assert_same_features(tu.read_shapefile(path), tu.read_features(path))
+    with pytest.raises(tu.Error, match=r"the marker field missing is not in the \.dbf"):
+        tu.read_shapefile(tmp_path / "points.shp", marker="missing")
+    with pytest.raises(ValueError, match="marker"):
+        tu.read_shapefile(tmp_path / "points.shp", marker=1.5)
+    with pytest.raises(tu.Error, match="cannot open the shapefile"):
+        tu.read_shapefile(tmp_path / "none.shp")
+
+    outer, inner, strip = 2, 3, 0
+    ring = np.array([*square, square[0]], dtype=float)
+    inside = np.array([*hole, hole[0]], dtype=float)
+    rings = tmp_path / "rings.shp"
+    write_multipatch(rings, [(outer, ring), (inner, inside)])
+    assert_same_features(tu.read_shapefile(rings), tu.read_features(rings))
+    triangles = tmp_path / "triangles.shp"
+    write_multipatch(triangles, [(strip, np.array([(20, 0), (22, 0), (20, 2)]))])
+    with pytest.raises(tu.Error, match="is a multipatch of triangles"):
+        tu.read_shapefile(triangles)
+
+
+def test_c_api_features(library, tmp_path):
+    import ctypes
+
+    from triangle_utils._library import FEATURES_POINTER, GEOMETRY_POINTER
+
+    ok, error, invalid = 0, 1, 2
+    from shapely.geometry import Point
+
+    geopandas.GeoDataFrame(
+        {"zone": [4.0, 5.0]}, geometry=[Point(1, 2), Point(3, 4)], crs="EPSG:26916"
+    ).to_file(tmp_path / "points.shp")
+    name = str(tmp_path / "points.shp").encode()
+    features = ctypes.cast(ctypes.c_void_p(1), FEATURES_POINTER)
+    read = library.triangle_utils_shapefile_read
+    assert (
+        read(name, None, 2, None, 0.0, b"zone", 0.0, b"", 9.0, ctypes.byref(features))
+        == ok
+    )
+    try:
+        counts = [ctypes.c_int(-1), ctypes.c_int(-1)]
+        status = library.triangle_utils_features_count(
+            features, *[ctypes.byref(c) for c in counts]
+        )
+        assert status == ok
+        assert [c.value for c in counts] == [2, 2]
+        kinds, rows, markers = ((ctypes.c_int * 2)() for _ in range(3))
+        offsets = (ctypes.c_int * 3)()
+        xy = (ctypes.c_double * 4)()
+        spacings, attributes, limits = ((ctypes.c_double * 2)() for _ in range(3))
+        arguments = [kinds, rows, offsets, 2, xy, markers, spacings, attributes, limits]
+        assert library.triangle_utils_features(features, 2, *arguments) == ok
+        assert list(kinds) == [3, 3]
+        assert list(rows) == [0, 1]
+        assert list(offsets) == [0, 1, 2]
+        assert list(xy) == [1, 2, 3, 4]
+        assert list(markers) == [2, 2]
+        assert list(attributes) == [4, 5]
+        assert list(limits) == [9, 9]
+        assert library.triangle_utils_features(features, 3, *arguments) == invalid
+        assert (
+            library.triangle_utils_features(
+                features, 2, *arguments[:2], None, *arguments[3:]
+            )
+            == invalid
+        )
+        geometry = GEOMETRY_POINTER()
+        assert library.triangle_utils_geometry_create(ctypes.byref(geometry)) == ok
+        try:
+            add = library.triangle_utils_geometry_add_features
+            assert add(geometry, features, 1) == ok
+            assert add(geometry, features, 3) == invalid
+            assert add(geometry, None, 0) == invalid
+            assert add(None, features, 0) == invalid
+        finally:
+            library.triangle_utils_geometry_free(geometry)
+    finally:
+        library.triangle_utils_features_free(features)
+    library.triangle_utils_features_free(None)
+    features = ctypes.cast(ctypes.c_void_p(1), FEATURES_POINTER)
+    status = read(
+        b"none.shp", None, 0, None, 0, None, 0, None, 0, ctypes.byref(features)
+    )
+    assert status == error
+    assert not features
+    assert library.triangle_utils_last_error().startswith(b"cannot open the shapefile")
+    assert (
+        read(None, None, 0, None, 0, None, 0, None, 0, ctypes.byref(features))
+        == invalid
+    )
+    assert read(name, None, 0, None, 0, None, 0, None, 0, None) == invalid

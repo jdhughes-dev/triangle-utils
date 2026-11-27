@@ -89,3 +89,7 @@ for well in tu.read_features(folder / "wells.shp"):
     )
 
 mesh = tu.generate(geometry, maximum_area=MAXIMUM_AREA, minimum_angle=MINIMUM_ANGLE)
+
+# the library reads a shapefile itself, without geopandas, as a C or Fortran
+# program does
+streams = tu.read_shapefile(folder / "streams.shp", **columns)

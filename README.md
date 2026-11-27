@@ -15,7 +15,9 @@ work with two-dimensional triangular meshes:
 The utilities are a C++20 library with a C API, so they can be called in
 memory from C, C++, Python (`ctypes`), and Fortran (`iso_c_binding`). A
 command-line program reads Triangle's file formats (`.node`, `.poly`, `.ele`,
-`.neigh`) and calls the same API.
+`.neigh`) and shapefiles and calls the same API. The library reads shapefiles
+itself, with shapelib (`src/shapelib/`), so a model area drawn in a GIS needs
+no other library or Python.
 
 ## C API
 
@@ -84,7 +86,16 @@ do; `triangle_utils_grid_vertex_values()` interpolates values at the mesh's
 vertices, such as elevations, to the cell centers. In Python,
 `layer_grid()` returns them with the arguments of FloPy's DISV and DISU
 packages, and the layers' `with_elevations()` gives them with new
-elevations. `triangle_utils_grid_create()` makes a grid from a caller's
+elevations. `triangle_utils_shapefile_read()` reads a shapefile's features,
+one for each part of each point, line, polygon, or multipatch ring, with a
+polygon's holes as hole polygons and every polygon counterclockwise, skipping
+null shapes; each feature's marker, spacing, region attribute, and area limit
+is a number or comes from a field of the `.dbf` file, which may hold integers,
+decimals, or text. `triangle_utils_geometry_add_features()` adds them to
+geometry, with points as vertices, regions, or holes, and
+`triangle_utils_features()` gives their points for the mapping functions.
+Coordinates are taken as given; the `.prj` file is not read.
+`triangle_utils_grid_create()` makes a grid from a caller's
 arrays. The API also returns the versions of triangle-utils and
 Triangle, the license, and Triangle's copyright notice. Calls must not run
 concurrently, since Triangle keeps global state.
@@ -104,7 +115,9 @@ beside it (`pyproject.toml`, built with meson-python); Triangle is linked
 into the library, and the package needs only NumPy. `read_features()`,
 which reads features from shapefiles, GeoPackages, GeoJSON, GeoDataFrames,
 and shapely geometries, also needs geopandas, an optional dependency
-(`pip install triangle-utils[gis]`). `pixi run wheel` builds the wheel for
+(`pip install triangle-utils[gis]`); `read_shapefile()` reads shapefiles
+the same way through the library, without geopandas. `pixi run wheel`
+builds the wheel for
 this platform and the pixi environment's Python in `dist/`, to install with
 `pip install`. CI builds and tests a wheel for each of Linux
 (manylinux, x86_64 and aarch64), macOS (arm64), and Windows (x86_64), built
@@ -131,6 +144,17 @@ triangle-utils --license      # the license, and Triangle's copyright
 a spacing for points added along the segments (`-s`), a distance within
 which points are merged (`-m`), conforming Delaunay triangles (`-D`), and
 an output base name (`-o`); `triangle-utils generate -h` describes them.
+It also meshes the features of shapefiles (`-f`), with their points as
+regions (`-r`) or holes (`-H`) if given so, and reads `<base>.poly` only if
+it exists; `--marker`, `--feature-spacing`, `--attribute`, and
+`--area-limit` set the next shapefile's values, each a number or a `.dbf`
+field.
+
+```shell
+triangle-utils generate -a 40000 -q 30 -D -o valley.1 \
+    --marker marker --feature-spacing spacing -f boundary.shp \
+    --attribute zone --area-limit area -r regions.shp -f wells.shp valley
+```
 
 ```shell
 triangle-utils generate -a 0.5 -q 30 -s 1 domain   # writes domain.1.*
@@ -165,9 +189,10 @@ triangle-utils disu -t land.txt -b -5 -b clay.txt -b base.txt -m 1 valley.2
 `pixi run get-mfusg` MODFLOW-USG and MODFLOW-USG-Transport.
 
 `cells` prints the cells of the same grid that points contain (`-p`, a file
-of x and y), or that a line (`-l`) or the segments of `<base>.poly` with a
-marker (`-m`) pass through, with where each part starts and its length;
-cells are numbered from 1, as in the DISV file.
+of x and y or a shapefile), or that a line (`-l`, a file of x and y, or each
+line of a shapefile in turn) or the segments of `<base>.poly` with a marker
+(`-m`) pass through, with where each part starts and its length; cells are
+numbered from 1, as in the DISV file.
 
 ## License
 
@@ -179,4 +204,7 @@ it may be redistributed only free of charge, with its copyright notices, and
 distribution as part of a commercial system requires an arrangement with the
 author. These terms apply to any program or library built from this
 repository; `LICENSE-Triangle` is a copy of them, installed with the Python
-package.
+package. shapelib, also linked into the library, is copyright Frank
+Warmerdam and Even Rouault and is used under the MIT license, in
+`LICENSE-shapelib`, which the Python package installs and
+`triangle-utils --license` prints.

@@ -61,6 +61,11 @@ EXPORTS
   triangle_utils_grid_layers
   triangle_utils_layers_free
   triangle_utils_layers_with_elevations
+  triangle_utils_shapefile_read
+  triangle_utils_features_free
+  triangle_utils_features_count
+  triangle_utils_features
+  triangle_utils_geometry_add_features
   triangle_utils_layers_idomain
   triangle_utils_layers_bottoms
   triangle_utils_layers_disu_count

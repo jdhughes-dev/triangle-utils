@@ -8,6 +8,7 @@ given in the form FloPy's DISV package takes.
 
 import ctypes
 import itertools
+import os
 from dataclasses import dataclass, field
 
 import numpy as np
@@ -16,6 +17,7 @@ from ._features import KINDS, Feature, read_features
 from ._library import (
     CELL_LENGTHS_POINTER,
     CONNECTIONS_POINTER,
+    FEATURES_POINTER,
     GEOMETRY_POINTER,
     GRID_POINTER,
     LAYERS_POINTER,
@@ -43,6 +45,7 @@ __all__ = [
     "improve",
     "layer_grid",
     "read_features",
+    "read_shapefile",
     "refine",
     "triangle_grid",
     "values_at_centers",
@@ -991,6 +994,77 @@ def _layer_values(values, layer_count, cell_count, name, dtype):
             f"{name} must be a number, a value for each of {layer_count} layers, "
             f"or shape ({layer_count}, {cell_count}), not {shape}"
         ) from None
+
+
+def read_shapefile(name, marker=0, spacing=0.0, attribute=0.0, area_limit=0.0):
+    """A list of a Feature for each part of the shapes of a shapefile, read by
+    the library, without geopandas, as read_features() reads them.
+
+    Each value is a number or the name of the .dbf field that holds it; a
+    marker must be a whole number. The .prj file is not read, so the
+    coordinates are taken as given."""
+    arguments = []
+    for value, whole in (
+        (marker, True),
+        (spacing, False),
+        (attribute, False),
+        (area_limit, False),
+    ):
+        if isinstance(value, str):
+            arguments += [value.encode(), 0]
+        else:
+            number = float(value)
+            arguments += [None, _int(number, "marker") if whole else number]
+    api = _api()
+    handle = FEATURES_POINTER()
+    _check(
+        api.triangle_utils_shapefile_read(
+            os.fsencode(name), *arguments, ctypes.byref(handle)
+        )
+    )
+    try:
+        feature_count = ctypes.c_int()
+        point_count = ctypes.c_int()
+        _check(
+            api.triangle_utils_features_count(
+                handle, ctypes.byref(feature_count), ctypes.byref(point_count)
+            )
+        )
+        n = feature_count.value
+        kinds, kind_pointer = _ints(np.zeros(n))
+        rows, row_pointer = _ints(np.zeros(n))
+        offsets, offset_pointer = _ints(np.zeros(n + 1))
+        xy, xy_pointer = _doubles(np.zeros((point_count.value, 2)))
+        markers, marker_pointer = _ints(np.zeros(n))
+        values = [_doubles(np.zeros(n)) for _ in range(3)]
+        _check(
+            api.triangle_utils_features(
+                handle,
+                n,
+                kind_pointer,
+                row_pointer,
+                offset_pointer,
+                point_count.value,
+                xy_pointer,
+                marker_pointer,
+                *(pointer for _, pointer in values),
+            )
+        )
+    finally:
+        api.triangle_utils_features_free(handle)
+    spacings, attributes, area_limits = (array for array, _ in values)
+    return [
+        Feature(
+            KINDS[kinds[i]],
+            xy[offsets[i] : offsets[i + 1]].copy(),
+            int(rows[i]),
+            int(markers[i]),
+            float(spacings[i]),
+            float(attributes[i]),
+            float(area_limits[i]),
+        )
+        for i in range(n)
+    ]
 
 
 def _layer_count(botm):

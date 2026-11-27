@@ -8,11 +8,15 @@ Cases:
   - test_triangle_license : LICENSE-Triangle is the wrapped subproject's
                             license (skipped before it is downloaded).
   - test_notice           : NOTICE gives the wrapped Triangle's source.
+  - test_shapelib_license : LICENSE-shapelib is the vendored shapelib's MIT
+                            license, and its README and NOTICE give the
+                            version of its header.
   - test_installed        : the installed package has its files and licenses
                             and loads its own library (installed only).
 """
 
 import os
+import re
 import sys
 from importlib import metadata
 from pathlib import Path
@@ -47,6 +51,22 @@ def test_notice():
     assert wrap_value("source_url") in (REPOSITORY / "NOTICE").read_text()
 
 
+def test_shapelib_license():
+    vendored = REPOSITORY / "src" / "shapelib" / "LICENSE-MIT"
+    assert (REPOSITORY / "LICENSE-shapelib").read_text() == vendored.read_text()
+    # the version of the header, as the README and NOTICE give it
+    header = (REPOSITORY / "src" / "shapelib" / "shapefil.h").read_text()
+    version = ".".join(
+        re.search(rf"#define SHAPELIB_VERSION_{part} (\d+)", header).group(1)
+        for part in ("MAJOR", "MINOR", "MICRO")
+    )
+    assert (
+        f"shapelib {version},"
+        in (REPOSITORY / "src" / "shapelib" / "README.md").read_text()
+    )
+    assert f"shapelib {version}," in (REPOSITORY / "NOTICE").read_text()
+
+
 @pytest.mark.skipif(
     not os.environ.get("TRIANGLE_UTILS_TEST_INSTALLED"),
     reason="not testing the installed package",
@@ -56,6 +76,7 @@ def test_installed():
     assert package != REPOSITORY / "python" / "triangle_utils"
     assert "CC0 1.0" in (package / "LICENSE").read_text()
     assert "Shewchuk" in (package / "LICENSE-Triangle").read_text()
+    assert "Warmerdam" in (package / "LICENSE-shapelib").read_text()
     assert (package / "NOTICE").read_text() == (REPOSITORY / "NOTICE").read_text()
     modules = sorted(
         p.name for p in (REPOSITORY / "python" / "triangle_utils").glob("*.py")
@@ -66,9 +87,9 @@ def test_installed():
         for path in metadata.distribution("triangle-utils").files
         if path.parent.name == "licenses"
     }
-    assert licenses == {"LICENSE", "LICENSE-Triangle", "NOTICE"}
+    assert licenses == {"LICENSE", "LICENSE-Triangle", "LICENSE-shapelib", "NOTICE"}
     expression = metadata.metadata("triangle-utils")["License-Expression"]
-    assert expression == "CC0-1.0 AND LicenseRef-Triangle"
+    assert expression == "CC0-1.0 AND LicenseRef-Triangle AND MIT"
     loaded = sys.modules["triangle_utils._library"].library_path()
     assert loaded.parent == package
     assert triangle_utils.version()[0] == metadata.version("triangle-utils")

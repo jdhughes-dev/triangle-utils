@@ -125,7 +125,11 @@ The script valley\_gis.py (appendix~\ref{appendix:listings}) writes the valley's
 
 \excerpt{gis}{valley_gis.py}
 
-\noindent It meshes to the same mesh as the coordinates in valley.py, and each stream read from streams.shp has the points \texttt{cells\_along\_line} takes.
+\noindent It meshes to the same mesh as the coordinates in valley.py, and each stream read from streams.shp has the points \texttt{cells\_along\_line} takes. The library also reads shapefiles itself, without geopandas, for a program in C or Fortran or the command line (\texttt{generate -f}), and \texttt{tu.read\_shapefile} reads them through it with the same values and gives the same features (\excerptlines{shapefile} of valley\_gis.py):
+
+\excerpt{shapefile}{valley_gis.py}
+
+\noindent A shapefile's fields may hold integers, decimals, or numbers as text, and a field name is at most 10 characters long. The library reads only shapefiles; a GeoPackage or GeoJSON file can be converted to one with ogr2ogr, or read with \texttt{read\_features}.
 
 \begin{figure}[htbp]
   \centering
@@ -303,11 +307,12 @@ triangle-utils is used from Python, from the command line, and from C, C++, and 
     Layers & \texttt{tu.layer\_grid} & \texttt{triangle\_utils\_grid\_layers} & \texttt{disv}, \texttt{disu} \\
     Layers with new elevations & \texttt{layers.with\_elevations} & \texttt{triangle\_utils\_layers\_with\_elevations} & --- \\
     Read features from a GIS & \texttt{tu.read\_features} & --- & --- \\
+    Read features from a shapefile & \texttt{tu.read\_shapefile} & \texttt{triangle\_utils\_shapefile\_read} & \texttt{generate -f}, \texttt{cells -l} \\
     \hline
   \end{tabular}
 \end{table}
 
-The \texttt{triangle-utils} program reads and writes the files of Triangle. The \texttt{generate} command meshes the segments, vertices, holes, and regions of a .poly file, the \texttt{refine} command refines the mesh in a .node file and an .ele file, with the segments of a .poly file and the area of each triangle in an .area file if they exist, the \texttt{improve} command moves the vertices of such a mesh, the \texttt{check} command checks a mesh, the \texttt{disv} command writes its Voronoi grid, or its triangles, with its layers, as a MODFLOW 6 DISV file, the \texttt{disu} command writes the same layers as a MODFLOW 6 or MODFLOW-USG DISU file, and the \texttt{cells} command prints the cells of the grid that points contain or that a line or the segments with a marker pass through. A vertex with marker 1 in a .node file, as \texttt{generate} writes for the points of the .poly file, such as wells, stays in place.
+The \texttt{triangle-utils} program reads and writes the files of Triangle. The \texttt{generate} command meshes the segments, vertices, holes, and regions of a .poly file, the \texttt{refine} command refines the mesh in a .node file and an .ele file, with the segments of a .poly file and the area of each triangle in an .area file if they exist, the \texttt{improve} command moves the vertices of such a mesh, the \texttt{check} command checks a mesh, the \texttt{disv} command writes its Voronoi grid, or its triangles, with its layers, as a MODFLOW 6 DISV file, the \texttt{disu} command writes the same layers as a MODFLOW 6 or MODFLOW-USG DISU file, and the \texttt{cells} command prints the cells of the grid that points contain or that a line or the segments with a marker pass through. A vertex with marker 1 in a .node file, as \texttt{generate} writes for the points of the .poly file, such as wells, stays in place. The \texttt{generate} command also meshes the features of shapefiles (\texttt{-f}, with their points as regions with \texttt{-r}), each value a number or a field, and the \texttt{cells} command reads lines and points from shapefiles as well.
 
 The top of the cells and the bottom of each layer, given from the top down, are each a number or a file of values, one for each cell or one for each vertex of the mesh, which is interpolated to the cell centers as in the section on layers; an IDOMAIN for each layer, a number or a file of one for each cell, and a minimum thickness are optional. The \texttt{disu} command also writes the layer and cell of each node, for placing wells and boundaries in the nodes. In the MODFLOW-USG file \citep{panday2013modflowusg}, the area of a horizontal face is its width times the mean thickness of the two cells, since MODFLOW-USG takes an area where MODFLOW~6 takes a width, and the file has one steady-state stress period, which a transient model replaces; MODFLOW-USG-Transport reads the same file. Where flow passes through thin cells, MODFLOW-USG takes the LPF or BCF layer settings of the lower cell, such as whether VKA is a vertical hydraulic conductivity or a ratio (LAYVKA), from the layer just below the upper cell, so the layers above and below thin cells should have the same settings.
 
