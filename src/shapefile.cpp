@@ -114,15 +114,16 @@ public:
                                 " is in the .dbf file more than once"));
         m_type = DBFGetFieldInfo(dbf, m_field, nullptr, nullptr, nullptr);
         if (m_type != FTString && m_type != FTInteger && m_type != FTDouble)
-            throw Error(message("the ", name, " field ", value.field,
-                                " is not a number or text field"));
+            throw Error(
+                message("the ", name, " field ", value.field, " is not a number or text field"));
     }
 
     // The value of a row.
     double operator()(int row) const
     {
         if (m_field < 0) return m_value.number;
-        const std::string where = message("the ", m_name, " field ", m_value.field, " in row ", row);
+        const std::string where =
+            message("the ", m_name, " field ", m_value.field, " in row ", row);
         if (DBFIsAttributeNULL(m_dbf, row, m_field)) throw Error(where + " has no value");
         double number = 0.0;
         if (m_type == FTString)
@@ -144,8 +145,8 @@ private:
     void check(double number, const char * where) const
     {
         if (!std::isfinite(number)) throw Error(message(where, " is not a finite number"));
-        if (m_whole && (number != std::floor(number) ||
-                        std::abs(number) > std::numeric_limits<int>::max()))
+        if (m_whole &&
+            (number != std::floor(number) || std::abs(number) > std::numeric_limits<int>::max()))
             throw Error(message(where, " is ", number, ", not a whole number"));
     }
 
@@ -163,7 +164,8 @@ std::vector<Feature> read_shapefile(const std::string & name, const FeatureValue
 {
     const SAHooks file_hooks = hooks();
     shapelib_message.clear();
-    const std::unique_ptr<SHPInfo, ShapeFileClose> shapes(SHPOpenLL(name.c_str(), "rb", &file_hooks));
+    const std::unique_ptr<SHPInfo, ShapeFileClose> shapes(
+        SHPOpenLL(name.c_str(), "rb", &file_hooks));
     if (!shapes) throw open_error(name);
     int shape_count = 0, shape_type = 0;
     SHPGetInfo(shapes.get(), &shape_count, &shape_type, nullptr, nullptr);
@@ -209,8 +211,8 @@ std::vector<Feature> read_shapefile(const std::string & name, const FeatureValue
         const auto part_points = [&](int part)
         {
             const int start = shape->nParts == 0 ? 0 : shape->panPartStart[part];
-            const int end = part + 1 < shape->nParts ? shape->panPartStart[part + 1]
-                                                     : shape->nVertices;
+            const int end =
+                part + 1 < shape->nParts ? shape->panPartStart[part + 1] : shape->nVertices;
             std::vector<Point> points;
             for (int vertex = start; vertex < end; vertex++)
                 points.push_back({shape->padfX[vertex], shape->padfY[vertex]});
@@ -249,10 +251,9 @@ std::vector<Feature> read_shapefile(const std::string & name, const FeatureValue
                                         "for example with ogr2ogr -nlt MULTIPOLYGON"));
                 // a first ring begins a polygon, and the rings after it are
                 // its holes
-                const FeatureKind kind =
-                    part_type == SHPP_OUTERRING || part_type == SHPP_FIRSTRING
-                        ? FeatureKind::POLYGON
-                        : FeatureKind::HOLE_POLYGON;
+                const FeatureKind kind = part_type == SHPP_OUTERRING || part_type == SHPP_FIRSTRING
+                                             ? FeatureKind::POLYGON
+                                             : FeatureKind::HOLE_POLYGON;
                 parts.push_back({kind, counterclockwise(part_points(part))});
             }
         }

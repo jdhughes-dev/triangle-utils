@@ -196,8 +196,8 @@ TEST(Shapefile, FieldErrors)
 
     // without the .dbf file, a field cannot be read, but numbers can
     std::filesystem::remove(name + ".dbf");
-    EXPECT_EQ(error_of([&] { read_shapefile(name, fields("marker", "", "", 0.0)); }).find(
-                  "cannot open the .dbf file of "),
+    EXPECT_EQ(error_of([&] { read_shapefile(name, fields("marker", "", "", 0.0)); })
+                  .find("cannot open the .dbf file of "),
               0u);
     EXPECT_EQ(read_shapefile(name, fields("", "", "", 0.0)).size(), 4u);
     EXPECT_EQ(error_of([&] { read_shapefile(folder / "none", fields("", "", "", 0.0)); })
