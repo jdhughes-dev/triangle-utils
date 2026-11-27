@@ -417,6 +417,20 @@ int triangle_utils_grid_layers(const TriangleUtilsGrid * grid, int layer_count, 
 /* Free layers; NULL is ignored. */
 void triangle_utils_layers_free(TriangleUtilsLayers * layers);
 
+/* Layers of the same grid with a new top of each cell and new bottoms of
+   each cell in each layer, from the idomain and minimum thickness the
+   layers were given: a cell the new elevations make thinner than the
+   minimum thickness becomes pass-through, and one they make thick enough
+   is active again, so the DISV idomain and the DISU nodes, connections,
+   and CL12 follow the new elevations. The layers are not changed; free
+   the result with triangle_utils_layers_free(). An error as for
+   triangle_utils_grid_layers(), or if a count does not match the layers,
+   and the first DISU call of the result reports a grid whose cells cannot
+   be connected. *result is NULL after a failure. */
+int triangle_utils_layers_with_elevations(const TriangleUtilsLayers * layers, int cell_count,
+                                          const double * top, int value_count,
+                                          const double * bottoms, TriangleUtilsLayers ** result);
+
 /* The idomain of each cell in each layer, with the pass-through cells the
    minimum thickness made; value_count must be the layer count times the
    cell count. */

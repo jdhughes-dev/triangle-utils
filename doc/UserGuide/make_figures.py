@@ -32,6 +32,7 @@ from valley import (  # noqa: E402
     BOUNDARY_MARKER,
     BOUNDARY_SPACING,
     CLAY_EDGE,
+    CLAY_RAISE,
     CLAY_THICKNESS,
     IMPROVE_ANGLE,
     LAKE,
@@ -63,6 +64,7 @@ from valley import (  # noqa: E402
     layers,
     mesh,
     refined,
+    revised,
     stream_cells,
     well_cells,
 )
@@ -155,6 +157,7 @@ EXCERPTS = {
     "features": ("valley.py", "stream_cells =", "well_cells ="),
     "surfaces": ("valley.py", "def surfaces(", "def surfaces("),
     "layers": ("valley.py", "land_surface, clay_base", "disu = layers.disu"),
+    "revised": ("valley.py", "revised = layers.with_elevations(", "revised ="),
     "gis": ("valley_gis.py", "columns = {", "for well in tu.read_features("),
 }
 
@@ -1104,6 +1107,9 @@ def main():
         "disvcells": f"{layers.idomain.size:,}",
         "disunodes": f"{len(layers.disu.cells):,}",
         "disuconnections": f"{len(layers.disu.ja):,}",
+        "clayraise": f"{CLAY_RAISE:g}",
+        "revisedpassthrough": f"{int((revised.idomain < 0).sum()):,}",
+        "revisednodes": f"{len(revised.disu.cells):,}",
         "sectiony": f"{SECTION_Y:,.0f}",
         "tuversion": tu.version()[0],
         "triangleversion": tu.version()[1],

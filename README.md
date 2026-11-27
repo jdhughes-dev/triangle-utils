@@ -76,11 +76,15 @@ and returns the DISV IDOMAIN, with an active cell thinner than a minimum
 thickness made a pass-through cell, and the DISU nodes and connections, which
 connect through pass-through cells as MODFLOW 6 does in DISV, and which
 are an error, on the first DISU call, for a grid whose cells cannot be
-connected;
-`triangle_utils_grid_vertex_values()` interpolates values at the mesh's
+connected; `triangle_utils_layers_with_elevations()` gives the same layers
+with new elevations, from the IDOMAIN and minimum thickness they were given,
+so thin cells pass through, cells no longer thin are restored, and the DISU
+data follow the elevations, which editing TOP and BOT in DISU input does not
+do; `triangle_utils_grid_vertex_values()` interpolates values at the mesh's
 vertices, such as elevations, to the cell centers. In Python,
 `layer_grid()` returns them with the arguments of FloPy's DISV and DISU
-packages. `triangle_utils_grid_create()` makes a grid from a caller's
+packages, and the layers' `with_elevations()` gives them with new
+elevations. `triangle_utils_grid_create()` makes a grid from a caller's
 arrays. The API also returns the versions of triangle-utils and
 Triangle, the license, and Triangle's copyright notice. Calls must not run
 concurrently, since Triangle keeps global state.

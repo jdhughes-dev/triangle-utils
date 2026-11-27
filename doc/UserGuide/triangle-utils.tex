@@ -268,6 +268,12 @@ The surfaces are calculated at the mesh's vertices (\excerptlines{surfaces} of v
   \label{fig:layers}
 \end{figure}
 
+The elevations of a model often change after its grid is built, as a land surface or a geologic model is revised or a calibration adjusts layer thicknesses. Changing TOP and BOT in a model's DISU input leaves the vertical distances (CL12) at their old values and, where a cell becomes thinner or thicker than the minimum thickness, the nodes and their connections as they were, without warning. Instead, \texttt{with\_elevations} rebuilds the layers of the same grid from a new top and new bottoms, with the IDOMAIN and minimum thickness given to \texttt{tu.layer\_grid}; an IDOMAIN changed afterward, in FloPy for example, is not used. A cell the new elevations make thinner than the minimum becomes a pass-through cell, one they make thick enough is active again, and the DISV and DISU arrays follow the new elevations. If a revision of the valley's geologic model raised the clay's base by \clayraise~m (\excerptlines{revised} of valley.py),
+
+\excerpt{revised}{valley.py}
+
+\noindent \revisedpassthrough\ cells of the clay would pass flow between the aquifers, rather than \passthroughcells, and the DISU grid would have \revisednodes\ nodes.
+
 \section{Using triangle-utils}
 
 triangle-utils is used from Python, from the command line, and from C, C++, and Fortran programs through its C interface, declared in triangle\_utils.h. Until its first release, it is built from its repository with pixi: \texttt{pixi run setup} and \texttt{pixi run build} build the program, the library, and its header, the Python module in the repository's python folder uses that library, and \texttt{pixi run wheel} builds a wheel of the module with the library inside it, which \texttt{pip install} installs. From the first release, the module will be installed with \texttt{pip install triangle-utils}, or \texttt{pip install triangle-utils[gis]} to read features from a GIS with geopandas. Table~\ref{tab:reference} lists each capability of this guide with its Python function, its C function, and its command.
@@ -295,6 +301,7 @@ triangle-utils is used from Python, from the command line, and from C, C++, and 
     Cells at points & \texttt{tu.cells\_at\_points} & \texttt{triangle\_utils\_grid\_point\_cells} & \texttt{cells -p} \\
     Values at cell centers & \texttt{tu.values\_at\_centers} & \texttt{triangle\_utils\_grid\_vertex\_values} & \texttt{disv -t}, \texttt{-b} \\
     Layers & \texttt{tu.layer\_grid} & \texttt{triangle\_utils\_grid\_layers} & \texttt{disv}, \texttt{disu} \\
+    Layers with new elevations & \texttt{layers.with\_elevations} & \texttt{triangle\_utils\_layers\_with\_elevations} & --- \\
     Read features from a GIS & \texttt{tu.read\_features} & --- & --- \\
     \hline
   \end{tabular}

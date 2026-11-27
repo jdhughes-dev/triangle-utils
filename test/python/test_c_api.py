@@ -40,7 +40,9 @@ Cases:
                          crossing bottom is an error naming its cell and
                          layer, and wrong counts and null pointers are
                          invalid arguments; a grid whose cells cannot be
-                         connected has layers, and an error for DISU.
+                         connected has layers, and an error for DISU; new
+                         elevations make a thin cell pass-through, and the
+                         first elevations restore it.
   - test_vertex_values : values at a square's corners give the plane's value
                          at each triangle's centroid; a wrong count is an
                          invalid argument.
@@ -695,6 +697,82 @@ def test_layers(library):
         assert library.triangle_utils_grid_layers(
             grid, 2, 2, top, bottoms, None, 0.0, None
         ) == (INVALID_ARGUMENT)
+    finally:
+        library.triangle_utils_grid_free(grid)
+
+    # new elevations make the second cell's second layer thin, and the first
+    # elevations restore it
+    grid = two_cells(library)
+    try:
+        status, layers = make_layers(library, grid, (5, 5, 0, 0), 0.1)
+        assert status == OK
+        # its connections, made here, are kept for the new layers
+        assert len(disu(library, layers)["cells"]) == 4
+        top = (ctypes.c_double * 2)(10.0, 10.0)
+        result = ctypes.cast(ctypes.c_void_p(1), LAYERS_POINTER)
+        try:
+            thin = (ctypes.c_double * 4)(5, 5, 0, 4.95)
+            status = library.triangle_utils_layers_with_elevations(
+                layers, 2, top, 4, thin, ctypes.byref(result)
+            )
+            assert status == OK
+            try:
+                idomain = (ctypes.c_int * 4)()
+                assert library.triangle_utils_layers_idomain(result, 4, idomain) == OK
+                assert list(idomain) == [1, 1, 1, -1]
+                assert disu(library, result)["cells"] == [0, 1, 2]
+                # as built with those elevations, through the cached
+                # connections, and the first layers unchanged
+                status, built = make_layers(library, grid, tuple(thin), 0.1)
+                assert status == OK
+                assert disu(library, result) == disu(library, built)
+                library.triangle_utils_layers_free(built)
+                assert library.triangle_utils_layers_idomain(layers, 4, idomain) == OK
+                assert list(idomain) == [1, 1, 1, 1]
+                bottoms = (ctypes.c_double * 4)()
+                assert library.triangle_utils_layers_bottoms(layers, 4, bottoms) == OK
+                assert list(bottoms) == [5, 5, 0, 0]
+                restored = LAYERS_POINTER()
+                first = (ctypes.c_double * 4)(5, 5, 0, 0)
+                status = library.triangle_utils_layers_with_elevations(
+                    result, 2, top, 4, first, ctypes.byref(restored)
+                )
+                assert status == OK
+                assert library.triangle_utils_layers_idomain(restored, 4, idomain) == OK
+                assert list(idomain) == [1, 1, 1, 1]
+                assert disu(library, restored) == disu(library, layers)
+                library.triangle_utils_layers_free(restored)
+            finally:
+                library.triangle_utils_layers_free(result)
+            # a bottom that is not finite, as triangle_utils_grid_layers
+            # reports it
+            crossing = (ctypes.c_double * 4)(5, math.nan, 0, 0)
+            result = ctypes.cast(ctypes.c_void_p(1), LAYERS_POINTER)
+            status = library.triangle_utils_layers_with_elevations(
+                layers, 2, top, 4, crossing, ctypes.byref(result)
+            )
+            assert status == ERROR
+            assert not result
+            assert library.triangle_utils_last_error() == (
+                b"the bottom of cell 1 in layer 0 is not finite"
+            )
+            for arguments in (
+                (layers, 3, top, 4, thin),
+                (layers, 2, top, 3, thin),
+                (layers, 2, None, 4, thin),
+                (None, 2, top, 4, thin),
+            ):
+                status = library.triangle_utils_layers_with_elevations(
+                    *arguments, ctypes.byref(result)
+                )
+                assert status == INVALID_ARGUMENT
+                assert not result
+            status = library.triangle_utils_layers_with_elevations(
+                layers, 2, top, 4, thin, None
+            )
+            assert status == INVALID_ARGUMENT
+        finally:
+            library.triangle_utils_layers_free(layers)
     finally:
         library.triangle_utils_grid_free(grid)
 

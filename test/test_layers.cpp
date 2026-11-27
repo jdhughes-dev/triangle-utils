@@ -1,7 +1,8 @@
 // Tests the layers of a grid: values at cell centers follow a linear field,
 // layers check their elevations and make thin cells pass-through, and their
 // DISU data number the active cells layer by layer with symmetric
-// connections that pass through pass-through cells and stop at inactive ones.
+// connections that pass through pass-through cells and stop at inactive ones;
+// new elevations give the layers built with them, and restore thin cells.
 
 #include <algorithm>
 #include <cmath>
@@ -284,4 +285,66 @@ TEST(Layers, DisuConnectsActiveCells)
         }
     EXPECT_EQ(vertical, 1);
     EXPECT_EQ(disu.top[below], bottoms[2]);
+}
+
+TEST(Layers, NewElevationsRelayerTheGrid)
+{
+    const Grid grid = voronoi_grid(rectangle_mesh());
+    const Connections connections = connect_cells(grid);
+    const int n = static_cast<int>(grid.cells.size());
+    const int layer_count = 3;
+    const double minimum_thickness = 0.1;
+    std::vector<double> top(n, 10.0);
+    std::vector<double> bottoms;
+    for (int layer = 0; layer < layer_count; layer++)
+        for (int cell = 0; cell < n; cell++) bottoms.push_back(6.0 - 3.0 * layer);
+    std::vector<int> idomain(layer_count * n, 1);
+    // cell 0 is not in the model in layer 1, and cell 1 passes through it
+    idomain[n] = 0;
+    idomain[n + 1] = -1;
+    const Layers layers = layer_grid(grid, layer_count, top, bottoms, idomain, minimum_thickness);
+
+    // the middle layer thins to nothing west of x = 5, and the top rises
+    std::vector<double> new_top(n), new_bottoms = bottoms;
+    for (int cell = 0; cell < n; cell++)
+    {
+        new_top[cell] = 12.0 + 0.1 * grid.centers[cell].x;
+        if (grid.centers[cell].x < 5.0) new_bottoms[n + cell] = 6.0 - 0.05;
+    }
+    const Layers changed = layers_with_elevations(grid, layers, new_top, new_bottoms);
+    const Layers built =
+        layer_grid(grid, layer_count, new_top, new_bottoms, idomain, minimum_thickness);
+    EXPECT_EQ(changed.top, built.top);
+    EXPECT_EQ(changed.bottoms, built.bottoms);
+    EXPECT_EQ(changed.idomain, built.idomain);
+    const Disu changed_disu = layer_disu(grid, connections, changed);
+    const Disu built_disu = layer_disu(grid, connections, built);
+    EXPECT_EQ(changed_disu.cells, built_disu.cells);
+    EXPECT_EQ(changed_disu.offsets, built_disu.offsets);
+    EXPECT_EQ(changed_disu.nodes, built_disu.nodes);
+    EXPECT_EQ(changed_disu.distances, built_disu.distances);
+    EXPECT_EQ(changed_disu.top, built_disu.top);
+    // the thin cells pass through, fewer nodes, and the given idomain stays
+    int thin = 0;
+    for (int cell = 2; cell < n; cell++)
+        if (grid.centers[cell].x < 5.0)
+        {
+            EXPECT_EQ(changed.idomain[n + cell], -1);
+            thin++;
+        }
+    ASSERT_GT(thin, 0);
+    EXPECT_EQ(changed.idomain[n], 0);
+    EXPECT_EQ(changed.idomain[n + 1], -1);
+    EXPECT_LT(changed_disu.cells.size(), layer_disu(grid, connections, layers).cells.size());
+
+    // the first elevations restore the thin cells
+    const Layers restored = layers_with_elevations(grid, changed, top, bottoms);
+    EXPECT_EQ(restored.idomain, layers.idomain);
+    EXPECT_EQ(restored.given_idomain, idomain);
+    EXPECT_EQ(layer_disu(grid, connections, restored).nodes,
+              layer_disu(grid, connections, layers).nodes);
+
+    EXPECT_EQ(error_of([&] { layers_with_elevations(grid, layers, top, top); }),
+              "3 layers of " + std::to_string(n) + " cells need " + std::to_string(3 * n) +
+                  " bottom values, not " + std::to_string(n));
 }

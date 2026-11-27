@@ -9,7 +9,8 @@ Cases:
                    connections are symmetric, each stream's cells run in
                    order to the confluence's cell, one of the river's, and
                    its layers make the clay's thin cells pass-through and
-                   leave them out of the DISU nodes.
+                   leave them out of the DISU nodes; a raised clay base
+                   makes more pass-through, and the first restores them.
   - test_gis     : the valley's geometry read from shapefiles meshes to the
                    same mesh as its coordinates (skipped without geopandas).
 """
@@ -75,6 +76,13 @@ def test_example():
     disu = valley["disu"]
     assert disu["nodes"] == (layers.idomain > 0).sum()
     assert valley["disv"]["nlay"] == 3
+    # the raised clay base makes more cells pass-through, and the first
+    # elevations restore them
+    revised = valley["revised"]
+    assert (revised.idomain < 0).sum() > (layers.idomain < 0).sum()
+    assert len(revised.disu.cells) == (revised.idomain > 0).sum()
+    restored = revised.with_elevations(layers.top, layers.botm)
+    np.testing.assert_array_equal(restored.idomain, layers.idomain)
 
 
 def test_gis(monkeypatch):

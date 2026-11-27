@@ -75,6 +75,8 @@ Layers layer_grid(const Grid & grid, int layer_count, const std::vector<double> 
     layers.top = top;
     layers.bottoms = bottoms;
     layers.idomain = idomain.empty() ? std::vector<int>(value_count, 1) : idomain;
+    layers.given_idomain = layers.idomain;
+    layers.minimum_thickness = minimum_thickness;
     for (int layer = 0; layer < layer_count; layer++)
         for (std::size_t cell = 0; cell < cell_count; cell++)
         {
@@ -104,6 +106,13 @@ Layers layer_grid(const Grid & grid, int layer_count, const std::vector<double> 
                                     ", so it is not thicker than 0"));
         }
     return layers;
+}
+
+Layers layers_with_elevations(const Grid & grid, const Layers & layers,
+                              const std::vector<double> & top, const std::vector<double> & bottoms)
+{
+    return layer_grid(grid, layers.layer_count, top, bottoms, layers.given_idomain,
+                      layers.minimum_thickness);
 }
 
 Disu layer_disu(const Grid & grid, const Connections & connections, const Layers & layers)
